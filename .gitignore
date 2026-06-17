@@ -1,0 +1,38 @@
+# Python
+*.pyc
+__pycache__/
+*.egg-info/
+dist/
+build/
+
+# Testing / linting
+.coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.benchmarks/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Build artifacts
+site/
+WIP/
+html/
+
+# Virtual environments
+venv/
+.venv/
+
+# Example outputs
+examples/*.dat
+examples/*.pkl
+examples/*.pdf
+
+# Misc
+.cache/
