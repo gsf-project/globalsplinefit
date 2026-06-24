@@ -644,6 +644,86 @@ class GSFBase(ABC):
 
         return np.sqrt(np.diag(total_cov))
 
+    # ------------------------------------------------------------------
+    # Composition helpers (derived from per-group / per-element flux).
+    # Added so plotting/comparison can be built on the package natively.
+    # ------------------------------------------------------------------
+    def fraction(
+        self,
+        energy_or_rigidity: ArrayLike,
+        target: str | int | list[int],
+        *,
+        time_interval: tuple[int, int] | str | None = None,
+        rigidity_cutoff: float | None = None,
+    ) -> np.ndarray:
+        """Flux fraction of ``target`` relative to the all-particle total."""
+        tot = self.total_flux(
+            energy_or_rigidity,
+            time_interval=time_interval,
+            rigidity_cutoff=rigidity_cutoff,
+        )
+        grp = self.flux(
+            energy_or_rigidity,
+            target,
+            time_interval=time_interval,
+            rigidity_cutoff=rigidity_cutoff,
+        )
+        return grp / np.where(tot > 0, tot, np.nan)
+
+    def _element_lnA_fluxes(
+        self, energy_or_rigidity, *, time_interval=None, rigidity_cutoff=None
+    ):
+        """(ln A, per-element flux array) over every element in the model."""
+        zs = sorted(self.z_to_a)
+        fl = np.array(
+            [
+                self.flux(
+                    energy_or_rigidity,
+                    z,
+                    time_interval=time_interval,
+                    rigidity_cutoff=rigidity_cutoff,
+                )
+                for z in zs
+            ]
+        )
+        lnA = np.log(np.array([self.z_to_a[z] for z in zs]))
+        return lnA, fl
+
+    def mean_lnA(
+        self,
+        energy_or_rigidity: ArrayLike,
+        *,
+        time_interval: tuple[int, int] | str | None = None,
+        rigidity_cutoff: float | None = None,
+    ) -> np.ndarray:
+        """Flux-weighted mean of ln A over all elements."""
+        lnA, fl = self._element_lnA_fluxes(
+            energy_or_rigidity,
+            time_interval=time_interval,
+            rigidity_cutoff=rigidity_cutoff,
+        )
+        tot = fl.sum(0)
+        return (fl * lnA[:, None]).sum(0) / np.where(tot > 0, tot, np.nan)
+
+    def var_lnA(
+        self,
+        energy_or_rigidity: ArrayLike,
+        *,
+        time_interval: tuple[int, int] | str | None = None,
+        rigidity_cutoff: float | None = None,
+    ) -> np.ndarray:
+        """Flux-weighted variance of ln A over all elements."""
+        lnA, fl = self._element_lnA_fluxes(
+            energy_or_rigidity,
+            time_interval=time_interval,
+            rigidity_cutoff=rigidity_cutoff,
+        )
+        tot = fl.sum(0)
+        m = (fl * lnA[:, None]).sum(0) / np.where(tot > 0, tot, np.nan)
+        return (fl * (lnA[:, None] - m[None, :]) ** 2).sum(0) / np.where(
+            tot > 0, tot, np.nan
+        )
+
     def error(
         self,
         energy_or_rigidity: ArrayLike,
