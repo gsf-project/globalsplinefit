@@ -128,8 +128,10 @@ def _build_stacked_system(model, energy_grid, **kwargs):
         _build_block_diagonal_jacobian(model, energy_grid, **kwargs)
     )
 
-    # Trimmed parameter vectors
-    par_vecs = [model.pars[model.GROUP_NAMES[g]][1:-7] for g in _GROUPS]
+    # Trimmed parameter vectors (key by the group's leader species id (Z, A), so
+    # this works when a charge carries >1 species, e.g. p+D at Z=1).
+    par_vecs = [model.pars[model._leader_by_charge[model.GROUP_NAMES[g]]][1:-7]
+                for g in _GROUPS]
     par_stack = np.hstack(par_vecs)
 
     # Assemble block covariance matrix
@@ -141,7 +143,8 @@ def _build_stacked_system(model, energy_grid, **kwargs):
         col_j = 0
         for j, zj in enumerate(group_leaders):
             nj = npar_trimmed_list[j]
-            cov_key = (zi, zj)
+            # covariance is keyed by leader species ids (Z, A), not bare charge
+            cov_key = (model._leader_by_charge[zi], model._leader_by_charge[zj])
             if cov_key in model.cov:
                 cov_stack[col_i : col_i + ni, col_j : col_j + nj] = model.cov[cov_key][
                     1:-3, 1:-3

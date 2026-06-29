@@ -144,15 +144,65 @@ class Parameters:
 
     def _load_all_data(self):
         """Load all required GSF data files."""
+        self._load_nuclei_data()      # first: defines the species (Z, A) + groups
         self._load_knots()
-        self._load_nuclei_data()
         self._load_parameters()
         self._load_covariance()
         self._load_solar_modulation()
         self._calculate_flux_ratios()
 
+    @staticmethod
+    def _ncols(path) -> int:
+        """Whitespace-token count of the first data (non-#) line (``:`` -> space).
+        Used to auto-detect the v1 vs v2 .dat column layout."""
+        for line in Path(path).read_text().splitlines():
+            if line.strip() and not line.startswith("#"):
+                return len(line.replace(":", " ").split())
+        return 0
+
+    def _sid_for_z(self, z: int):
+        """The unique species id ``(Z, A)`` at charge ``z`` (v1: one species per
+        charge). Used to normalise v1 files, which key by charge only."""
+        return self.z_to_sids[z][0]
+
+    def _load_nuclei_data(self):
+        """Load nuclear data from nuclei.dat. Species are identified by ``(Z, A)``
+        so ISOTOPES (e.g. deuteron D at Z=1 alongside p) coexist. The leader of a
+        charge group is the lightest-A species at the leader charge (p for the
+        proton group; the single species otherwise)."""
+        nuclei_file = self.data_path / "nuclei.dat"
+        if not nuclei_file.exists():
+            raise FileNotFoundError(f"Nuclei file not found: {nuclei_file}")
+
+        data_array = np.atleast_1d(
+            np.loadtxt(nuclei_file, dtype=[("z", int), ("a", float), ("l", int)]))
+        rows = [(int(r["z"]), float(r["a"]), int(r["l"])) for r in data_array]
+
+        self.species = sorted({(z, a) for z, a, _ in rows})  # all species ids
+        self.z_to_a = {(z, a): a for z, a, _ in rows}        # sid -> A (charge
+        #   aliases added by _add_charge_aliases; iterate self.species, not this)
+        self.z_to_sids = {}                                  # charge -> [sids]
+        for z, a, _ in rows:
+            self.z_to_sids.setdefault(z, []).append((z, a))
+        # leader sid per group charge l: the lightest-A species with z == l
+        self.leader_sid = {}                                 # charge -> leader sid
+        for z, a, l in rows:
+            if z == l and (l not in self.leader_sid or a < self.leader_sid[l][1]):
+                self.leader_sid[l] = (z, a)
+        self._leaders = set(self.leader_sid.values())        # leader sids
+        # Public group structure stays CHARGE-based (one entry per element charge)
+        # so charge-indexed callers/tests are unchanged; isotopes are expanded
+        # from a charge to its species ids (z_to_sids) inside the flux loops.
+        self.z_group = {}      # int leader charge -> [member element charges]
+        self.z_ungroup = {}    # element charge -> leader charge
+        for z, a, l in rows:
+            if z not in self.z_group.get(l, []):
+                self.z_group.setdefault(l, []).append(z)
+            self.z_ungroup[z] = l
+
     def _load_knots(self):
-        """Load knot data from knots.dat."""
+        """Load knot data. v2 lines are ``Z A: …``; v1 lines ``Z: …`` (keyed by
+        the unique sid at that charge). Keys are species ids ``(Z, A)``."""
         knots_file = self.data_path / "knots.dat"
         if not knots_file.exists():
             raise FileNotFoundError(f"Knots file not found: {knots_file}")
@@ -162,91 +212,68 @@ class Parameters:
 
         with open(knots_file) as f:
             for line in f:
-                if line.startswith("#"):
+                if line.startswith("#") or not line.strip():
                     continue
-                z, k = line.split(":")
-                z = int(z)
-                x = np.log([10 ** float(x) for x in k.split()])
-                self.npar[z] = len(x) + 2
+                head, k = line.split(":")
+                toks = head.split()
+                z = int(toks[0])
+                sid = (z, float(toks[1])) if len(toks) >= 2 else self._sid_for_z(z)
+                x = np.log([10 ** float(v) for v in k.split()])
+                self.npar[sid] = len(x) + 2
                 # splev requires extended knot vector
                 x = np.append((x[0], x[0], x[0]), x)
                 x = np.append(x, (x[-1], x[-1], x[-1]))
-                self.kx[z] = x
-
-    def _load_nuclei_data(self):
-        """Load nuclear data from nuclei.dat."""
-        nuclei_file = self.data_path / "nuclei.dat"
-        if not nuclei_file.exists():
-            raise FileNotFoundError(f"Nuclei file not found: {nuclei_file}")
-
-        self.z_group = {}
-        self.z_to_a = {}
-
-        data_array = np.loadtxt(
-            nuclei_file, dtype=[("z", int), ("a", float), ("l", int)]
-        )
-
-        for z, a, k in data_array:
-            z = int(z)
-            k = int(k)
-            a = float(a)
-            if k not in self.z_group:
-                self.z_group[k] = [z]
-            else:
-                self.z_group[k].append(z)
-            self.z_to_a[z] = a
+                self.kx[sid] = x
 
     def _load_parameters(self):
-        """Load spline parameters from parameters.dat."""
+        """Load spline parameters. v2: ``i Z A val``; v1: ``i Z val``."""
         params_file = self.data_path / "parameters.dat"
         if not params_file.exists():
             raise FileNotFoundError(f"Parameters file not found: {params_file}")
 
         self.pars = {}
         self.offset = {}
+        v2 = self._ncols(params_file) >= 4
+        dt = ([("i", int), ("z", int), ("a", float), ("val", float)] if v2
+              else [("i", int), ("z", int), ("val", float)])
+        data_array = np.atleast_1d(np.loadtxt(params_file, dtype=dt))
 
-        data_array = np.loadtxt(
-            params_file, dtype=[("i", int), ("z", int), ("val", float)]
-        )
-
-        for i, z, val in data_array:
-            z = int(z)
-            i = int(i)
-            val = float(val)
-            if z not in self.pars:
+        for r in data_array:
+            i, z, val = int(r["i"]), int(r["z"]), float(r["val"])
+            sid = (z, float(r["a"])) if v2 else self._sid_for_z(z)
+            if sid not in self.pars:
                 # 4 extra zeros at the end are needed by splev
-                self.pars[z] = np.zeros(self.npar[z] + 4)
-                self.offset[z] = i
-            self.pars[z][i - self.offset[z]] = val
+                self.pars[sid] = np.zeros(self.npar[sid] + 4)
+                self.offset[sid] = i
+            self.pars[sid][i - self.offset[sid]] = val
 
     def _load_covariance(self):
-        """Load covariance matrix from covariance.dat."""
+        """Load covariance. v2: ``i j Z1 A1 Z2 A2 val``; v1: ``i j Z1 Z2 val``.
+        Keyed by species-id pairs ``((Z1,A1), (Z2,A2))``."""
         cov_file = self.data_path / "covariance.dat"
         if not cov_file.exists():
             raise FileNotFoundError(f"Covariance file not found: {cov_file}")
 
         self.cov = {}
+        v2 = self._ncols(cov_file) >= 7
+        dt = ([("i", int), ("j", int), ("z1", int), ("a1", float),
+               ("z2", int), ("a2", float), ("val", float)] if v2
+              else [("i", int), ("j", int), ("z1", int), ("z2", int), ("val", float)])
+        data_array = np.atleast_1d(np.loadtxt(cov_file, dtype=dt))
 
-        data_array = np.loadtxt(
-            cov_file,
-            dtype=[("i", int), ("j", int), ("z1", int), ("z2", int), ("val", float)],
-        )
-
-        for i, j, z1, z2, val in data_array:
-            z1 = int(z1)
-            z2 = int(z2)
-            i = int(i)
-            j = int(j)
-            val = float(val)
-            # Initialize covariance matrices
-            if (z1, z2) not in self.cov:
-                self.cov[(z1, z2)] = np.zeros((self.npar[z1], self.npar[z2]))
-            if (z2, z1) not in self.cov:
-                self.cov[(z2, z1)] = np.zeros((self.npar[z2], self.npar[z1]))
-
-            # Fill both symmetric positions
-            self.cov[(z1, z2)][i - self.offset[z1], j - self.offset[z2]] = val
-            self.cov[(z2, z1)][j - self.offset[z2], i - self.offset[z1]] = val
+        for r in data_array:
+            i, j, val = int(r["i"]), int(r["j"]), float(r["val"])
+            if v2:
+                s1 = (int(r["z1"]), float(r["a1"]))
+                s2 = (int(r["z2"]), float(r["a2"]))
+            else:
+                s1, s2 = self._sid_for_z(int(r["z1"])), self._sid_for_z(int(r["z2"]))
+            if (s1, s2) not in self.cov:
+                self.cov[(s1, s2)] = np.zeros((self.npar[s1], self.npar[s2]))
+            if (s2, s1) not in self.cov:
+                self.cov[(s2, s1)] = np.zeros((self.npar[s2], self.npar[s1]))
+            self.cov[(s1, s2)][i - self.offset[s1], j - self.offset[s2]] = val
+            self.cov[(s2, s1)][j - self.offset[s2], i - self.offset[s1]] = val
 
     def _load_solar_modulation(self):
         """Load solar modulation data from solar_modulation.dat.
@@ -268,21 +295,44 @@ class Parameters:
             self.phi[int(row[0])] = row[1:] * 1e-3  # Convert to GV
 
     def _calculate_flux_ratios(self):
-        """Calculate flux ratios for subleading elements."""
+        """Calculate flux ratios for subleading species (keyed by species id)."""
         self.flux_ratio = {}
 
-        for k, z_list in self.z_group.items():
-            for zi in z_list:
-                xmax = self.kx[zi][-1]
-                if zi != k:
-                    # Subleading element - calculate ratio to leading element
-                    ratio = splev(
-                        xmax, (self.kx[zi], self.pars[zi], SPLINE_DEGREE)
-                    ) / splev(xmax, (self.kx[k], self.pars[k], SPLINE_DEGREE))
-                else:
-                    # Leading element
-                    ratio = 1.0
-                self.flux_ratio[zi] = (k, ratio)
+        for sid in self.species:
+            leader_sid = self.leader_sid[self.z_ungroup[sid[0]]]
+            xmax = self.kx[sid][-1]
+            if sid != leader_sid:
+                # Subleading species - ratio to its group leader
+                ratio = splev(
+                    xmax, (self.kx[sid], self.pars[sid], SPLINE_DEGREE)
+                ) / splev(
+                    xmax, (self.kx[leader_sid], self.pars[leader_sid], SPLINE_DEGREE)
+                )
+            else:
+                ratio = 1.0
+            self.flux_ratio[sid] = (leader_sid, ratio)
+        self._add_charge_aliases()
+
+    def _add_charge_aliases(self):
+        """Expose the per-species dicts under a bare integer charge as well, for
+        every charge with a SINGLE species (all charges in a v1 model). Lets
+        charge-indexed access (existing callers/tests) coexist with (Z, A) keys.
+        ``species`` (not ``z_to_a``) is the species iterator, so aliasing z_to_a
+        is safe. Multi-species charges (e.g. Z=1 with p+D) get no int alias."""
+        for z, sids in self.z_to_sids.items():
+            if len(sids) != 1:
+                continue
+            s = sids[0]
+            self.kx[z] = self.kx[s]
+            self.npar[z] = self.npar[s]
+            self.pars[z] = self.pars[s]
+            self.offset[z] = self.offset[s]
+            self.z_to_a[z] = self.z_to_a[s]
+            self.flux_ratio[z] = self.flux_ratio[s]
+        for (s1, s2) in list(self.cov):
+            z1, z2 = s1[0], s2[0]
+            if len(self.z_to_sids[z1]) == 1 and len(self.z_to_sids[z2]) == 1:
+                self.cov[(z1, z2)] = self.cov[(s1, s2)]
 
     def get_solar_cycle_24_interval(self) -> tuple[int, int]:
         """Get the time interval for Solar Cycle 24.
