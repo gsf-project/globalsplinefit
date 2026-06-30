@@ -138,8 +138,10 @@ class TestGSFRigiditySolarModulation:
             if np.any(valid_lis_mask):
                 assert np.all(flux_mod[valid_lis_mask] <= flux_lis[valid_lis_mask])
 
-            # At high rigidities, fluxes should be similar (modulation effect is small)
-            high_rigidity_mask = rigidity > 10.0
+            # At high rigidities, fluxes should be similar (modulation effect is
+            # small). Force-field suppression at ~10 GV is still ~15% (phi~0.4-0.6
+            # GV), so "small" (<10%) only holds well above ~40 GV.
+            high_rigidity_mask = rigidity > 40.0
             if np.any(high_rigidity_mask):
                 np.testing.assert_allclose(
                     flux_mod[high_rigidity_mask], flux_lis[high_rigidity_mask], rtol=0.1

@@ -1172,7 +1172,8 @@ class GSFRigidity(GSFBase):
     ) -> tuple[np.ndarray, np.ndarray]:
         """Convert Earth rigidity to interstellar rigidity under force-field phi.
 
-        Returns Lambda(R, phi) = dR_IS/dR prefactor (Eq. 3).
+        Force field: total-energy loss Z*phi (Gleeson-Axford). Returns R_IS and the
+        dN/dR prefactor Lambda = (E_IS/E) * (R/R_IS)**3.
         """
         sid = self._as_sid(sid)
         nucleon_mass = NUCLEON_MASS_GEV
@@ -1180,9 +1181,9 @@ class GSFRigidity(GSFBase):
         a = self.z_to_a[sid]
         m = a * nucleon_mass
 
-        # Earth energy from input R
+        # Earth energy from input R; interstellar energy after Z*phi loss
         E = np.sqrt((z * rigidity) ** 2 + m**2)
-        E_is = E + z * phi / a
+        E_is = E + z * phi
 
         # Interstellar rigidity
         with np.errstate(divide="ignore", invalid="ignore"):
@@ -1190,10 +1191,8 @@ class GSFRigidity(GSFBase):
             p2_is[p2_is < 0] = 0.0
             R_is = np.sqrt(p2_is) / z
 
-            # Jacobian prefactor Λ
-            Lambda = (R_is**2 / (rigidity**2 + _ZERO_GUARD)) * (
-                E / (E_is + _ZERO_GUARD)
-            )
+            # dN/dR force-field prefactor (abs keeps unphysical R<0 non-negative)
+            Lambda = (E_is / E) * (np.abs(rigidity) / (R_is + _ZERO_GUARD)) ** 3
         return R_is, Lambda
 
     # ---------- public API ----------
