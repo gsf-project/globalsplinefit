@@ -292,7 +292,11 @@ class Parameters:
         data_array = np.loadtxt(solar_file, skiprows=13, encoding="utf-16")
 
         for row in data_array:
-            self.phi[int(row[0])] = row[1:] * 1e-3  # Convert to GV
+            # Columns are Year, Jan..Dec, Annual — keep ONLY the 12 monthly
+            # values. Taking row[1:] would ingest the annual mean as a 13th
+            # "month", mis-weighting every multi-month interval average.
+            # (Jan 1951 is NaN in the source table.)
+            self.phi[int(row[0])] = row[1:13] * 1e-3  # Convert to GV
 
     def _calculate_flux_ratios(self):
         """Calculate flux ratios for subleading species (keyed by species id)."""

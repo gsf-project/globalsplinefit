@@ -87,11 +87,15 @@ class GSFBase(ABC):
     }
 
     # --- global energy-scale nuisance (carried as a model parameter) -----------
-    # A single fractional shift applied to the INPUT energy/rigidity at evaluation:
+    # A single fractional shift applied to the INPUT energy at evaluation:
     # the model is read at E*(1+energy_scale). Default 0.0 -> exact no-op. Lets a
     # user explore the (data-insensitive) global scale that propagates from the
     # low-energy anchor up to high energy. Usage: ``model.energy_scale = delta``.
     # ``energy_scale_prior`` is the advisory 1-sigma fractional prior width.
+    # NOTE: GSFRigidity is INTENTIONALLY not scaled — the rigidity/LIS model is
+    # the fit's low-energy anchor, and a rigidity scaling is not an energy
+    # scaling. The knob acts on the energy-based evaluators only (GSFEnergy,
+    # GSFKineticEnergy, the per-nucleon variants).
     _energy_scale = 0.0
     energy_scale_prior = 0.10
 
@@ -1080,7 +1084,10 @@ class GSFEnergy(GSFBase):
         """Calculate covariance matrix of flux."""
         zlist1, leader1 = self._resolve_z(target1)
         zlist2, leader2 = self._resolve_z(target2)
-        energy = self._transform_energy(energy, target1)
+        # NOTE: pass the RAW input through — jacobian() applies
+        # _transform_energy itself. Transforming here too double-applies the
+        # kinetic->total rest-mass shift (GSFKineticEnergy) and squares the
+        # energy_scale factor.
 
         # Calculate total jacobian for each group (sum over all elements)
         jac1 = self.jacobian(
@@ -1110,7 +1117,7 @@ class GSFEnergy(GSFBase):
         if cov_key in self.cov:
             return self._propagate_cov(jac1, jac2, self.cov[cov_key])
         else:
-            n_energies = len(energy)
+            n_energies = len(np.atleast_1d(energy))
             return np.zeros((n_energies, n_energies))
 
 
@@ -1154,6 +1161,10 @@ class GSFRigidity(GSFBase):
     The model supports both Local Interstellar Spectrum (LIS) calculations
     and solar modulation effects using the force-field approximation to
     transform between Earth and interstellar rigidity spectra.
+
+    Note: the global ``energy_scale`` parameter is intentionally a no-op on
+    this class — the rigidity/LIS model is the fit's low-energy anchor, and
+    a rigidity scaling is not an energy scaling.
 
     Examples
     --------
