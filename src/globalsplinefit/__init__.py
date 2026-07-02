@@ -17,21 +17,21 @@ Calculate cosmic ray flux using total energy per nucleus:
 >>> import numpy as np
 >>> energy_model = GSFEnergy()
 >>> energy = np.logspace(0, 3, 100)  # 1 GeV to 1 TeV total energy
->>> proton_flux = energy_model.flux(energy, group="p")  # proton flux (Solar Cycle 24 avg)
+>>> proton_flux = energy_model.flux(energy, "p")  # proton flux (Solar Cycle 24 avg)
 >>> total_flux = energy_model.total_flux(energy)  # all groups combined
->>> lis_flux = energy_model.flux(energy, group="p", time_interval="LIS")  # LIS flux
+>>> lis_flux = energy_model.flux(energy, "p", time_interval="LIS")  # LIS flux
 
 Calculate cosmic ray flux using kinetic energy per nucleus:
 
 >>> from globalsplinefit import GSFKineticEnergy
 >>> kinetic_model = GSFKineticEnergy()
 >>> kinetic_energy = np.logspace(0, 3, 100)  # 1 GeV to 1 TeV kinetic energy
->>> proton_flux = kinetic_model.flux(kinetic_energy, group="p")  # proton flux
+>>> proton_flux = kinetic_model.flux(kinetic_energy, "p")  # proton flux
 >>> total_flux = kinetic_model.total_flux(kinetic_energy)  # all groups combined
 
 Calculate flux at Earth during specific time period:
 
->>> flux_earth = energy_model.flux(energy, group="p", time_interval=(200901, 200912))
+>>> flux_earth = energy_model.flux(energy, "p", time_interval=(200901, 201001))
 
 Calculate nucleon flux using energy per nucleon. ``flux()`` returns the
 sum of proton and neutron contributions; use ``p_and_n_flux()`` to get
@@ -54,7 +54,7 @@ Calculate flux using rigidity:
 >>> from globalsplinefit import GSFRigidity
 >>> rigidity_model = GSFRigidity()
 >>> rigidity = np.logspace(0, 3, 100)  # GV
->>> proton_flux = rigidity_model.flux(rigidity, group="p")
+>>> proton_flux = rigidity_model.flux(rigidity, "p")
 """
 
 from .data_management import (

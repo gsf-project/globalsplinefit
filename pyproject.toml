@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "globalsplinefit"
-version = "1.0.0"
+version = "2.0.0a1"
 description = "Global Spline Fit model for cosmic ray flux and composition"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -65,13 +65,11 @@ all = [
     "globalsplinefit[plotting,dashboard,test,docs,dev]",
 ]
 
-# TODO: set real project URLs once the new repository location and docs
-# site are decided. The placeholders below point to a non-existent org.
 [project.urls]
-"Homepage" = "https://github.com/gsf-project/gsf"
-"Bug Reports" = "https://github.com/gsf-project/gsf/issues"
-"Source" = "https://github.com/gsf-project/gsf"
-"Documentation" = "https://gsf.readthedocs.io/"
+"Homepage" = "https://github.com/gsf-project/globalsplinefit"
+"Bug Reports" = "https://github.com/gsf-project/globalsplinefit/issues"
+"Source" = "https://github.com/gsf-project/globalsplinefit"
+"Documentation" = "https://gsf-project.github.io/globalsplinefit/"
 
 [tool.setuptools.packages.find]
 where = ["src"]

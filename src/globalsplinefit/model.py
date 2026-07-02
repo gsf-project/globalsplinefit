@@ -28,6 +28,7 @@ from .data_management import SPLINE_DEGREE, Parameters, _collect_phi_values
 NUCLEON_MASS_GEV = 0.93891872965
 """Nucleon mass in GeV."""
 
+
 _ZERO_GUARD = 1e-300
 """Small value to prevent division by zero in rigidity calculations."""
 
@@ -85,6 +86,32 @@ class GSFBase(ABC):
         "Fe*": 26,
     }
 
+    # --- global energy-scale nuisance (carried as a model parameter) -----------
+    # A single fractional shift applied to the INPUT energy at evaluation:
+    # the model is read at E*(1+energy_scale). Default 0.0 -> exact no-op. Lets a
+    # user explore the (data-insensitive) global scale that propagates from the
+    # low-energy anchor up to high energy. Usage: ``model.energy_scale = delta``.
+    # ``energy_scale_prior`` is the advisory 1-sigma fractional prior width.
+    # NOTE: GSFRigidity is INTENTIONALLY not scaled — the rigidity/LIS model is
+    # the fit's low-energy anchor, and a rigidity scaling is not an energy
+    # scaling. The knob acts on the energy-based evaluators only (GSFEnergy,
+    # GSFKineticEnergy, the per-nucleon variants).
+    _energy_scale = 0.0
+    energy_scale_prior = 0.10
+
+    @property
+    def energy_scale(self) -> float:
+        """Global fractional energy-scale shift applied at evaluation (0 = none)."""
+        return self._energy_scale
+
+    @energy_scale.setter
+    def energy_scale(self, value: float) -> None:
+        self._energy_scale = float(value)
+
+    def _scale_energy(self, e: np.ndarray) -> np.ndarray:
+        """Apply the global energy-scale nuisance to an input energy/rigidity array."""
+        return e * (1.0 + self._energy_scale) if self._energy_scale else e
+
     def __init__(
         self,
         data_path: str | Path | None = None,
@@ -121,9 +148,9 @@ class GSFBase(ABC):
             If None (default), no cutoff is applied. Nuclei with rigidity
             below this value are excluded from the nucleon flux summation.
         cutoff_width
-            Width of the cutoff transition in GV. Default 0.0 gives
-            a sharp (Heaviside) cutoff. Values > 0 produce a smooth sigmoid
-            transition modeling the geomagnetic penumbra.
+            Width of the cutoff transition in GV. Default 1.0 (a smooth
+            sigmoid transition modeling the geomagnetic penumbra); use 0.0
+            for a sharp (Heaviside) cutoff.
         """
         self.params = Parameters(
             data_path, version, use_approximate_solar_cycle_average
@@ -139,31 +166,46 @@ class GSFBase(ABC):
         # Store version for compatibility decisions
         self.version = version
 
-        # Copy frequently used parameters for convenience
-        self.kx = self.params.kx
-        self.pars = self.params.pars
-        self.npar = self.params.npar
-        self.z_group = self.params.z_group
-        self.z_to_a = self.params.z_to_a
-        self.cov = self.params.cov
+        # Copy frequently used parameters for convenience. Species are keyed by
+        # ``sid = (Z, A)`` so isotopes (e.g. D and p both at Z=1) coexist; for a
+        # v1 (one-species-per-Z) model each charge maps to a single sid, so the
+        # behaviour is identical.
+        self.kx = self.params.kx                  # sid (+int charge alias) -> knots
+        self.pars = self.params.pars              # sid (+int alias) -> coeffs
+        self.npar = self.params.npar              # sid (+int alias) -> n coeffs
+        self.z_group = self.params.z_group        # int leader charge -> [member sids]
+        self.z_to_a = self.params.z_to_a          # sid (+int alias) -> A
+        self.z_to_sids = self.params.z_to_sids    # charge Z -> [sids]
+        self.z_ungroup = self.params.z_ungroup    # sid -> leader_sid
+        self.cov = self.params.cov                # (sid,sid) (+int alias) -> block
         self.phi = self.params.phi
-        self.flux_ratio = self.params.flux_ratio
+        self.flux_ratio = self.params.flux_ratio  # sid (+int alias) -> (leader_sid, ratio)
+        self.species = self.params.species        # sorted list of all sids
+        self._leaders = self.params._leaders      # set of leader sids
+        self._leader_by_charge = self.params.leader_sid   # int charge -> leader_sid
         # Helpers
         self.active_groups = ["p", "He", "O*", "Fe*"]
-        self.z_ungroup = {
-            z: group for group, elements in self.z_group.items() for z in elements
-        }
 
         # Cache for _rigidity_flux_jacobian results
         self._jacobian_cache = {}
         self._cache_max_size = 1000  # Limit cache size to prevent memory issues
 
+    def _as_sid(self, x):
+        """Accept either a species id ``(Z, A)`` or a bare charge ``Z``. A bare
+        charge resolves to the (unique, for single-species charges) species at
+        that charge — preserving the integer-charge calling style used by callers
+        and tests. Internal callers pass explicit sids for isotope disambiguation."""
+        if isinstance(x, tuple):
+            return x
+        return self.z_to_sids[int(x)][0]
+
     def _make_cache_key(
-        self, z: int, rigidity: np.ndarray
-    ) -> tuple[int, tuple, np.dtype, bytes]:
-        """Build a cache key from element charge and rigidity array."""
+        self, sid, rigidity: np.ndarray
+    ) -> tuple:
+        """Build a cache key from the species id (Z, A) and rigidity array."""
+        sid = self._as_sid(sid)
         arr = np.atleast_1d(rigidity)
-        return (z, arr.shape, arr.dtype, arr.tobytes())
+        return (sid, arr.shape, arr.dtype, arr.tobytes())
 
     def _manage_cache_size(self):
         """Keep cache size under control by removing oldest entries."""
@@ -205,7 +247,7 @@ class GSFBase(ABC):
             >>> model._resolve_z([6, 7, 8])  # returns ([6, 7, 8], 8) for CNO group
         """
         if isinstance(target, str):
-            # String input -> resolve to group
+            # String input -> resolve to group (returns member element charges)
             if target in self.GROUP_NAMES:
                 group_leader = self.GROUP_NAMES[target]
                 return list(self.z_group[group_leader]), group_leader
@@ -215,14 +257,15 @@ class GSFBase(ABC):
                 )
 
         elif isinstance(target, int | np.integer):
-            # Single integer -> single element
+            # Single integer charge -> that element charge (its species are
+            # expanded from the charge in the flux loops).
             z = int(target)
             if z not in self.z_ungroup:
                 raise ValueError(f"Unknown element: {z} - not in GSF model")
             return [z], self.z_ungroup[z]
 
         elif isinstance(target, list | tuple | np.ndarray):
-            # List/array of integers -> multiple elements
+            # List/array of integer charges -> multiple elements (same group)
             zlist = [int(z) for z in target]
             unknown = [z for z in zlist if z not in self.z_ungroup]
             if unknown:
@@ -265,7 +308,7 @@ class GSFBase(ABC):
         return rigidity_cutoff
 
     def _rigidity_cutoff_mask(
-        self, z: int, energy: np.ndarray, rigidity_cutoff: float | None
+        self, sid, energy: np.ndarray, rigidity_cutoff: float | None
     ) -> np.ndarray:
         """Return mask for geomagnetic rigidity cutoff.
 
@@ -286,7 +329,9 @@ class GSFBase(ABC):
         """
         if rigidity_cutoff is None:
             return np.ones_like(energy)
-        mass = self.z_to_a[z] * NUCLEON_MASS_GEV
+        sid = self._as_sid(sid)
+        z = sid[0]
+        mass = self.z_to_a[sid] * NUCLEON_MASS_GEV
         p2 = np.maximum(energy**2 - mass**2, 0.0)
         rig = np.sqrt(p2) / z
 
@@ -297,21 +342,13 @@ class GSFBase(ABC):
 
         return (rig >= rigidity_cutoff).astype(float)
 
-    def _spline(self, z: int, x: np.ndarray) -> np.ndarray:
-        """Evaluate spline for element z at log rigidity x.
+    def _spline(self, sid, x: np.ndarray) -> np.ndarray:
+        """Evaluate spline for species ``sid=(Z, A)`` at log rigidity x.
 
-        Parameters
-        ----------
-        z
-            Atomic number of the element.
-        x
-            Natural logarithm of rigidity values.
-
-        Returns
-        -------
-            Spline-evaluated flux values with power-law correction factor.
+        Returns the spline-evaluated flux with the (R/GV)^-3 power-law factor.
         """
-        return splev(x, (self.kx[z], self.pars[z], SPLINE_DEGREE)) * np.exp(-3.0 * x)
+        sid = self._as_sid(sid)
+        return splev(x, (self.kx[sid], self.pars[sid], SPLINE_DEGREE)) * np.exp(-3.0 * x)
 
     def _propagate_cov(
         self, j1: np.ndarray, j2: np.ndarray, c: np.ndarray
@@ -328,12 +365,12 @@ class GSFBase(ABC):
             Time period specification:
             - None: Solar Cycle 24 average (default behavior)
             - "LIS": Local Interstellar Spectrum (phi=0, no modulation)
-            - tuple[int, int]: (start, end) in YYYYMM format.
-            Example: (200901, 200912) for Jan-Dec 2009.
+            - tuple[int, int]: (start, end) in YYYYMM format; the end month
+            is EXCLUSIVE. Example: (200901, 201001) for Jan-Dec 2009.
 
         Returns
         -------
-            Array of solar modulation potential values (in MV) for the time period.
+            Array of solar modulation potential values (in GV) for the time period.
 
         Raises
         ------
@@ -362,16 +399,17 @@ class GSFBase(ABC):
             raise ValueError("Time interval start must be less than end")
         return _collect_phi_values(self.phi, t_a, t_b)
 
-    def _rigidity_flux_lis(self, z: int, rigidity: ArrayLike) -> np.ndarray:
-        """Calculate LIS flux as a function of rigidity."""
+    def _rigidity_flux_lis(self, sid, rigidity: ArrayLike) -> np.ndarray:
+        """Calculate LIS flux of species ``sid=(Z, A)`` as a function of rigidity."""
+        sid = self._as_sid(sid)
         rigidity = np.atleast_1d(rigidity)
 
         with np.errstate(divide="ignore", invalid="ignore"):
             log_rigidity = np.log(rigidity)
 
-        # Get valid rigidity range for this element
-        min_log_rigidity = self.kx[z][0]
-        max_log_rigidity = self.kx[z][-1]
+        # Get valid rigidity range for this species
+        min_log_rigidity = self.kx[sid][0]
+        max_log_rigidity = self.kx[sid][-1]
 
         # Initialize result array
         result = np.zeros_like(log_rigidity)
@@ -383,25 +421,25 @@ class GSFBase(ABC):
 
         valid_log_rigidity = log_rigidity[valid_mask]
 
-        if z in self.z_group:  # Leading element
-            result[valid_mask] = self._spline(z, valid_log_rigidity)
-        else:  # Subleading element
-            leading, ratio = self.flux_ratio[z]
+        if sid in self._leaders:  # Leading species (its own group leader)
+            result[valid_mask] = self._spline(sid, valid_log_rigidity)
+        else:  # Subleading species
+            leading, ratio = self.flux_ratio[sid]
 
             # Split into regions: within spline range vs extrapolation region
             within_range = valid_log_rigidity <= max_log_rigidity
             extrapolation = ~within_range
 
             if np.any(within_range):
-                # Use element's own spline within its range
+                # Use species' own spline within its range
                 within_indices = valid_mask.copy()
                 within_indices[valid_mask] = within_range
                 result[within_indices] = self._spline(
-                    z, valid_log_rigidity[within_range]
+                    sid, valid_log_rigidity[within_range]
                 )
 
             if np.any(extrapolation):
-                # Use leading element's spline scaled by ratio for extrapolation
+                # Use the group leader's spline scaled by ratio for extrapolation
                 extrap_indices = valid_mask.copy()
                 extrap_indices[valid_mask] = extrapolation
                 result[extrap_indices] = ratio * self._spline(
@@ -412,23 +450,24 @@ class GSFBase(ABC):
 
     def _element_flux(
         self,
-        z: int,
+        sid,
         energy: ArrayLike,
         time_interval: tuple[int, int] | str | None = None,
     ) -> np.ndarray:
-        """Calculate flux for element with charge z."""
+        """Calculate flux for species ``sid=(Z, A)``."""
+        sid = self._as_sid(sid)
         energy = np.atleast_1d(energy)
         time_interval = self._resolve_time_interval(time_interval)
         phis = np.array(self._phi_list(time_interval))
 
         # Get vectorized rigidity and factors for all phi values
         # Shape: [n_energy, n_phi]
-        rigidity, factor = self._rigidity_from_energy_vectorized(z, energy, phis)
+        rigidity, factor = self._rigidity_from_energy_vectorized(sid, energy, phis)
 
         # Calculate LIS flux for all rigidities at once
         # Reshape rigidity to 1D for LIS calculation, then reshape back
         rig_flat = rigidity.flatten()
-        lis_flux_flat = self._rigidity_flux_lis(z, rig_flat)
+        lis_flux_flat = self._rigidity_flux_lis(sid, rig_flat)
         lis_flux = lis_flux_flat.reshape(rigidity.shape)  # [n_energy, n_phi]
 
         # Apply factors and average over phi dimension
@@ -439,18 +478,19 @@ class GSFBase(ABC):
 
     def _element_flux_jacobian(
         self,
-        z: int,
+        sid,
         energy: ArrayLike,
         time_interval: tuple[int, int] | str | None = None,
     ) -> np.ndarray:
         """Calculate Jacobian of flux for uncertainty propagation."""
+        sid = self._as_sid(sid)
         energy = np.atleast_1d(energy)
-        leading, ratio = self.flux_ratio[z]
+        leading, ratio = self.flux_ratio[sid]
         time_interval = self._resolve_time_interval(time_interval)
         phis = np.array(self._phi_list(time_interval))
 
         # Get vectorized rigidity and factors
-        rigidity, factor = self._rigidity_from_energy_vectorized(z, energy, phis)
+        rigidity, factor = self._rigidity_from_energy_vectorized(sid, energy, phis)
 
         # Calculate Jacobian for all rigidities
         # This requires careful reshaping to handle the parameter dimension
@@ -471,9 +511,10 @@ class GSFBase(ABC):
         return ratio * jac_averaged
 
     def _rigidity_from_energy_vectorized(
-        self, z: int, energy: np.ndarray, phis: np.ndarray
+        self, sid, energy: np.ndarray, phis: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray]:
         """Vectorized version that handles multiple phi values at once."""
+        sid = self._as_sid(sid)
         # Convert inputs to proper shapes for broadcasting
         energy = np.atleast_1d(energy)
         phis = np.atleast_1d(phis)
@@ -482,9 +523,10 @@ class GSFBase(ABC):
         energy_bc = energy[:, np.newaxis]
         phis_bc = phis[np.newaxis, :]
 
-        # Get atomic mass and nucleon mass
+        # Get atomic mass and nucleon mass; Z is the charge (sid = (Z, A))
+        z = sid[0]
         nucleon_mass = NUCLEON_MASS_GEV
-        mass = self.z_to_a[z] * nucleon_mass
+        mass = self.z_to_a[sid] * nucleon_mass
 
         # Apply solar modulation to energy
         energy_is = energy_bc + z * phis_bc
@@ -510,43 +552,45 @@ class GSFBase(ABC):
 
         return rigidity, factor
 
-    def _rigidity_flux_jacobian(self, z: int, rigidity: np.ndarray) -> np.ndarray:
-        """Calculate Jacobian of LIS flux for leading element.
+    def _rigidity_flux_jacobian(self, sid, rigidity: np.ndarray) -> np.ndarray:
+        """Calculate Jacobian of LIS flux for the (leader) species ``sid``.
 
         This method is cached to improve performance for repeated calls with
         the same parameters.
         """
-        cache_key = self._make_cache_key(z, rigidity)
+        sid = self._as_sid(sid)
+        cache_key = self._make_cache_key(sid, rigidity)
         if cache_key in self._jacobian_cache:
             return self._jacobian_cache[cache_key].copy()
 
         self._manage_cache_size()
-        result = self._compute_rigidity_flux_jacobian(z, rigidity)
+        result = self._compute_rigidity_flux_jacobian(sid, rigidity)
         self._jacobian_cache[cache_key] = result.copy()
         return result
 
     def _compute_rigidity_flux_jacobian(
-        self, z: int, rigidity: np.ndarray
+        self, sid, rigidity: np.ndarray
     ) -> np.ndarray:
-        """Compute Jacobian of LIS flux for leading element (uncached implementation).
+        """Compute Jacobian of LIS flux for species ``sid`` (uncached).
 
         This is the original implementation extracted to a separate method
         to maintain clean separation between caching logic and computation.
         """
+        sid = self._as_sid(sid)
         with np.errstate(divide="ignore"):
             x = np.log(rigidity)
 
-        jac = np.zeros((len(x), self.npar[z]))
-        pi = np.zeros(self.npar[z] + 4)  # splev needs 4 extra zeros
+        jac = np.zeros((len(x), self.npar[sid]))
+        pi = np.zeros(self.npar[sid] + 4)  # splev needs 4 extra zeros
 
-        for ipar in range(self.npar[z]):
+        for ipar in range(self.npar[sid]):
             pi[ipar] = 1.0
-            v = splev(x, (self.kx[z], pi, SPLINE_DEGREE))
-            v[x < self.kx[z][0]] = 0.0
+            v = splev(x, (self.kx[sid], pi, SPLINE_DEGREE))
+            v[x < self.kx[sid][0]] = 0.0
             jac[:, ipar] = v
             pi[ipar] = 0.0
 
-        x[x < self.kx[z][0]] = 0.0
+        x[x < self.kx[sid][0]] = 0.0
         jac *= np.exp(-3.0 * x)[:, np.newaxis]
 
         return jac
@@ -574,7 +618,7 @@ class GSFBase(ABC):
             Time period specification:
             - None: Uses the default_time_interval set during initialization
             - "LIS": Local Interstellar Spectrum (no modulation)
-            - tuple: (start, end) in YYYYMM format, e.g. (200901, 200912)
+            - tuple: (start, end) in YYYYMM format, end month EXCLUSIVE, e.g. (200901, 201001) for calendar year 2009
         rigidity_cutoff
             Geomagnetic rigidity cutoff in GV. Nuclei with rigidity
             below this value are excluded. None uses the default.
@@ -643,6 +687,152 @@ class GSFBase(ABC):
                 )
 
         return np.sqrt(np.diag(total_cov))
+
+    # ------------------------------------------------------------------
+    # Composition helpers (derived from per-group / per-element flux).
+    # Added so plotting/comparison can be built on the package natively.
+    # ------------------------------------------------------------------
+    def fraction(
+        self,
+        energy_or_rigidity: ArrayLike,
+        target: str | int | list[int],
+        *,
+        time_interval: tuple[int, int] | str | None = None,
+        rigidity_cutoff: float | None = None,
+    ) -> np.ndarray:
+        """Flux fraction of ``target`` relative to the all-particle total."""
+        tot = self.total_flux(
+            energy_or_rigidity,
+            time_interval=time_interval,
+            rigidity_cutoff=rigidity_cutoff,
+        )
+        grp = self.flux(
+            energy_or_rigidity,
+            target,
+            time_interval=time_interval,
+            rigidity_cutoff=rigidity_cutoff,
+        )
+        return grp / np.where(tot > 0, tot, np.nan)
+
+    def _flux_one_species(
+        self, energy_or_rigidity, sid, *, time_interval=None, rigidity_cutoff=None
+    ):
+        """Flux of a single species ``sid=(Z, A)``. For a charge with one species
+        (always, in a v1 model) this is just ``flux(Z)``; subclasses override to
+        evaluate one isotope of a multi-species charge (e.g. D vs p at Z=1)."""
+        if len(self.z_to_sids[sid[0]]) == 1:
+            return self.flux(
+                energy_or_rigidity, sid[0],
+                time_interval=time_interval, rigidity_cutoff=rigidity_cutoff,
+            )
+        raise NotImplementedError(
+            f"per-species flux for a multi-isotope charge (Z={sid[0]}) is only "
+            f"implemented for energy models, not {type(self).__name__}"
+        )
+
+    def _element_lnA_fluxes(
+        self, energy_or_rigidity, *, time_interval=None, rigidity_cutoff=None
+    ):
+        """(ln A, per-species flux array, species-id list) over every species."""
+        sids = self.species
+        fl = np.array(
+            [
+                self._flux_one_species(
+                    energy_or_rigidity, sid,
+                    time_interval=time_interval, rigidity_cutoff=rigidity_cutoff,
+                )
+                for sid in sids
+            ]
+        )
+        lnA = np.log(np.array([sid[1] for sid in sids]))
+        return lnA, fl, sids
+
+    def _lnA_moments(self, energy_or_rigidity, time_interval, rigidity_cutoff):
+        """(num1=Σf·lnA, num2=Σf·lnA², den=Σf) over all species."""
+        lnA, fl, sids = self._element_lnA_fluxes(
+            energy_or_rigidity,
+            time_interval=time_interval, rigidity_cutoff=rigidity_cutoff,
+        )
+        num1 = (fl * lnA[:, None]).sum(0)
+        num2 = (fl * (lnA**2)[:, None]).sum(0)
+        den = fl.sum(0)
+        return num1, num2, den
+
+    def mean_lnA(
+        self,
+        energy_or_rigidity: ArrayLike,
+        *,
+        time_interval: tuple[int, int] | str | None = None,
+        rigidity_cutoff: float | None = None,
+    ) -> np.ndarray:
+        """Flux-weighted mean of ln A over all species."""
+        num1, _num2, den = self._lnA_moments(
+            energy_or_rigidity, time_interval, rigidity_cutoff)
+        return num1 / np.where(den > 0, den, np.nan)
+
+    def var_lnA(
+        self,
+        energy_or_rigidity: ArrayLike,
+        *,
+        time_interval: tuple[int, int] | str | None = None,
+        rigidity_cutoff: float | None = None,
+    ) -> np.ndarray:
+        """Flux-weighted variance of ln A over all species."""
+        num1, num2, den = self._lnA_moments(
+            energy_or_rigidity, time_interval, rigidity_cutoff)
+        denw = np.where(den > 0, den, np.nan)
+        m = num1 / denw
+        return num2 / denw - m**2
+
+    # --- covariance propagation for DIMENSIONLESS derived quantities -------
+    def _leading_param_cov(self):
+        """Assemble the dense leading-parameter covariance and the per-leader
+        (sid, n_coeff, col0) layout from the sparse per-block ``self.cov``."""
+        leads = sorted(self._leaders, key=lambda s: s[0])
+        layout, col = [], 0
+        for sid in leads:
+            n = self.npar[sid]
+            layout.append((sid, n, col))
+            col += n
+        cov = np.zeros((col, col))
+        for si, ni, ci in layout:
+            for sj, nj, cj in layout:
+                blk = self.cov.get((si, sj))
+                if blk is not None:
+                    cov[ci:ci + ni, cj:cj + nj] = np.asarray(blk)[:ni, :nj]
+        return cov, layout
+
+    def _scalar_error(self, fn, x):
+        """1-sigma error of a scalar field ``fn(x)`` (e.g. mean_lnA, fraction):
+        finite-difference fn w.r.t. each LEADING spline coefficient, propagate the
+        stored leading covariance. fn must read the current ``self.pars``."""
+        cov, layout = self._leading_param_cov()
+        base = np.atleast_1d(np.asarray(fn(x), float))
+        J = np.zeros((base.shape[0], cov.shape[0]))
+        for sid, n, col0 in layout:
+            coeffs = self.pars[sid]
+            for k in range(n):
+                old = coeffs[k]
+                h = 1e-6 * (abs(old) if old != 0.0 else 1.0)
+                coeffs[k] = old + h
+                try:
+                    plus = np.atleast_1d(np.asarray(fn(x), float))
+                finally:
+                    coeffs[k] = old
+                J[:, col0 + k] = (plus - base) / h
+        var = np.einsum("ei,ij,ej->e", J, cov, J)
+        return np.sqrt(np.clip(var, 0.0, None))
+
+    def mean_lnA_error(self, x, **kw):
+        """1-sigma band of <lnA> from the stored covariance."""
+        return self._scalar_error(lambda y: self.mean_lnA(y, **kw), x)
+
+    def var_lnA_error(self, x, **kw):
+        return self._scalar_error(lambda y: self.var_lnA(y, **kw), x)
+
+    def fraction_error(self, x, target, **kw):
+        """1-sigma band of a group's flux fraction from the stored covariance."""
+        return self._scalar_error(lambda y: self.fraction(y, target, **kw), x)
 
     def error(
         self,
@@ -791,7 +981,22 @@ class GSFEnergy(GSFBase):
 
         Subclasses override this to convert from kinetic energy, etc.
         """
-        return np.atleast_1d(energy).astype(float)
+        return self._scale_energy(np.atleast_1d(energy).astype(float))
+
+    def _flux_one_species(
+        self, energy, sid, *, time_interval=None, rigidity_cutoff=None
+    ):
+        """Single-species flux. Multi-isotope charges (e.g. D vs p at Z=1) are
+        evaluated per species via the element spline; single-species charges
+        defer to the group ``flux`` (v1-identical)."""
+        if len(self.z_to_sids[sid[0]]) == 1:
+            return super()._flux_one_species(
+                energy, sid, time_interval=time_interval,
+                rigidity_cutoff=rigidity_cutoff)
+        rigidity_cutoff = self._resolve_rigidity_cutoff(rigidity_cutoff)
+        e = self._transform_energy(energy, sid[0])
+        mask = self._rigidity_cutoff_mask(sid, e, rigidity_cutoff)
+        return self._element_flux(sid, e, time_interval) * mask
 
     def flux(
         self,
@@ -816,7 +1021,7 @@ class GSFEnergy(GSFBase):
             Time period specification:
             - None: Uses the default_time_interval set during initialization
             - "LIS": Local Interstellar Spectrum (no modulation)
-            - tuple: (start, end) in YYYYMM format, e.g. (200901, 200912)
+            - tuple: (start, end) in YYYYMM format, end month EXCLUSIVE, e.g. (200901, 201001) for calendar year 2009
         rigidity_cutoff
             Geomagnetic rigidity cutoff in GV. Nuclei with rigidity
             below this value are excluded. None uses the default.
@@ -839,8 +1044,9 @@ class GSFEnergy(GSFBase):
 
         flux = np.zeros_like(energy, dtype=float)
         for zi in zlist:
-            mask = self._rigidity_cutoff_mask(zi, energy, rigidity_cutoff)
-            flux += self._element_flux(zi, energy, time_interval) * mask
+            for sid in self.z_to_sids[zi]:   # expand a charge to its species (p, D, …)
+                mask = self._rigidity_cutoff_mask(sid, energy, rigidity_cutoff)
+                flux += self._element_flux(sid, energy, time_interval) * mask
         return flux
 
     def jacobian(
@@ -858,11 +1064,12 @@ class GSFEnergy(GSFBase):
 
         jac = 0.0
         for zi in zlist:
-            mask = self._rigidity_cutoff_mask(zi, energy, rigidity_cutoff)
-            jac += (
-                self._element_flux_jacobian(zi, energy, time_interval)
-                * mask[:, np.newaxis]
-            )
+            for sid in self.z_to_sids[zi]:
+                mask = self._rigidity_cutoff_mask(sid, energy, rigidity_cutoff)
+                jac += (
+                    self._element_flux_jacobian(sid, energy, time_interval)
+                    * mask[:, np.newaxis]
+                )
         return np.asarray(jac)
 
     def covariance(
@@ -877,7 +1084,10 @@ class GSFEnergy(GSFBase):
         """Calculate covariance matrix of flux."""
         zlist1, leader1 = self._resolve_z(target1)
         zlist2, leader2 = self._resolve_z(target2)
-        energy = self._transform_energy(energy, target1)
+        # NOTE: pass the RAW input through — jacobian() applies
+        # _transform_energy itself. Transforming here too double-applies the
+        # kinetic->total rest-mass shift (GSFKineticEnergy) and squares the
+        # energy_scale factor.
 
         # Calculate total jacobian for each group (sum over all elements)
         jac1 = self.jacobian(
@@ -896,13 +1106,18 @@ class GSFEnergy(GSFBase):
             )
 
         # Use group leaders for covariance matrix lookup
-        cov_key = (leader1, leader2)
+        # key the covariance by the leader SPECIES id (Z, A). _resolve_z returns a
+        # charge; a charge with a single species has a cov alias under the bare int,
+        # but a charge carrying >1 species (p + D at Z=1) does not — so resolve to
+        # the leader sid, which is always a real cov key.
+        cov_key = (self._leader_by_charge.get(leader1, leader1),
+                   self._leader_by_charge.get(leader2, leader2))
 
         # Check if covariance matrix entry exists
         if cov_key in self.cov:
             return self._propagate_cov(jac1, jac2, self.cov[cov_key])
         else:
-            n_energies = len(energy)
+            n_energies = len(np.atleast_1d(energy))
             return np.zeros((n_energies, n_energies))
 
 
@@ -927,9 +1142,12 @@ class GSFKineticEnergy(GSFEnergy):
         self, kinetic_energy: ArrayLike, target: str | int | list[int]
     ) -> np.ndarray:
         """Convert kinetic energy per nucleus to total energy per nucleus."""
-        kinetic_energy = np.atleast_1d(kinetic_energy).astype(float)
+        kinetic_energy = self._scale_energy(np.atleast_1d(kinetic_energy).astype(float))
         _zlist, leader = self._resolve_z(target)
-        rest_mass = self.z_to_a[leader] * NUCLEON_MASS_GEV
+        # leader is a charge; resolve to its species id (z, a) so a multi-species
+        # charge (p + D at Z=1) — which has no bare-int z_to_a alias — still works.
+        sid = self._leader_by_charge.get(leader, leader)
+        rest_mass = self.z_to_a[sid] * NUCLEON_MASS_GEV
         return kinetic_energy + rest_mass
 
 
@@ -944,6 +1162,10 @@ class GSFRigidity(GSFBase):
     and solar modulation effects using the force-field approximation to
     transform between Earth and interstellar rigidity spectra.
 
+    Note: the global ``energy_scale`` parameter is intentionally a no-op on
+    this class — the rigidity/LIS model is the fit's low-energy anchor, and
+    a rigidity scaling is not an energy scaling.
+
     Examples
     --------
         >>> from globalsplinefit import GSFRigidity
@@ -951,25 +1173,28 @@ class GSFRigidity(GSFBase):
         >>> model = GSFRigidity()
         >>> rigidity = np.logspace(0, 3, 100)  # 1 GV to 1 TV
         >>> proton_flux_lis = model.flux(rigidity, "p")  # LIS
-        >>> proton_flux_2009 = model.flux(rigidity, "p", time_interval=(200901, 200912))
+        >>> proton_flux_2009 = model.flux(rigidity, "p", time_interval=(200901, 201001))
         >>> total_flux = model.total_flux(rigidity)
     """
 
     # ---------- new helpers ----------
     def _rigidity_phi_transform(
-        self, z: int, rigidity: np.ndarray, phi: float
+        self, sid, rigidity: np.ndarray, phi: float
     ) -> tuple[np.ndarray, np.ndarray]:
         """Convert Earth rigidity to interstellar rigidity under force-field phi.
 
-        Returns Lambda(R, phi) = dR_IS/dR prefactor (Eq. 3).
+        Force field: total-energy loss Z*phi (Gleeson-Axford). Returns R_IS and the
+        dN/dR prefactor Lambda = (E_IS/E) * (R/R_IS)**3.
         """
+        sid = self._as_sid(sid)
         nucleon_mass = NUCLEON_MASS_GEV
-        a = self.z_to_a[z]
+        z = sid[0]
+        a = self.z_to_a[sid]
         m = a * nucleon_mass
 
-        # Earth energy from input R
+        # Earth energy from input R; interstellar energy after Z*phi loss
         E = np.sqrt((z * rigidity) ** 2 + m**2)
-        E_is = E + z * phi / a
+        E_is = E + z * phi
 
         # Interstellar rigidity
         with np.errstate(divide="ignore", invalid="ignore"):
@@ -977,10 +1202,8 @@ class GSFRigidity(GSFBase):
             p2_is[p2_is < 0] = 0.0
             R_is = np.sqrt(p2_is) / z
 
-            # Jacobian prefactor Λ
-            Lambda = (R_is**2 / (rigidity**2 + _ZERO_GUARD)) * (
-                E / (E_is + _ZERO_GUARD)
-            )
+            # dN/dR force-field prefactor (abs keeps unphysical R<0 non-negative)
+            Lambda = (E_is / E) * (np.abs(rigidity) / (R_is + _ZERO_GUARD)) ** 3
         return R_is, Lambda
 
     # ---------- public API ----------
@@ -1004,7 +1227,7 @@ class GSFRigidity(GSFBase):
             Time period specification:
             - None: Uses the default_time_interval set during initialization
             - "LIS": Local Interstellar Spectrum (no modulation)
-            - tuple: (start, end) in YYYYMM format, e.g. (200901, 200912)
+            - tuple: (start, end) in YYYYMM format, end month EXCLUSIVE, e.g. (200901, 201001) for calendar year 2009
         rigidity_cutoff
             Geomagnetic rigidity cutoff in GV. Flux at rigidities
             below this value is set to zero. None uses the default.
@@ -1031,11 +1254,12 @@ class GSFRigidity(GSFBase):
         flux = np.zeros_like(rigidity, dtype=float)
         for phi in phis:  # loop version (safe, readable)
             for zi in zlist:
-                if phi == 0.0:
-                    flux += self._rigidity_flux_lis(zi, rigidity)
-                else:
-                    R_is, fac = self._rigidity_phi_transform(zi, rigidity, phi)
-                    flux += self._rigidity_flux_lis(zi, R_is) * fac
+                for sid in self.z_to_sids[zi]:   # expand charge -> species (p, D, …)
+                    if phi == 0.0:
+                        flux += self._rigidity_flux_lis(sid, rigidity)
+                    else:
+                        R_is, fac = self._rigidity_phi_transform(sid, rigidity, phi)
+                        flux += self._rigidity_flux_lis(sid, R_is) * fac
 
         flux /= len(phis)
 
@@ -1067,16 +1291,17 @@ class GSFRigidity(GSFBase):
         jac = 0.0
         for phi in phis:
             for zi in zlist:
-                leading, ratio = self.flux_ratio[zi]
-                if phi == 0.0:
-                    jac += ratio * self._rigidity_flux_jacobian(leading, rigidity)
-                else:
-                    R_is, fac = self._rigidity_phi_transform(zi, rigidity, phi)
-                    jac += (
-                        ratio
-                        * self._rigidity_flux_jacobian(leading, R_is)
-                        * fac[:, None]
-                    )
+                for sid in self.z_to_sids[zi]:
+                    leading, ratio = self.flux_ratio[sid]
+                    if phi == 0.0:
+                        jac += ratio * self._rigidity_flux_jacobian(leading, rigidity)
+                    else:
+                        R_is, fac = self._rigidity_phi_transform(sid, rigidity, phi)
+                        jac += (
+                            ratio
+                            * self._rigidity_flux_jacobian(leading, R_is)
+                            * fac[:, None]
+                        )
         jac = np.asarray(jac) / len(phis)
 
         # Apply rigidity cutoff (in rigidity space, cutoff is Z-independent)
@@ -1120,7 +1345,12 @@ class GSFRigidity(GSFBase):
         )
 
         # Use group leaders for covariance lookup
-        cov_key = (leader1, leader2)
+        # key the covariance by the leader SPECIES id (Z, A). _resolve_z returns a
+        # charge; a charge with a single species has a cov alias under the bare int,
+        # but a charge carrying >1 species (p + D at Z=1) does not — so resolve to
+        # the leader sid, which is always a real cov key.
+        cov_key = (self._leader_by_charge.get(leader1, leader1),
+                   self._leader_by_charge.get(leader2, leader2))
 
         # Check if covariance matrix entry exists
         if cov_key in self.cov:
@@ -1164,7 +1394,7 @@ class GSFEnergyPerNucleon(GSFBase):
         target: str | int | list[int],  # noqa: ARG002
     ) -> np.ndarray:
         """Transform input energy per nucleon. Subclasses override for kinetic energy."""
-        return np.atleast_1d(energy_per_nucleon).astype(float)
+        return self._scale_energy(np.atleast_1d(energy_per_nucleon).astype(float))
 
     def p_and_n_flux(
         self,
@@ -1211,13 +1441,14 @@ class GSFEnergyPerNucleon(GSFBase):
         )
 
         flux = np.zeros((2, len(energy_per_nucleon)))
-        for zi in zlist:
-            ai = self.z_to_a[zi]
-            energy = energy_per_nucleon * ai
-            mask = self._rigidity_cutoff_mask(zi, energy, rigidity_cutoff)
-            fl = self._element_flux(zi, energy, time_interval)
-            flux[0] += fl * ai * zi * mask  # protons
-            flux[1] += fl * ai * (ai - zi) * mask  # neutrons
+        for charge in zlist:
+            for sid in self.z_to_sids[charge]:
+                zi, ai = sid[0], self.z_to_a[sid]
+                energy = energy_per_nucleon * ai
+                mask = self._rigidity_cutoff_mask(sid, energy, rigidity_cutoff)
+                fl = self._element_flux(sid, energy, time_interval)
+                flux[0] += fl * ai * zi * mask  # protons
+                flux[1] += fl * ai * (ai - zi) * mask  # neutrons
         return flux
 
     def flux(
@@ -1292,13 +1523,14 @@ class GSFEnergyPerNucleon(GSFBase):
 
         jac_p = 0.0
         jac_n = 0.0
-        for zi in zlist:
-            ai = self.z_to_a[zi]
-            energy = energy_per_nucleon * ai
-            mask = self._rigidity_cutoff_mask(zi, energy, rigidity_cutoff)
-            j = self._element_flux_jacobian(zi, energy, time_interval)
-            jac_p += j * (ai * zi * mask)[:, np.newaxis]
-            jac_n += j * (ai * (ai - zi) * mask)[:, np.newaxis]
+        for charge in zlist:
+            for sid in self.z_to_sids[charge]:
+                zi, ai = sid[0], self.z_to_a[sid]
+                energy = energy_per_nucleon * ai
+                mask = self._rigidity_cutoff_mask(sid, energy, rigidity_cutoff)
+                j = self._element_flux_jacobian(sid, energy, time_interval)
+                jac_p += j * (ai * zi * mask)[:, np.newaxis]
+                jac_n += j * (ai * (ai - zi) * mask)[:, np.newaxis]
         return np.asarray(jac_p), np.asarray(jac_n)
 
     def jacobian(
@@ -1384,7 +1616,12 @@ class GSFEnergyPerNucleon(GSFBase):
         )
 
         # Use group leaders for covariance lookup
-        cov_key = (leader1, leader2)
+        # key the covariance by the leader SPECIES id (Z, A). _resolve_z returns a
+        # charge; a charge with a single species has a cov alias under the bare int,
+        # but a charge carrying >1 species (p + D at Z=1) does not — so resolve to
+        # the leader sid, which is always a real cov key.
+        cov_key = (self._leader_by_charge.get(leader1, leader1),
+                   self._leader_by_charge.get(leader2, leader2))
 
         # Check if covariance matrix entry exists
         if cov_key in self.cov:
@@ -1452,7 +1689,12 @@ class GSFEnergyPerNucleon(GSFBase):
             )
         )
 
-        cov_key = (leader1, leader2)
+        # key the covariance by the leader SPECIES id (Z, A). _resolve_z returns a
+        # charge; a charge with a single species has a cov alias under the bare int,
+        # but a charge carrying >1 species (p + D at Z=1) does not — so resolve to
+        # the leader sid, which is always a real cov key.
+        cov_key = (self._leader_by_charge.get(leader1, leader1),
+                   self._leader_by_charge.get(leader2, leader2))
         if cov_key in self.cov:
             return self._propagate_cov(jac1, jac2, self.cov[cov_key])
         else:
@@ -1680,5 +1922,6 @@ class GSFKineticEnergyPerNucleon(GSFEnergyPerNucleon):
     ) -> np.ndarray:
         """Convert kinetic energy per nucleon to total energy per nucleon."""
         return (
-            np.atleast_1d(kinetic_energy_per_nucleon).astype(float) + NUCLEON_MASS_GEV
+            self._scale_energy(np.atleast_1d(kinetic_energy_per_nucleon).astype(float))
+            + NUCLEON_MASS_GEV
         )

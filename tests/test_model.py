@@ -847,13 +847,20 @@ class TestConsistency:
 class TestSolarModulation:
     """Test solar modulation effects on flux calculations."""
 
-    # TODO: solar-modulated flux comparison against 2017 reference data
-    # fails by a small amount (LIS case passes, modulated cases do not).
-    # The test was previously dead code (named `compare_*`) so was never
-    # exercised. Investigate whether the 2017 reference was generated with
-    # different modulation averaging settings before un-xfail-ing.
+    # Investigated 2026-07-02 (audit): the LIS column matches the current
+    # model to 1e-9. The Oct-2009 (solar-min) column is consistent with a
+    # single-phi force field at phi=0.392 GV to ~0.6% (model uses the table's
+    # 0.390 -> 1.1% max deviation, low-E edge). The June-1991 (solar-max)
+    # column matches NO force-field curve — no single phi (best 56% off) and
+    # no year/multi-year average reproduces its shape. Since the current
+    # operator reproduces a standalone canonical Gleeson-Axford implementation
+    # to 2e-16, the 2017 reference file's solar-max column is presumed to have
+    # been generated with a different (pre-package) modulation implementation.
+    # Kept as a historical record; do not chase parity with it.
     @pytest.mark.xfail(
-        reason="2017 modulated-flux reference appears to disagree with current model"
+        reason="2017 reference solar-max column inconsistent with any "
+        "force-field curve; current operator verified canonical (see audit "
+        "2026-07-02)"
     )
     def test_solar_modulation_matches_2017_reference(
         self, reference_solar_modulation_2017, gsf_energy
@@ -895,6 +902,21 @@ class TestSolarModulation:
             reference_solar_modulation_2017["June_1991_max_error"],
             rtol=1e-5,
         ), "Solar maximum flux error does not match reference data"
+
+
+    def test_monthly_phi_table_excludes_annual_column(self, gsf_energy):
+        """Regression (audit 2026-07-02): the Usoskin source table carries a
+        13th 'Annual' column; ingesting it as a month mis-weights every
+        multi-month interval average. Each year must expose exactly the 12
+        monthly values."""
+        from globalsplinefit.data_management import _collect_phi_values
+
+        for year, monthly in gsf_energy.phi.items():
+            assert len(monthly) == 12, f"year {year}: {len(monthly)} phi values"
+        # spot value from the source table: Dec 2009 = 390 MV
+        assert gsf_energy.phi[2009][11] == pytest.approx(0.390)
+        # a one-year window collects exactly 12 monthly values
+        assert len(_collect_phi_values(gsf_energy.phi, 200901, 201001)) == 12
 
 
 class TestVersionValidation:

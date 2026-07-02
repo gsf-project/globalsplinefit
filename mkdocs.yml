@@ -1,7 +1,7 @@
 site_name: GlobalSplineFit
 site_description: Cosmic ray flux parametrizations with uncertainty quantification
-repo_url: https://github.com/gsf-project/gsf
-repo_name: gsf-project/gsf
+repo_url: https://github.com/gsf-project/globalsplinefit
+repo_name: gsf-project/globalsplinefit
 
 theme:
   name: material

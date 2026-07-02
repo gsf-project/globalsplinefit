@@ -224,3 +224,58 @@ class TestErrorCalculations:
                         assert np.all(correlation <= 1.0), (
                             f"Correlation {g1}-{g2} should be <= 1"
                         )
+
+
+class TestEnergyTransformConsistency:
+    """Regression tests for the double-energy-transform bug (audit 2026-07-02).
+
+    ``covariance()`` used to pre-transform the input energy before calling
+    ``jacobian()``, which transforms again: ``GSFKineticEnergy`` errors were
+    evaluated at E + 2m instead of E + m, and a nonzero ``energy_scale``
+    entered the error/covariance path as (1+delta)^2 instead of (1+delta).
+    Invisible for plain ``GSFEnergy`` at delta=0 (identity transform).
+    """
+
+    def test_kinetic_error_matches_total_at_shifted_energy(self):
+        from globalsplinefit.model import (
+            NUCLEON_MASS_GEV,
+            GSFEnergy,
+            GSFKineticEnergy,
+        )
+
+        e_total = GSFEnergy()
+        e_kin = GSFKineticEnergy()
+        ekin = np.array([2.0, 10.0, 100.0, 1000.0])
+        # rest mass exactly as the kinetic transform computes it (the data
+        # tables carry A = 1.008 for hydrogen, not 1.0)
+        sid = e_kin._leader_by_charge.get(1, 1)
+        m_p = e_kin.z_to_a[sid] * NUCLEON_MASS_GEV
+        np.testing.assert_allclose(
+            e_kin.error(ekin, "p"),
+            e_total.error(ekin + m_p, "p"),
+            rtol=1e-12,
+            err_msg="kinetic-energy errors must equal total-energy errors "
+            "at E_kin + m (rest mass added exactly once)",
+        )
+        # flux already had the single transform; keep the pair consistent
+        np.testing.assert_allclose(
+            e_kin.flux(ekin, "p"), e_total.flux(ekin + m_p, "p"), rtol=1e-12
+        )
+
+    def test_error_scales_once_with_energy_scale(self):
+        from globalsplinefit.model import GSFEnergy
+
+        base = GSFEnergy()
+        scaled = GSFEnergy()
+        scaled.energy_scale = 0.10
+        e = np.array([10.0, 100.0, 1000.0])
+        np.testing.assert_allclose(
+            scaled.flux(e, "p"), base.flux(e * 1.10, "p"), rtol=1e-12
+        )
+        np.testing.assert_allclose(
+            scaled.error(e, "p"),
+            base.error(e * 1.10, "p"),
+            rtol=1e-12,
+            err_msg="energy_scale must enter error() as (1+delta), "
+            "not (1+delta)^2",
+        )
