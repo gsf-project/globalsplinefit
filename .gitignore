@@ -36,3 +36,6 @@ examples/*.pdf
 
 # Misc
 .cache/
+
+# AI dev instructions — kept local, not shipped in the public repo
+CLAUDE.md
