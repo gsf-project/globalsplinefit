@@ -51,6 +51,6 @@ If you use GlobalSplineFit in your research, please cite:
 
 ## Support
 
-- **Source Code**: [GitHub Repository](https://github.com/gsf-project/gsf)
-- **Issues**: [Report bugs and request features](https://github.com/gsf-project/gsf/issues)
-- **Discussions**: [Community discussions](https://github.com/gsf-project/gsf/discussions)
+- **Source Code**: [GitHub Repository](https://github.com/gsf-project/globalsplinefit)
+- **Issues**: [Report bugs and request features](https://github.com/gsf-project/globalsplinefit/issues)
+- **Discussions**: [Community discussions](https://github.com/gsf-project/globalsplinefit/discussions)

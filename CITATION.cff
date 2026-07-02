@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software, please cite it using the metadata below. A
+  journal publication describing the GSF 2025/2026 model is in preparation;
+  until it appears, please cite the original GSF paper (Dembinski et al.,
+  ICRC 2017, PoS(ICRC2017)533, arXiv:1711.11432) alongside this software.
+title: globalsplinefit
+type: software
+authors:
+  - family-names: Dembinski
+    given-names: Hans
+    email: hans.dembinski@gmail.com
+  - family-names: Fedynitch
+    given-names: Anatoli
+    email: afedynitch@gmail.com
+repository-code: https://github.com/gsf-project/globalsplinefit
+url: https://gsf-project.github.io/globalsplinefit/
+license: BSD-3-Clause
+keywords:
+  - cosmic rays
+  - flux model
+  - mass composition
+  - astroparticle physics

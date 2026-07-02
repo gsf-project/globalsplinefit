@@ -5,22 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - 2025-01-XX
+## [2.0.0] - Unreleased
 
 ### Added
 
 - Complete rewrite of GSF model as modern Python package
 - Object-oriented model classes (`GSFEnergy`, `GSFRigidity`, `GSFEnergyPerNucleon`, etc.) replacing functional interface
 - Modern project structure with `src/globalsplinefit/` layout
-- Comprehensive test suite with pytest
+- Comprehensive test suite with pytest (regression-anchored against the
+  2017 reference fluxes/errors)
 - Type hints throughout codebase
-- Proper error handling with custom exceptions
-- Solar modulation functionality in dedicated module
-- Utility functions separated into own module
+- Solar modulation (force-field, monthly Usoskin phi table) on all model
+  classes
+- Isotope-aware (Z, A) species keying + FitResult v2 format (deuteron as a
+  sub-leading Z=1 species); global `energy_scale` model parameter
 - Data loading infrastructure with resource management
 - PyPI packaging configuration
-- Code quality tools (ruff, mypy)
-- Comprehensive documentation
+- Code quality tooling (ruff) and pre-commit hooks
+- mkdocs documentation + tutorial notebooks
 - CI/CD pipeline with GitHub Actions
 
 ### Changed

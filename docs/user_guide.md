@@ -68,7 +68,9 @@ flux = gsf.flux(energy, "p")  # Proton flux
 
 The [`GSFEnergyPerNucleon`][globalsplinefit.GSFEnergyPerNucleon] class calculates nucleon flux for atmospheric shower simulations.
 
-**Input**: Kinetic energy per nucleon [GeV/nucleon]
+**Input**: Total energy per nucleon [GeV/nucleon] (use
+[`GSFKineticEnergyPerNucleon`][globalsplinefit.GSFKineticEnergyPerNucleon]
+for kinetic energy per nucleon)
 **Output**: Nucleon flux [nucleons/(m² s sr GeV)]
 
 ```python
@@ -100,10 +102,10 @@ All models support these cosmic ray groups:
 
 | Group | Description | Atomic Numbers |
 |-------|-------------|----------------|
-| `"p"` | Proton | Z = 1 |
-| `"He"` | Helium | Z = 2 |
-| `"O"` | Oxygen group (CNO) | Z = 6--8 |
-| `"Fe"` | Iron group | Z >= 26 |
+| `"p"` | Proton group | Z = 1 |
+| `"He"` | Helium group | Z = 2 |
+| `"O"` | Oxygen group | Z = 3--9 |
+| `"Fe"` | Iron group | Z = 10--28 |
 
 ## Uncertainty Quantification
 
@@ -130,7 +132,7 @@ All models support time-dependent solar modulation via the `time_interval` param
 flux_lis = gsf.flux(energy, "p", time_interval="LIS")
 
 # Specific time period (YYYYMM format)
-flux_2009 = gsf.flux(energy, "p", time_interval=(200901, 200912))
+flux_2009 = gsf.flux(energy, "p", time_interval=(200901, 201001))  # end EXCLUSIVE: calendar year 2009
 
 # Default: Solar Cycle 24 average (Dec 2008 - Dec 2019)
 flux_default = gsf.flux(energy, "p")
@@ -143,7 +145,8 @@ See the [Solar Modulation tutorial](examples/solar_modulation.ipynb) for detaile
 Apply a geomagnetic cutoff to suppress low-rigidity cosmic rays:
 
 ```python
-# Sharp cutoff at 20 GV
+# Cutoff at 20 GV (smooth sigmoid transition by default, cutoff_width=1 GV;
+# construct the model with cutoff_width=0.0 for a sharp Heaviside cutoff)
 flux_cut = gsf.flux(energy, "p", rigidity_cutoff=20.0)
 ```
 
@@ -152,7 +155,7 @@ See the [Rigidity Cutoff tutorial](examples/rigidity_cutoff.ipynb) for more deta
 ## Performance Considerations
 
 - **Vectorization**: All methods support vectorized calculations
-- **Energy ranges**: Optimized for 1 GeV -- 100 TeV per nucleus
+- **Energy ranges**: The fit spans ~1 GeV -- 10^11 GeV total energy per nucleus
 - **Caching**: Jacobian matrices are cached for repeated calculations
 - **Memory**: Consider chunking for very large arrays (>10^6 points)
 
@@ -197,7 +200,7 @@ print(f"Particle groups: {gsf.GROUP_NAMES}")
 1. **Choose the right model**: Use `GSFEnergy` for most applications, `GSFEnergyPerNucleon` for shower simulations
 2. **Vectorize calculations**: Pass arrays instead of loops for better performance
 3. **Handle uncertainties**: Always consider flux uncertainties in your analysis
-4. **Energy ranges**: Stay within the validated energy range (1 GeV -- 100 TeV)
+4. **Energy ranges**: Stay within the fitted energy range (~1 GeV -- 10^11 GeV per nucleus); the flux is zero below the first knot and extrapolated above the last
 5. **Solar modulation**: Use time intervals for time-dependent studies
 
 ## Tutorials

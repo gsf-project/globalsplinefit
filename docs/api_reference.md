@@ -17,6 +17,17 @@ The main interface to GlobalSplineFit functionality.
         - total_error
       show_bases: true
 
+::: globalsplinefit.GSFKineticEnergy
+    options:
+      members:
+        - flux
+        - error
+        - covariance
+        - jacobian
+        - total_flux
+        - total_error
+      show_bases: true
+
 ::: globalsplinefit.GSFRigidity
     options:
       members:
@@ -44,6 +55,13 @@ The main interface to GlobalSplineFit functionality.
         - p_and_n_total_flux
       show_bases: true
 
+::: globalsplinefit.GSFKineticEnergyPerNucleon
+    options:
+      members:
+        - flux
+        - error
+      show_bases: true
+
 ## Data Management
 
 ::: globalsplinefit.data_management.Parameters
@@ -51,7 +69,6 @@ The main interface to GlobalSplineFit functionality.
       members:
         - get_solar_cycle_24_interval
         - get_solar_cycle_24_phi_average
-        - as_json
       show_bases: true
 
 ## PCA

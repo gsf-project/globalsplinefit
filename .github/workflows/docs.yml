@@ -27,7 +27,7 @@ jobs:
         pip install -e .[docs]
 
     - name: Build documentation
-      run: mkdocs build
+      run: mkdocs build --strict
 
     - name: Deploy to GitHub Pages
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'

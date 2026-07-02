@@ -148,9 +148,9 @@ class GSFBase(ABC):
             If None (default), no cutoff is applied. Nuclei with rigidity
             below this value are excluded from the nucleon flux summation.
         cutoff_width
-            Width of the cutoff transition in GV. Default 0.0 gives
-            a sharp (Heaviside) cutoff. Values > 0 produce a smooth sigmoid
-            transition modeling the geomagnetic penumbra.
+            Width of the cutoff transition in GV. Default 1.0 (a smooth
+            sigmoid transition modeling the geomagnetic penumbra); use 0.0
+            for a sharp (Heaviside) cutoff.
         """
         self.params = Parameters(
             data_path, version, use_approximate_solar_cycle_average
@@ -365,12 +365,12 @@ class GSFBase(ABC):
             Time period specification:
             - None: Solar Cycle 24 average (default behavior)
             - "LIS": Local Interstellar Spectrum (phi=0, no modulation)
-            - tuple[int, int]: (start, end) in YYYYMM format.
-            Example: (200901, 200912) for Jan-Dec 2009.
+            - tuple[int, int]: (start, end) in YYYYMM format; the end month
+            is EXCLUSIVE. Example: (200901, 201001) for Jan-Dec 2009.
 
         Returns
         -------
-            Array of solar modulation potential values (in MV) for the time period.
+            Array of solar modulation potential values (in GV) for the time period.
 
         Raises
         ------
@@ -618,7 +618,7 @@ class GSFBase(ABC):
             Time period specification:
             - None: Uses the default_time_interval set during initialization
             - "LIS": Local Interstellar Spectrum (no modulation)
-            - tuple: (start, end) in YYYYMM format, e.g. (200901, 200912)
+            - tuple: (start, end) in YYYYMM format, end month EXCLUSIVE, e.g. (200901, 201001) for calendar year 2009
         rigidity_cutoff
             Geomagnetic rigidity cutoff in GV. Nuclei with rigidity
             below this value are excluded. None uses the default.
@@ -1021,7 +1021,7 @@ class GSFEnergy(GSFBase):
             Time period specification:
             - None: Uses the default_time_interval set during initialization
             - "LIS": Local Interstellar Spectrum (no modulation)
-            - tuple: (start, end) in YYYYMM format, e.g. (200901, 200912)
+            - tuple: (start, end) in YYYYMM format, end month EXCLUSIVE, e.g. (200901, 201001) for calendar year 2009
         rigidity_cutoff
             Geomagnetic rigidity cutoff in GV. Nuclei with rigidity
             below this value are excluded. None uses the default.
@@ -1173,7 +1173,7 @@ class GSFRigidity(GSFBase):
         >>> model = GSFRigidity()
         >>> rigidity = np.logspace(0, 3, 100)  # 1 GV to 1 TV
         >>> proton_flux_lis = model.flux(rigidity, "p")  # LIS
-        >>> proton_flux_2009 = model.flux(rigidity, "p", time_interval=(200901, 200912))
+        >>> proton_flux_2009 = model.flux(rigidity, "p", time_interval=(200901, 201001))
         >>> total_flux = model.total_flux(rigidity)
     """
 
@@ -1227,7 +1227,7 @@ class GSFRigidity(GSFBase):
             Time period specification:
             - None: Uses the default_time_interval set during initialization
             - "LIS": Local Interstellar Spectrum (no modulation)
-            - tuple: (start, end) in YYYYMM format, e.g. (200901, 200912)
+            - tuple: (start, end) in YYYYMM format, end month EXCLUSIVE, e.g. (200901, 201001) for calendar year 2009
         rigidity_cutoff
             Geomagnetic rigidity cutoff in GV. Flux at rigidities
             below this value is set to zero. None uses the default.
