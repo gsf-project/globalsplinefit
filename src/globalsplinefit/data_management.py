@@ -149,6 +149,7 @@ class Parameters:
         self._load_parameters()
         self._load_covariance()
         self._load_solar_modulation()
+        self._load_subleading()
         self._calculate_flux_ratios()
 
     @staticmethod
@@ -298,23 +299,49 @@ class Parameters:
             # (Jan 1951 is NaN in the source table.)
             self.phi[int(row[0])] = row[1:13] * 1e-3  # Convert to GV
 
+    def _load_subleading(self):
+        """Load the OPTIONAL subleading.dat extrapolation table: per sub-leading
+        species ``(Z, A, norm, slope)`` with ratio(R > Rmax) = norm *
+        (R/Rmax)**slope above the species' top knot Rmax. Absent in pre-slope
+        bundles (2017/2019/2025) -> empty table, and the constant-ratio
+        extrapolation is recomputed from the splines exactly as before."""
+        self._stored_sub = {}
+        sub_file = self.data_path / "subleading.dat"
+        if not sub_file.exists():
+            return
+        dt = [("z", int), ("a", float), ("norm", float), ("slope", float)]
+        for r in np.atleast_1d(np.loadtxt(sub_file, dtype=dt)):
+            self._stored_sub[(int(r["z"]), float(r["a"]))] = (
+                float(r["norm"]), float(r["slope"]))
+
     def _calculate_flux_ratios(self):
-        """Calculate flux ratios for subleading species (keyed by species id)."""
+        """Calculate flux ratios (and extrapolation slopes) for subleading
+        species (keyed by species id). When subleading.dat supplied stored
+        (norm, slope) values, those are used verbatim — they are the values the
+        fit itself used; otherwise the ratio is recomputed from the splines at
+        the species' top knot and the slope defaults to 0 (the historical
+        constant-ratio extrapolation)."""
         self.flux_ratio = {}
+        self.flux_slope = {}
 
         for sid in self.species:
             leader_sid = self.leader_sid[self.z_ungroup[sid[0]]]
             xmax = self.kx[sid][-1]
             if sid != leader_sid:
-                # Subleading species - ratio to its group leader
-                ratio = splev(
-                    xmax, (self.kx[sid], self.pars[sid], SPLINE_DEGREE)
-                ) / splev(
-                    xmax, (self.kx[leader_sid], self.pars[leader_sid], SPLINE_DEGREE)
-                )
+                if sid in self._stored_sub:
+                    ratio, slope = self._stored_sub[sid]
+                else:
+                    # Subleading species - ratio to its group leader
+                    ratio = splev(
+                        xmax, (self.kx[sid], self.pars[sid], SPLINE_DEGREE)
+                    ) / splev(
+                        xmax, (self.kx[leader_sid], self.pars[leader_sid], SPLINE_DEGREE)
+                    )
+                    slope = 0.0
             else:
-                ratio = 1.0
+                ratio, slope = 1.0, 0.0
             self.flux_ratio[sid] = (leader_sid, ratio)
+            self.flux_slope[sid] = slope
         self._add_charge_aliases()
 
     def _add_charge_aliases(self):
@@ -333,6 +360,7 @@ class Parameters:
             self.offset[z] = self.offset[s]
             self.z_to_a[z] = self.z_to_a[s]
             self.flux_ratio[z] = self.flux_ratio[s]
+            self.flux_slope[z] = self.flux_slope[s]
         for (s1, s2) in list(self.cov):
             z1, z2 = s1[0], s2[0]
             if len(self.z_to_sids[z1]) == 1 and len(self.z_to_sids[z2]) == 1:

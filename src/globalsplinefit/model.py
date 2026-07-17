@@ -32,6 +32,13 @@ NUCLEON_MASS_GEV = 0.93891872965
 _ZERO_GUARD = 1e-300
 """Small value to prevent division by zero in rigidity calculations."""
 
+SUBLEADING_SAT_LNR = float(np.log(5.0e6))
+"""ln(R/GV) above which the tilted sub-leading extrapolation saturates to a
+constant ratio: ratio(R) = norm * (min(R, 5 PV)/Rmax)^slope. R_sat = 5 PV is
+around the proton knee, motivated by the galactic origin and assumed
+similarity of transport effects above it. Must match the fitter
+(gsffit.model.flux_jax._SLOPE_XSAT)."""
+
 
 def _sigmoid(x: np.ndarray) -> np.ndarray:
     """Numerically stable sigmoid function."""
@@ -180,6 +187,7 @@ class GSFBase(ABC):
         self.cov = self.params.cov                # (sid,sid) (+int alias) -> block
         self.phi = self.params.phi
         self.flux_ratio = self.params.flux_ratio  # sid (+int alias) -> (leader_sid, ratio)
+        self.flux_slope = self.params.flux_slope  # sid (+int alias) -> extrapolation slope
         self.species = self.params.species        # sorted list of all sids
         self._leaders = self.params._leaders      # set of leader sids
         self._leader_by_charge = self.params.leader_sid   # int charge -> leader_sid
@@ -455,12 +463,20 @@ class GSFBase(ABC):
                 )
 
             if np.any(extrapolation):
-                # Use the group leader's spline scaled by ratio for extrapolation
+                # Group leader's spline scaled by the ratio at xmax, tilted by
+                # the stored power-law slope and SATURATING at R_sat:
+                # ratio(R>Rmax) = ratio * (min(R, R_sat)/Rmax)^s.
+                # slope == 0 (pre-slope bundles) reproduces the historical
+                # constant-ratio extrapolation bit-identically.
                 extrap_indices = valid_mask.copy()
                 extrap_indices[valid_mask] = extrapolation
-                result[extrap_indices] = ratio * self._spline(
-                    leading, valid_log_rigidity[extrapolation]
-                )
+                x_ex = valid_log_rigidity[extrapolation]
+                result[extrap_indices] = ratio * self._spline(leading, x_ex)
+                slope = self.flux_slope[sid]
+                if slope != 0.0:
+                    dx_sat = max(SUBLEADING_SAT_LNR - max_log_rigidity, 0.0)
+                    result[extrap_indices] *= np.exp(slope * np.clip(
+                        x_ex - max_log_rigidity, 0.0, dx_sat))
 
         return result
 
@@ -518,7 +534,18 @@ class GSFBase(ABC):
         # Reshape to [n_energy, n_phi, n_params]
         jac = jac_flat.reshape(energy.shape[0], len(phis), -1)
 
-        # Apply factors (broadcasting over parameter dimension)
+        # Apply factors (broadcasting over parameter dimension); above the
+        # sub-leading species' top knot the extrapolation carries the stored
+        # power-law tilt (clamped at xmax: below it the historical
+        # ratio*leader-Jacobian approximation is unchanged).
+        slope = self.flux_slope[sid]
+        if slope != 0.0:
+            xmax = self.kx[sid][-1]
+            dx_sat = max(SUBLEADING_SAT_LNR - xmax, 0.0)
+            with np.errstate(divide="ignore"):
+                tilt = np.exp(
+                    slope * np.clip(np.log(rigidity) - xmax, 0.0, dx_sat))
+            factor = factor * tilt
         jac_weighted = jac * factor[:, :, np.newaxis]
 
         # Average over phi dimension
@@ -1309,15 +1336,33 @@ class GSFRigidity(GSFBase):
             for zi in zlist:
                 for sid in self.z_to_sids[zi]:
                     leading, ratio = self.flux_ratio[sid]
+                    slope = self.flux_slope[sid]
+
+                    def _tilt(R):
+                        # extrapolation tilt above the species' top knot
+                        # (clamped below xmax and saturated at R_sat;
+                        # 1.0 for slope 0)
+                        if slope == 0.0:
+                            return 1.0
+                        xmax = self.kx[sid][-1]
+                        dx_sat = max(SUBLEADING_SAT_LNR - xmax, 0.0)
+                        with np.errstate(divide="ignore"):
+                            return np.exp(slope * np.clip(
+                                np.log(R) - xmax, 0.0, dx_sat))
+
                     if phi == 0.0:
-                        jac += ratio * self._rigidity_flux_jacobian(leading, rigidity)
+                        contrib = ratio * self._rigidity_flux_jacobian(
+                            leading, rigidity)
+                        if slope != 0.0:
+                            contrib = contrib * _tilt(rigidity)[:, None]
                     else:
                         R_is, fac = self._rigidity_phi_transform(sid, rigidity, phi)
-                        jac += (
+                        contrib = (
                             ratio
                             * self._rigidity_flux_jacobian(leading, R_is)
-                            * fac[:, None]
+                            * (fac * _tilt(R_is))[:, None]
                         )
+                    jac += contrib
         jac = np.asarray(jac) / len(phis)
 
         # Apply rigidity cutoff (in rigidity space, cutoff is Z-independent)
