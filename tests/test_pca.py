@@ -315,9 +315,7 @@ class TestAllModelTypes:
 
     def test_gsf_rigidity(self, gsf_rigidity):
         pca = HybridPCA(gsf_rigidity, n_components=8)
-        # Start above the proton spline's first knot: with the LIS default
-        # (since 2026-07-16) R=1 GV is outside the unmodulated valid range.
-        R = np.logspace(0.5, 4, 10)
+        R = np.logspace(0, 4, 10)
         err = pca.error(R, "p")
         assert err.shape == (10,)
         assert np.all(err > 0)

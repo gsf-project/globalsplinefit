@@ -363,8 +363,9 @@ class GSFBase(ABC):
         ----------
         time_interval
             Time period specification:
-            - None: Local Interstellar Spectrum (phi=0, no modulation) —
-              the default since 2026-07-16 (was: Solar Cycle 24 average)
+            - None: Solar Cycle 24 average (December 2008 to December 2019) —
+              the default (restored 2026-07-17; comparisons against
+              modulation-unaware models expect a flux at Earth, not the LIS)
             - "LIS": Local Interstellar Spectrum (phi=0, no modulation)
             - tuple[int, int]: (start, end) in YYYYMM format; the end month
             is EXCLUSIVE. Example: (200901, 201001) for Jan-Dec 2009.
@@ -380,7 +381,15 @@ class GSFBase(ABC):
         ------
             ValueError: If start equals end, or start > end in time interval tuple.
         """
-        if time_interval is None or time_interval == "LIS":
+        if time_interval is None:
+            # Default: Solar Cycle 24 average (December 2008 to December 2019)
+            if self.params.use_approximate_solar_cycle_average:
+                # Approximate averaging: use a single average phi value
+                phi_avg = self.params.get_solar_cycle_24_phi_average()
+                return np.array([phi_avg])
+            # Explicit averaging: fall through with the SC24 interval
+            time_interval = self.params.get_solar_cycle_24_interval()
+        elif time_interval == "LIS":
             # Local Interstellar Spectrum: no solar modulation
             return np.array([0.0])
         elif isinstance(time_interval, str):

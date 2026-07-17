@@ -154,16 +154,15 @@ class TestGSFKineticEnergyPerNucleon:
             kinetic_energy, target, time_interval=(200901, 200912)
         )
 
-        # Test default (LIS since 2026-07-16)
+        # Test default (solar cycle average)
         flux_default = model_kinetic.flux(kinetic_energy, target)
 
         # LIS should be higher than modulated flux
         assert flux_lis[0] > flux_2009[0], (
             "LIS flux should be higher than modulated flux"
         )
-        np.testing.assert_allclose(
-            flux_lis, flux_default, rtol=1e-14,
-            err_msg="default (no time_interval) should be LIS",
+        assert flux_lis[0] > flux_default[0], (
+            "LIS flux should be higher than solar cycle average"
         )
 
         # All should be positive and finite
