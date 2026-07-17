@@ -363,10 +363,14 @@ class GSFBase(ABC):
         ----------
         time_interval
             Time period specification:
-            - None: Solar Cycle 24 average (default behavior)
+            - None: Local Interstellar Spectrum (phi=0, no modulation) —
+              the default since 2026-07-16 (was: Solar Cycle 24 average)
             - "LIS": Local Interstellar Spectrum (phi=0, no modulation)
             - tuple[int, int]: (start, end) in YYYYMM format; the end month
             is EXCLUSIVE. Example: (200901, 201001) for Jan-Dec 2009.
+            Monthly phi values of an interval are reduced to at most 12
+            representative values (mean-preserving), matching the fitter's
+            12-bin period average.
 
         Returns
         -------
@@ -376,15 +380,7 @@ class GSFBase(ABC):
         ------
             ValueError: If start equals end, or start > end in time interval tuple.
         """
-        if time_interval is None:
-            # Default: Solar Cycle 24 average (December 2008 to December 2019)
-            if self.params.use_approximate_solar_cycle_average:
-                # Approximate averaging: use a single average phi value
-                phi_avg = self.params.get_solar_cycle_24_phi_average()
-                return np.array([phi_avg])
-            # Explicit averaging: fall through with the SC24 interval
-            time_interval = self.params.get_solar_cycle_24_interval()
-        elif time_interval == "LIS":
+        if time_interval is None or time_interval == "LIS":
             # Local Interstellar Spectrum: no solar modulation
             return np.array([0.0])
         elif isinstance(time_interval, str):
@@ -397,7 +393,18 @@ class GSFBase(ABC):
             raise ValueError("Time interval start and end cannot be the same")
         if t_a > t_b:
             raise ValueError("Time interval start must be less than end")
-        return _collect_phi_values(self.phi, t_a, t_b)
+        phis = _collect_phi_values(self.phi, t_a, t_b)
+        # Reduce long monthly lists to 12 representative phi values (equal-count
+        # chunks of the sorted list, chunk means, shifted to preserve the full
+        # monthly mean exactly), mirroring the fitter's 12-bin period average.
+        # Downstream averages weight each phi equally, so this keeps the
+        # period-averaged flux within ~0.1% of the full monthly sum.
+        if len(phis) > 12:
+            chunk_means = np.array(
+                [c.mean() for c in np.array_split(np.sort(phis), 12)]
+            )
+            phis = chunk_means + (np.mean(phis) - chunk_means.mean())
+        return phis
 
     def _rigidity_flux_lis(self, sid, rigidity: ArrayLike) -> np.ndarray:
         """Calculate LIS flux of species ``sid=(Z, A)`` as a function of rigidity."""

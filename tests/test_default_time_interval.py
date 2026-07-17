@@ -391,9 +391,10 @@ class TestDefaultTimeIntervalEdgeCases:
         flux2 = model2.flux(energy, "p")
         flux3 = model3.flux(energy, "p")
 
-        # All three should be different
+        # The interval default modulates; "LIS" and None are both LIS (since
+        # 2026-07-16 the unset default is the unmodulated LIS, not SC24-avg).
         assert not np.allclose(flux1, flux2, rtol=1e-10)
-        assert not np.allclose(flux1, flux3, rtol=1e-10)
+        np.testing.assert_allclose(flux1, flux3, rtol=1e-14)
         assert not np.allclose(flux2, flux3, rtol=1e-10)
 
     def test_default_persists_across_multiple_calls(self):

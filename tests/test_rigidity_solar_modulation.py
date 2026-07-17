@@ -96,20 +96,16 @@ class TestGSFRigidityPhiTransform:
 class TestGSFRigiditySolarModulation:
     """Test solar modulation functionality in GSFRigidity flux calculations."""
 
-    def test_flux_without_time_interval_uses_solar_cycle_24(self, gsf_rigidity):
-        """Test that flux without time_interval uses Solar Cycle 24 average."""
+    def test_flux_without_time_interval_is_lis(self, gsf_rigidity):
+        """Test that flux without time_interval is the LIS (default since 2026-07-16)."""
         rigidity = np.logspace(0, 2, 20)
 
-        # Test 1: Default (None) should use Solar Cycle 24 with approximation
+        # Test 1: Default (None) is the unmodulated LIS
         flux_default = gsf_rigidity.flux(rigidity, "p")
 
-        # Test 2: Explicit "LIS" should be different from default
+        # Test 2: Explicit "LIS" must be identical to the default
         flux_lis = gsf_rigidity.flux(rigidity, "p", time_interval="LIS")
-
-        # Solar modulated flux (default) should be different from LIS at low rigidities
-        # Check that they're different (not equal)
-        with pytest.raises(AssertionError):
-            np.testing.assert_allclose(flux_default, flux_lis, rtol=1e-6)
+        np.testing.assert_allclose(flux_default, flux_lis, rtol=1e-14)
 
         # Test 3: Both should be positive and finite
         assert np.all(flux_default >= 0), "Default flux should be non-negative"
@@ -502,33 +498,30 @@ class TestSolarCycleAveraging:
         assert np.all(flux_lis > 0)
         assert np.all(np.isfinite(flux_lis))
 
-        # LIS flux should be higher than modulated flux
-        flux_default = gsf_rigidity.flux(rigidity, "p")  # Solar Cycle 24 average
-        assert np.all(flux_lis > flux_default)
+        # Default (no time_interval) IS the LIS since 2026-07-16
+        flux_default = gsf_rigidity.flux(rigidity, "p")
+        np.testing.assert_allclose(flux_lis, flux_default, rtol=1e-14)
 
-    def test_solar_cycle_24_constants_used(self, gsf_rigidity):
-        """Test that Solar Cycle 24 constants are properly used as defaults."""
+        # A modulated interval must lie below the LIS
+        flux_sc24 = gsf_rigidity.flux(
+            rigidity, "p",
+            time_interval=(SOLAR_CYCLE_24_START[0], SOLAR_CYCLE_24_END[0]),
+        )
+        assert np.all(flux_lis > flux_sc24)
+
+    def test_solar_cycle_24_interval_modulates(self, gsf_rigidity):
+        """Explicit SC24 interval modulates and is reproducible."""
         rigidity = np.array([1.0])
 
-        # Get explicit Solar Cycle 24 interval
         start = SOLAR_CYCLE_24_START[0]
         end = SOLAR_CYCLE_24_END[0]
 
-        # Test that explicit Solar Cycle 24 interval works with explicit averaging
-        gsf_rigidity.params.use_approximate_solar_cycle_average = False
-        flux_explicit_sc24 = gsf_rigidity.flux(
-            rigidity, "p", time_interval=(start, end)
-        )
+        flux_sc24_a = gsf_rigidity.flux(rigidity, "p", time_interval=(start, end))
+        flux_sc24_b = gsf_rigidity.flux(rigidity, "p", time_interval=(start, end))
+        np.testing.assert_allclose(flux_sc24_a, flux_sc24_b, rtol=1e-12)
 
-        # Test that default works with explicit averaging
-        flux_default_explicit = gsf_rigidity.flux(
-            rigidity, "p"
-        )  # Should use SC24 with explicit
-
-        # These should be the same when both use explicit averaging
-        np.testing.assert_allclose(
-            flux_default_explicit, flux_explicit_sc24, rtol=1e-10
-        )
-
-        # Reset to default
-        gsf_rigidity.params.use_approximate_solar_cycle_average = True
+        # The default is LIS, so the SC24-modulated flux differs from it
+        # wherever the LIS flux is nonzero at this rigidity.
+        flux_default = gsf_rigidity.flux(rigidity, "p")
+        if np.all(flux_default > 0):
+            assert not np.allclose(flux_sc24_a, flux_default, rtol=1e-6)
