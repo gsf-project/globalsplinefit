@@ -162,8 +162,9 @@ def _build_stacked_system(model, energy_grid, **kwargs):
 
     # Trimmed parameter vectors (key by the group's leader species id (Z, A), so
     # this works when a charge carries >1 species, e.g. p+D at Z=1).
-    par_vecs = [model.pars[model._leader_by_charge[model.GROUP_NAMES[g]]][1:-7]
-                for g in _GROUPS]
+    par_vecs = [
+        model.pars[model._leader_by_charge[model.GROUP_NAMES[g]]][1:-7] for g in _GROUPS
+    ]
     par_stack = np.hstack(par_vecs)
 
     # Assemble block covariance matrix
@@ -288,7 +289,9 @@ class HybridPCA:
         **kwargs,
     ):
         if gauge not in ("correlation", "covariance"):
-            raise ValueError(f"gauge must be 'correlation' or 'covariance', got {gauge!r}")
+            raise ValueError(
+                f"gauge must be 'correlation' or 'covariance', got {gauge!r}"
+            )
         if energy_grid is None:
             energy_grid = np.logspace(np.log10(1.0), 11, 300)
         energy_grid = np.atleast_1d(np.asarray(energy_grid, dtype=float))
@@ -381,9 +384,11 @@ class HybridPCA:
         """Row offset of each sub-row (group-major, p before n) for n_e energies."""
         rpg = self._n_sub_per_group * n_e
         return np.array(
-            [ig * rpg + q * n_e
-             for ig in range(self._n_groups)
-             for q in range(self._n_sub_per_group)]
+            [
+                ig * rpg + q * n_e
+                for ig in range(self._n_groups)
+                for q in range(self._n_sub_per_group)
+            ]
         )
 
     # ------------------------------------------------------------------
@@ -417,8 +422,12 @@ class HybridPCA:
 
     @property
     def variance_explained(self) -> float:
-        """Fraction of total variance (in the chosen gauge) captured by the
-        low-rank components."""
+        """Fraction of gauge-metric variance captured by the low-rank part.
+
+        In the correlation gauge this is the average fraction of the
+        per-row variance resolved by the components; in the covariance
+        gauge, the classic explained-variance fraction of the trace.
+        """
         total = np.sum(np.maximum(self._eigvals, 0.0))
         captured = np.sum(np.maximum(self._eigvals[: self.n_components], 0.0))
         return float(captured / total) if total > 0 else 1.0
@@ -453,10 +462,9 @@ class HybridPCA:
         lo = self._ref_log_energy[idx]
         hi = self._ref_log_energy[idx + 1]
         t = np.clip((log_e - lo) / (hi - lo), 0.0, 1.0)
-        return (
-            (1.0 - t)[:, np.newaxis, np.newaxis] * self.B[idx]
-            + t[:, np.newaxis, np.newaxis] * self.B[idx + 1]
-        )
+        return (1.0 - t)[:, np.newaxis, np.newaxis] * self.B[idx] + t[
+            :, np.newaxis, np.newaxis
+        ] * self.B[idx + 1]
 
     def _group_row_slice(self, ig: int, n_e: int) -> slice:
         """Return the row slice for group index ig in the stacked layout."""
@@ -790,7 +798,7 @@ class HybridPCA:
         rel_variation = phi @ M.T
 
         if residual_noise:
-            Bx = self._interpolate_B(energy)          # (n_e, nsub, nsub)
+            Bx = self._interpolate_B(energy)  # (n_e, nsub, nsub)
             # matrix square root per energy (PSD by construction)
             w, u = np.linalg.eigh(Bx)
             A = u * np.sqrt(np.maximum(w, 0.0))[:, np.newaxis, :]

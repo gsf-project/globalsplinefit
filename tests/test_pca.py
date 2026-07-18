@@ -115,8 +115,9 @@ class TestVariancePreservation:
     def test_L_reconstruction(self, gsf_nucleon):
         """rel_jac @ L_param should reconstruct L (covariance-gauge factor)."""
         grid = np.logspace(np.log10(1.0), 11, 100)
-        pca = HybridPCA(gsf_nucleon, n_components=12, energy_grid=grid,
-                        gauge="covariance")
+        pca = HybridPCA(
+            gsf_nucleon, n_components=12, energy_grid=grid, gauge="covariance"
+        )
 
         jac_stack, cov_stack, _, central_flux, _, _ = _build_stacked_system(
             gsf_nucleon, grid
