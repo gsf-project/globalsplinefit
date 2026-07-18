@@ -268,22 +268,26 @@ class TestVectorizedImplementation:
         energies = np.logspace(1, 3, 100)  # More points to see timing difference
         time_interval = None  # Solar cycle average (many phi values)
 
-        # Use multiple loops for more stable timing measurements on CI
+        # Best-of-N timing: the minimum over repeats is robust against the
+        # scheduling noise of shared CI runners, where a mean-based timing
+        # flakes (observed on windows/macos runners).
         n_loops = 10
 
-        # Time the reference explicit implementation over multiple loops
-        start_time = time.time()
+        explicit_times = []
         for _ in range(n_loops):
+            start_time = time.perf_counter()
             flux_explicit = self._reference_element_flux_explicit(
                 gsf_energy, z, energies, time_interval
             )
-        explicit_time = (time.time() - start_time) / n_loops
+            explicit_times.append(time.perf_counter() - start_time)
+        explicit_time = min(explicit_times)
 
-        # Time the vectorized implementation over multiple loops
-        start_time = time.time()
+        vectorized_times = []
         for _ in range(n_loops):
+            start_time = time.perf_counter()
             flux_vectorized = gsf_energy._element_flux(z, energies, time_interval)
-        vectorized_time = (time.time() - start_time) / n_loops
+            vectorized_times.append(time.perf_counter() - start_time)
+        vectorized_time = min(vectorized_times)
 
         # Results should be identical
         np.testing.assert_allclose(
@@ -294,7 +298,7 @@ class TestVectorizedImplementation:
         if vectorized_time > 0 and explicit_time > 0:
             speedup = explicit_time / vectorized_time
             print(
-                f"Performance (avg over {n_loops} loops): Explicit={explicit_time:.4f}s, "
+                f"Performance (best of {n_loops} loops): Explicit={explicit_time:.4f}s, "
                 f"Vectorized={vectorized_time:.4f}s, Speedup={speedup:.1f}x"
             )
 
