@@ -2,22 +2,54 @@
 
 Reduces the full parameter covariance (88 correlated spline parameters)
 to a small number of uncorrelated latent parameters phi ~ N(0, I),
-while preserving exact marginal variances at every energy via a
-diagonal correction term.
+while preserving the exact covariance between all mass groups at every
+reference-grid energy via a per-energy cross-group block correction.
 
 Flux model: f(E) = f_central(E) * (1 + M(E) @ phi)
 where M(E) = J_rel(E) @ L_param is the reduced relative Jacobian,
 exact at any energy (no interpolation).
 
+Construction
+------------
+On a reference energy grid the relative flux covariance
+``Sigma = J_rel C J_rel^T`` (C = parameter covariance) is reduced in two
+steps:
+
+1. **Low-rank factor.** With the default ``gauge="correlation"`` the
+   *correlation* matrix ``R = D_s^-1/2 Sigma D_s^-1/2`` is diagonalized and
+   the leading ``n_components`` eigenmodes are un-whitened into a factor
+   ``L`` (``Sigma ~ L L^T``).  Diagonalizing R weights every grid row
+   equally, so components resolve correlation structure across the whole
+   energy range instead of being spent on the few rows with the largest
+   relative variance (the data-free heavy-group region, which dominates
+   the trace of Sigma).  ``gauge="covariance"`` diagonalizes Sigma itself
+   (the classic PCA; retained as an option).  Either factor is projected
+   to parameter space by least squares (``J_rel L_param = L`` exactly).
+
+2. **Block correction.** The residual ``Sigma - L L^T`` is kept exactly on
+   the block-diagonal over energy: for every grid energy the full
+   cross-group residual block (4x4 per-particle, 8x8 with the p/n split
+   for nucleon models) is stored, projected to the nearest positive
+   semi-definite matrix.  Any observable formed from fluxes at a single
+   energy — each group band, the all-particle flux, the total nucleon
+   flux, lnA-type sums — then has exact variance on the grid regardless
+   of ``n_components`` and gauge.  Only correlations *between different
+   energies* beyond the retained components are truncated; those matter
+   for multi-energy functionals and smooth sampling, which is what
+   ``n_components`` buys.
+
+The scalar diagonal correction D and the p-n cross term D_pn of the
+original construction (GSF 2025 analysis) are the diagonal entries of the
+block; they remain available as read-only properties.
+
 References
 ----------
-Construction follows the hybrid approach from the GSF 2025 analysis:
-eigendecompose in flux space, then project the low-rank factor back
-to parameter space via normal equations.
+GSF 2026 supplemental material, "Reduced representation of the
+covariance".  The original diagonal construction followed the hybrid
+approach of the GSF 2025 analysis.
 """
 
 import numpy as np
-from scipy.interpolate import interp1d
 
 from .model import (
     ArrayLike,
@@ -185,23 +217,39 @@ def _group_index(target: str | int | list[int], model: GSFBase) -> int:
     return [model.GROUP_NAMES[g] for g in _GROUPS].index(z)
 
 
+def _nearest_psd(mat: np.ndarray) -> np.ndarray:
+    """Project a symmetric matrix to the nearest PSD matrix (eigenvalue clip)."""
+    w, u = np.linalg.eigh(mat)
+    return (u * np.maximum(w, 0.0)) @ u.T
+
+
 class HybridPCA:
     """Hybrid PCA dimensionality reduction for any GSF model.
 
     Provides the same interface as the underlying model (``flux``, ``error``,
-    ``covariance``, ``jacobian``) but uses the low-rank + diagonal approximation
-    for uncertainty propagation.  Flux values are delegated unchanged to the
-    underlying model; only the uncertainty methods use the PCA reduction.
+    ``covariance``, ``jacobian``) but uses the low-rank + per-energy-block
+    approximation for uncertainty propagation.  Flux values are delegated
+    unchanged to the underlying model; only the uncertainty methods use the
+    reduction.
 
     Parameters
     ----------
     model : GSFBase
         Any GSF model instance (GSFEnergy, GSFRigidity, GSFEnergyPerNucleon, etc.).
     n_components : int, optional
-        Number of PCA components. Default 12.
+        Number of retained components. Default 8.  Fixed-energy observables
+        (group bands, all-particle flux, total nucleon flux) are exact on the
+        reference grid for ANY value; ``n_components`` controls the fidelity
+        of cross-energy correlations and of smooth samples.
     energy_grid : array-like, optional
         Reference energy grid for the decomposition.
         Default: 300 log-spaced points from 1 to 10^11 GeV.
+    gauge : {"correlation", "covariance"}, optional
+        Metric in which the low-rank factor is extracted.  The default
+        "correlation" diagonalizes the correlation matrix of the relative
+        flux covariance (every grid row weighted equally); "covariance"
+        diagonalizes the covariance itself (classic PCA, dominated by the
+        rows with the largest relative variance).
     **kwargs
         Passed to model methods (e.g. ``time_interval``, ``rigidity_cutoff``).
 
@@ -209,19 +257,22 @@ class HybridPCA:
     ----------
     L_param : ndarray, shape (n_params, n_components)
         Parameter-space low-rank factor.
-    D : ndarray, shape (M,)
-        Relative diagonal variance correction on the reference grid.
+    B : ndarray, shape (n_ref, n_sub, n_sub)
+        Per-energy cross-group residual blocks on the reference grid
+        (n_sub = 4, or 8 for nucleon models: p/n per group), PSD-projected.
     n_components : int
         Number of retained components.
     variance_explained : float
-        Fraction of total variance captured by the low-rank part.
+        Fraction of the total variance in the chosen gauge captured by the
+        low-rank part (in the correlation gauge: average fraction of the
+        per-row variance).
 
     Examples
     --------
     >>> from globalsplinefit import GSFEnergyPerNucleon
     >>> from globalsplinefit.pca import HybridPCA
     >>> gsf = GSFEnergyPerNucleon(version="2025")
-    >>> pca = HybridPCA(gsf, n_components=12)
+    >>> pca = HybridPCA(gsf, n_components=8)
     >>> E = np.logspace(1, 6, 50)
     >>> flux = pca.flux(E, "p")             # same as gsf.flux(E, "p")
     >>> sigma = pca.error(E, "p")           # absolute 1-sigma (like gsf.error)
@@ -231,16 +282,20 @@ class HybridPCA:
     def __init__(
         self,
         model: GSFBase,
-        n_components: int = 12,
+        n_components: int = 8,
         energy_grid: np.ndarray | list | float | None = None,
+        gauge: str = "correlation",
         **kwargs,
     ):
+        if gauge not in ("correlation", "covariance"):
+            raise ValueError(f"gauge must be 'correlation' or 'covariance', got {gauge!r}")
         if energy_grid is None:
             energy_grid = np.logspace(np.log10(1.0), 11, 300)
         energy_grid = np.atleast_1d(np.asarray(energy_grid, dtype=float))
 
         self.model = model
         self.n_components = n_components
+        self.gauge = gauge
         self._energy_grid = energy_grid
         self._kwargs = kwargs
         self._is_nucleon_model = isinstance(model, _NUCLEON_MODELS)
@@ -266,62 +321,104 @@ class HybridPCA:
         # Relative flux covariance
         flux_rel_cov = rel_jac @ cov_stack @ rel_jac.T
 
-        # Eigendecomposition (ascending order from eigh, reverse to descending)
-        eigvals, eigvecs = np.linalg.eigh(flux_rel_cov)
-        idx = np.argsort(eigvals)[::-1]
-        eigvals = eigvals[idx]
-        eigvecs = eigvecs[:, idx]
+        # Low-rank factor in the chosen gauge
+        k = n_components
+        if gauge == "correlation":
+            s = np.sqrt(np.maximum(np.diag(flux_rel_cov), 0.0))
+            snz = s > 0
+            corr = np.zeros_like(flux_rel_cov)
+            corr[np.ix_(snz, snz)] = flux_rel_cov[np.ix_(snz, snz)] / np.outer(
+                s[snz], s[snz]
+            )
+            eigvals, eigvecs = np.linalg.eigh(corr)
+            idx = np.argsort(eigvals)[::-1]
+            eigvals = eigvals[idx]
+            eigvecs = eigvecs[:, idx]
+            # un-whiten the retained factor back to covariance scale
+            L = (s[:, np.newaxis] * eigvecs[:, :k]) * np.sqrt(
+                np.maximum(eigvals[:k], 0.0)
+            )
+        else:
+            eigvals, eigvecs = np.linalg.eigh(flux_rel_cov)
+            idx = np.argsort(eigvals)[::-1]
+            eigvals = eigvals[idx]
+            eigvecs = eigvecs[:, idx]
+            L = eigvecs[:, :k] * np.sqrt(np.maximum(eigvals[:k], 0.0))
 
         self._eigvals = eigvals
-
-        # Low-rank factor in flux space
-        k = n_components
-        L = eigvecs[:, :k] * np.sqrt(np.maximum(eigvals[:k], 0.0))
-
-        # Diagonal correction: exact variance minus low-rank contribution
-        self.D = np.maximum(np.diag(flux_rel_cov) - np.sum(L**2, axis=1), 0.0)
 
         # Project to parameter space via least-squares (robust to rank-deficiency
         # when the energy grid has fewer points than parameters)
         self.L_param, _, _, _ = np.linalg.lstsq(rel_jac, L, rcond=None)
 
-        # Store for interpolation of D
+        # Store layout info
         self._ref_log_energy = np.log(energy_grid)
         self._n_ref = len(energy_grid)
         self._n_groups = len(_GROUPS)
+        self._n_sub_per_group = 2 if self._is_nucleon_model else 1
+        self._n_sub = self._n_groups * self._n_sub_per_group
 
         # Precompute row layout: rows_per_group for the reference grid
         self._rows_per_group_ref = (
             2 * self._n_ref if self._is_nucleon_model else self._n_ref
         )
 
-        # Cross-term diagonal correction for nucleon models.
-        # For each group, D_pn captures the residual diagonal of the p-n
-        # cross-block: D_pn[i] = Sigma_pn[i,i] - sum_k L_p[i,k]*L_n[i,k].
-        # Without this, covariance cross-terms (and thus total errors) are
-        # severely underestimated for nuclei where Z ≈ A-Z (e.g. He, O, Fe).
-        if self._is_nucleon_model:
-            n_ref = self._n_ref
-            rpg = 2 * n_ref
-            D_pn = np.zeros(self._n_groups * n_ref)
-            for ig in range(self._n_groups):
-                p_idx = np.arange(n_ref) + ig * rpg
-                n_idx = p_idx + n_ref
-                exact_pn_diag = flux_rel_cov[p_idx, n_idx]
-                lr_pn_diag = np.sum(L[p_idx] * L[n_idx], axis=1)
-                d_pn = exact_pn_diag - lr_pn_diag
-                # Clamp for PSD safety: D_pn <= sqrt(D_p * D_n)
-                D_p = self.D[p_idx]
-                D_n = self.D[n_idx]
-                d_pn = np.minimum(d_pn, np.sqrt(D_p * D_n))
-                D_pn[ig * n_ref : (ig + 1) * n_ref] = d_pn
-            self.D_pn = D_pn
-        else:
-            self.D_pn = None
+        # Per-energy cross-group residual blocks: everything the low-rank part
+        # misses BETWEEN sub-rows (group x p/n) at the SAME energy, kept
+        # exactly (PSD-projected).  Cross-energy residuals are dropped.
+        L_grid = rel_jac @ self.L_param
+        n_ref = self._n_ref
+        nsub = self._n_sub
+        B = np.empty((n_ref, nsub, nsub))
+        sub_offsets = self._sub_row_offsets(n_ref)
+        for i in range(n_ref):
+            rows = sub_offsets + i
+            resid = flux_rel_cov[np.ix_(rows, rows)] - L_grid[rows] @ L_grid[rows].T
+            B[i] = _nearest_psd(0.5 * (resid + resid.T))
+        self.B = B
+
+    def _sub_row_offsets(self, n_e: int) -> np.ndarray:
+        """Row offset of each sub-row (group-major, p before n) for n_e energies."""
+        rpg = self._n_sub_per_group * n_e
+        return np.array(
+            [ig * rpg + q * n_e
+             for ig in range(self._n_groups)
+             for q in range(self._n_sub_per_group)]
+        )
+
+    # ------------------------------------------------------------------
+    # Backward-compatible views of the block correction
+    # ------------------------------------------------------------------
+
+    @property
+    def D(self) -> np.ndarray:
+        """Diagonal of the block correction in stacked-row layout.
+
+        Equivalent to the scalar diagonal correction of the original
+        construction (relative variance not carried by the low-rank part).
+        """
+        n_ref = self._n_ref
+        D = np.empty(self._n_sub * n_ref)
+        offsets = self._sub_row_offsets(n_ref)
+        for s, off in enumerate(offsets):
+            D[off : off + n_ref] = self.B[:, s, s]
+        return D
+
+    @property
+    def D_pn(self) -> np.ndarray | None:
+        """p-n cross-term correction per group (nucleon models), from the block."""
+        if not self._is_nucleon_model:
+            return None
+        n_ref = self._n_ref
+        D_pn = np.empty(self._n_groups * n_ref)
+        for ig in range(self._n_groups):
+            D_pn[ig * n_ref : (ig + 1) * n_ref] = self.B[:, 2 * ig, 2 * ig + 1]
+        return D_pn
 
     @property
     def variance_explained(self) -> float:
-        """Fraction of total variance captured by the low-rank components."""
+        """Fraction of total variance (in the chosen gauge) captured by the
+        low-rank components."""
         total = np.sum(np.maximum(self._eigvals, 0.0))
         captured = np.sum(np.maximum(self._eigvals[: self.n_components], 0.0))
         return float(captured / total) if total > 0 else 1.0
@@ -342,74 +439,24 @@ class HybridPCA:
         M = rel_jac @ self.L_param
         return M, central_flux
 
-    def _interpolate_D(self, energy: np.ndarray) -> np.ndarray:
-        """Interpolate diagonal correction D from reference grid to new energies."""
-        log_e = np.log(energy)
-        n_e = len(energy)
+    def _interpolate_B(self, energy: np.ndarray) -> np.ndarray:
+        """Interpolate the residual blocks to arbitrary energies.
 
-        rows_per_group = self._rows_per_group_ref
-        n_out_per_group = 2 * n_e if self._is_nucleon_model else n_e
-
-        D_interp = np.empty(self._n_groups * n_out_per_group)
-
-        for ig in range(self._n_groups):
-            d_group = self.D[ig * rows_per_group : (ig + 1) * rows_per_group]
-
-            if self._is_nucleon_model:
-                d_p = d_group[: self._n_ref]
-                d_n = d_group[self._n_ref :]
-                for k, d_half in enumerate([d_p, d_n]):
-                    log_d = np.log(np.maximum(d_half, 1e-300))
-                    interp_fn = interp1d(
-                        self._ref_log_energy,
-                        log_d,
-                        kind="linear",
-                        fill_value="extrapolate",  # type: ignore[arg-type]
-                    )
-                    offset = ig * n_out_per_group + k * n_e
-                    D_interp[offset : offset + n_e] = np.maximum(
-                        np.exp(interp_fn(log_e)), 0.0
-                    )
-            else:
-                log_d = np.log(np.maximum(d_group, 1e-300))
-                interp_fn = interp1d(
-                    self._ref_log_energy,
-                    log_d,
-                    kind="linear",
-                    fill_value="extrapolate",  # type: ignore[arg-type]
-                )
-                offset = ig * n_out_per_group
-                D_interp[offset : offset + n_e] = np.maximum(
-                    np.exp(interp_fn(log_e)), 0.0
-                )
-
-        return D_interp
-
-    def _interpolate_D_pn(self, energy: np.ndarray) -> np.ndarray:
-        """Interpolate cross-term diagonal correction D_pn to new energies.
-
-        Only meaningful for nucleon models. Layout: ``n_groups * n_e`` values,
-        indexed as ``[ig * n_e : (ig + 1) * n_e]``.
+        Linear interpolation in log-energy; a convex combination of PSD
+        blocks is PSD.  Outside the reference grid the edge block is held
+        constant.
         """
         log_e = np.log(energy)
-        n_e = len(energy)
-        n_ref = self._n_ref
-
-        D_pn_interp = np.empty(self._n_groups * n_e)
-        for ig in range(self._n_groups):
-            d_pn_ref = self.D_pn[ig * n_ref : (ig + 1) * n_ref]
-            log_d = np.log(np.maximum(d_pn_ref, 1e-300))
-            interp_fn = interp1d(
-                self._ref_log_energy,
-                log_d,
-                kind="linear",
-                fill_value="extrapolate",  # type: ignore[arg-type]
-            )
-            offset = ig * n_e
-            D_pn_interp[offset : offset + n_e] = np.maximum(
-                np.exp(interp_fn(log_e)), 0.0
-            )
-        return D_pn_interp
+        idx = np.clip(
+            np.searchsorted(self._ref_log_energy, log_e) - 1, 0, self._n_ref - 2
+        )
+        lo = self._ref_log_energy[idx]
+        hi = self._ref_log_energy[idx + 1]
+        t = np.clip((log_e - lo) / (hi - lo), 0.0, 1.0)
+        return (
+            (1.0 - t)[:, np.newaxis, np.newaxis] * self.B[idx]
+            + t[:, np.newaxis, np.newaxis] * self.B[idx + 1]
+        )
 
     def _group_row_slice(self, ig: int, n_e: int) -> slice:
         """Return the row slice for group index ig in the stacked layout."""
@@ -455,12 +502,16 @@ class HybridPCA:
     ) -> np.ndarray:
         """Compute full absolute covariance between two group indices.
 
-        Returns the full abs_cov matrix including all nucleon blocks if applicable.
+        Returns the full abs_cov matrix including all nucleon blocks if
+        applicable.  The low-rank part carries all cross-energy structure;
+        the interpolated residual block is added on the same-energy
+        diagonal for every sub-row pair of the two groups.
         """
         n_e = len(energy)
+        nspg = self._n_sub_per_group
 
         M_full, cf = self._reduced_jacobian_full(energy, **kwargs)
-        D_interp = self._interpolate_D(energy)
+        Bx = self._interpolate_B(energy)
 
         s1 = self._group_row_slice(ig1, n_e)
         s2 = self._group_row_slice(ig2, n_e)
@@ -470,16 +521,15 @@ class HybridPCA:
         cf1 = cf[s1]
         cf2 = cf[s2]
 
-        # Relative covariance for this group pair
+        # Relative covariance for this group pair: low rank ...
         rel_cov = M1 @ M2.T
-        if ig1 == ig2:
-            rel_cov += np.diag(D_interp[s1])
-            # Add cross-term diagonal correction for nucleon models
-            if self._is_nucleon_model:
-                D_pn_interp = self._interpolate_D_pn(energy)
-                d_pn = D_pn_interp[ig1 * n_e : (ig1 + 1) * n_e]
-                rel_cov[:n_e, n_e:] += np.diag(d_pn)
-                rel_cov[n_e:, :n_e] += np.diag(d_pn)
+        # ... plus the same-energy residual block entries
+        diag_idx = np.arange(n_e)
+        for a in range(nspg):
+            for b in range(nspg):
+                rel_cov[a * n_e + diag_idx, b * n_e + diag_idx] += Bx[
+                    :, ig1 * nspg + a, ig2 * nspg + b
+                ]
 
         # Convert to absolute: Cov_abs[i,j] = rel_cov[i,j] * f1[i] * f2[j]
         return rel_cov * cf1[:, np.newaxis] * cf2[np.newaxis, :]
@@ -491,7 +541,7 @@ class HybridPCA:
         energy: ArrayLike,
         **kwargs,
     ) -> np.ndarray:
-        """Approximate absolute flux covariance via PCA low-rank + diagonal.
+        """Approximate absolute flux covariance via low rank + energy blocks.
 
         Same signature and return units as the original model's ``covariance``.
 
@@ -532,7 +582,7 @@ class HybridPCA:
         target: str | int | list[int],
         **kwargs,
     ) -> np.ndarray:
-        """Approximate absolute 1-sigma flux uncertainty via PCA.
+        """Approximate absolute 1-sigma flux uncertainty via the reduction.
 
         Same signature and return units as the original model's ``error``.
 
@@ -569,7 +619,9 @@ class HybridPCA:
     ) -> np.ndarray:
         """Total flux uncertainty summed over all group pairs.
 
-        Same as the original model's ``total_error`` but using PCA approximation.
+        Same as the original model's ``total_error`` but using the reduced
+        representation.  Exact on the reference grid (the residual blocks
+        carry all same-energy cross-group covariance).
         """
         energy = np.atleast_1d(np.asarray(energy, dtype=float))
         n_e = len(energy)
@@ -603,7 +655,7 @@ class HybridPCA:
         energy: ArrayLike,
         **kwargs,
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Separate proton and neutron covariance matrices via PCA.
+        """Separate proton and neutron covariance matrices via the reduction.
 
         Returns
         -------
@@ -628,7 +680,7 @@ class HybridPCA:
         target: str | int | list[int],
         **kwargs,
     ) -> np.ndarray:
-        """Separate proton and neutron uncertainties via PCA.
+        """Separate proton and neutron uncertainties via the reduction.
 
         Returns
         -------
@@ -682,21 +734,24 @@ class HybridPCA:
         n_samples: int,
         energy: ArrayLike,
         rng: np.random.Generator | None = None,
-        diagonal_noise: bool = False,
+        residual_noise: bool = False,
+        diagonal_noise: bool | None = None,
         **kwargs,
     ) -> np.ndarray:
         """Draw random flux realizations from the reduced model.
 
         By default, samples are smooth spectral perturbations driven by
-        the k correlated PCA components:
+        the k correlated components:
 
             f(E) = f_central(E) * (1 + M(E) @ phi),  phi ~ N(0, I_k)
 
-        With ``diagonal_noise=True``, an additional per-bin noise term is
-        added to match the exact marginal variances.  This noise treats
-        the residual covariance as uncorrelated across energy bins, which
-        introduces bin-to-bin jitter that is not physical.  Use this only
-        when correct per-bin variances matter more than spectral smoothness.
+        With ``residual_noise=True``, an additional per-energy noise term
+        drawn from the residual blocks is added, so that the sample
+        covariance matches the exact cross-group covariance at every
+        energy.  This noise is uncorrelated *between* energies, which
+        introduces bin-to-bin jitter that is not physical.  Use it only
+        when correct per-bin (co)variances matter more than spectral
+        smoothness.
 
         Parameters
         ----------
@@ -706,10 +761,12 @@ class HybridPCA:
             Energy values.
         rng : numpy.random.Generator, optional
             Random number generator. Default: ``np.random.default_rng()``.
+        residual_noise : bool, optional
+            If True, add per-energy noise from the residual blocks B to
+            match the exact same-energy covariance. Default False (smooth
+            samples only).
         diagonal_noise : bool, optional
-            If True, add per-bin diagonal noise from D (and D_pn for
-            nucleon models) to match exact marginal variances.
-            Default False (smooth samples only).
+            Deprecated alias for ``residual_noise``.
         **kwargs
             Override kwargs for model methods.
 
@@ -718,10 +775,13 @@ class HybridPCA:
         samples : ndarray, shape (n_samples, rows)
             Absolute flux realizations (stacked over all groups).
         """
+        if diagonal_noise is not None:
+            residual_noise = diagonal_noise
         if rng is None:
             rng = np.random.default_rng()
 
         energy = np.atleast_1d(np.asarray(energy, dtype=float))
+        n_e = len(energy)
 
         M, central_flux = self._reduced_jacobian_full(energy, **kwargs)
 
@@ -729,27 +789,18 @@ class HybridPCA:
         phi = rng.standard_normal((n_samples, self.n_components))
         rel_variation = phi @ M.T
 
-        if diagonal_noise:
-            D_interp = self._interpolate_D(energy)
-            if self._is_nucleon_model:
-                n_e = len(energy)
-                D_pn_interp = self._interpolate_D_pn(energy)
-                eps = np.zeros((n_samples, n_rows))
-                rpg = 2 * n_e
-                for ig in range(self._n_groups):
-                    p_off = ig * rpg
-                    n_off = p_off + n_e
-                    D_p = D_interp[p_off : p_off + n_e]
-                    D_n = D_interp[n_off : n_off + n_e]
-                    D_pn = D_pn_interp[ig * n_e : (ig + 1) * n_e]
-                    L00 = np.sqrt(D_p)
-                    L10 = np.where(L00 > 0, D_pn / np.maximum(L00, 1e-300), 0.0)
-                    L11 = np.sqrt(np.maximum(D_n - L10**2, 0.0))
-                    z = rng.standard_normal((n_samples, 2, n_e))
-                    eps[:, p_off : p_off + n_e] = z[:, 0, :] * L00
-                    eps[:, n_off : n_off + n_e] = z[:, 0, :] * L10 + z[:, 1, :] * L11
-            else:
-                eps = rng.standard_normal((n_samples, n_rows)) * np.sqrt(D_interp)
+        if residual_noise:
+            Bx = self._interpolate_B(energy)          # (n_e, nsub, nsub)
+            # matrix square root per energy (PSD by construction)
+            w, u = np.linalg.eigh(Bx)
+            A = u * np.sqrt(np.maximum(w, 0.0))[:, np.newaxis, :]
+            z = rng.standard_normal((n_samples, n_e, self._n_sub))
+            # eps[s, i, a] = sum_b A[i, a, b] * z[s, i, b]
+            eps_sub = np.einsum("iab,sib->sia", A, z)
+            eps = np.zeros((n_samples, n_rows))
+            offsets = self._sub_row_offsets(n_e)
+            for s_idx, off in enumerate(offsets):
+                eps[:, off : off + n_e] = eps_sub[:, :, s_idx]
             rel_variation += eps
 
         return central_flux[np.newaxis, :] * (1.0 + rel_variation)

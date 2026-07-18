@@ -43,8 +43,22 @@ class TestConstruction:
     def test_default_construction(self, pca_nucleon):
         assert pca_nucleon.n_components == 12
         assert pca_nucleon.L_param.shape[1] == 12
+        assert pca_nucleon.gauge == "correlation"
         assert pca_nucleon.D.shape[0] > 0
+        assert pca_nucleon.B.shape[1:] == (8, 8)
         assert 0 < pca_nucleon.variance_explained <= 1.0
+
+    def test_default_n_components(self, gsf_energy):
+        assert HybridPCA(gsf_energy).n_components == 8
+
+    def test_covariance_gauge_option(self, gsf_energy):
+        pca = HybridPCA(gsf_energy, n_components=6, gauge="covariance")
+        assert pca.gauge == "covariance"
+        assert pca.B.shape[1:] == (4, 4)
+
+    def test_invalid_gauge_raises(self, gsf_energy):
+        with pytest.raises(ValueError):
+            HybridPCA(gsf_energy, gauge="nope")
 
     def test_works_with_energy_model(self, gsf_energy):
         pca = HybridPCA(gsf_energy, n_components=8)
@@ -61,16 +75,21 @@ class TestConstruction:
         assert pca.n_components == 6
         assert pca.L_param.shape[1] == 6
 
-    def test_variance_explained_reasonable(self, pca_nucleon):
-        # 12 components should capture >90% of variance
-        assert pca_nucleon.variance_explained > 0.90
+    def test_variance_explained_reasonable(self, pca_nucleon, gsf_nucleon):
+        # Correlation gauge: honest, slowly converging spectrum (~0.6 at 12).
+        assert 0.3 < pca_nucleon.variance_explained < 0.95
+        # Covariance gauge: trace dominated by the data-free region (>0.9).
+        pca_cov = HybridPCA(gsf_nucleon, n_components=12, gauge="covariance")
+        assert pca_cov.variance_explained > 0.90
 
 
 class TestVariancePreservation:
     """Test that the decomposition preserves exact variances."""
 
     def test_variance_identity_on_reference_grid(self, gsf_nucleon):
-        """sum(L**2, axis=1) + D == diag(flux_rel_cov) to machine precision."""
+        """sum(L**2, axis=1) + D == diag(flux_rel_cov) (up to the PSD
+        projection of the residual blocks, which is at the level of the
+        least-squares reprojection error)."""
         grid = np.logspace(np.log10(1.0), 11, 100)
         pca = HybridPCA(gsf_nucleon, n_components=12, energy_grid=grid)
 
@@ -90,13 +109,14 @@ class TestVariancePreservation:
 
         # Compare with tolerance for floating point (some rows have zero exact variance)
         np.testing.assert_allclose(
-            reconstructed_var[nonzero], exact_var[nonzero], rtol=1e-9, atol=1e-14
+            reconstructed_var[nonzero], exact_var[nonzero], rtol=1e-6, atol=1e-12
         )
 
     def test_L_reconstruction(self, gsf_nucleon):
-        """rel_jac @ L_param should reconstruct L (flux-space factor)."""
+        """rel_jac @ L_param should reconstruct L (covariance-gauge factor)."""
         grid = np.logspace(np.log10(1.0), 11, 100)
-        pca = HybridPCA(gsf_nucleon, n_components=12, energy_grid=grid)
+        pca = HybridPCA(gsf_nucleon, n_components=12, energy_grid=grid,
+                        gauge="covariance")
 
         jac_stack, cov_stack, _, central_flux, _, _ = _build_stacked_system(
             gsf_nucleon, grid
@@ -207,8 +227,8 @@ class TestErrorAndCovariance:
         pca_total = pca_nucleon.total_error(E)
         model_total = gsf_nucleon.total_error(E)
         ratio = pca_total / model_total
-        assert np.median(np.abs(ratio - 1)) < 0.02
-        assert np.all(ratio > 0.85) and np.all(ratio < 1.15)
+        assert np.median(np.abs(ratio - 1)) < 0.01
+        assert np.all(ratio > 0.97) and np.all(ratio < 1.03)
 
     def test_p_and_n_covariance(self, pca_nucleon):
         E = np.logspace(2, 5, 10)
@@ -287,6 +307,33 @@ class TestSampling:
         s1 = pca_nucleon.sample(50, E, rng=np.random.default_rng(42))
         s2 = pca_nucleon.sample(50, E, rng=np.random.default_rng(42))
         np.testing.assert_array_equal(s1, s2)
+
+    @pytest.mark.slow
+    def test_total_error_exact_energy_model(self, gsf_energy):
+        """All-particle error must match the full model (block correction)."""
+        pca = HybridPCA(gsf_energy, n_components=4)
+        E = np.logspace(1.5, 8.5, 25)
+        ratio = pca.total_error(E) / gsf_energy.total_error(E)
+        assert np.all(ratio > 0.97) and np.all(ratio < 1.05)
+
+    @pytest.mark.slow
+    def test_rank_independence_of_totals(self, gsf_energy):
+        """Fixed-energy observables must not depend on n_components."""
+        E = np.logspace(2, 8, 15)
+        t4 = HybridPCA(gsf_energy, n_components=4).total_error(E)
+        t8 = HybridPCA(gsf_energy, n_components=8).total_error(E)
+        np.testing.assert_allclose(t4, t8, rtol=0.02)
+
+    @pytest.mark.slow
+    def test_residual_noise_restores_variance(self, pca_nucleon, gsf_nucleon):
+        """With residual_noise, sample variance matches the exact error."""
+        E = np.logspace(2, 5, 8)
+        rng = np.random.default_rng(1)
+        samples = pca_nucleon.sample(20000, E, rng=rng, residual_noise=True)
+        # p group proton rows are the first len(E) rows
+        std = samples[:, : len(E)].std(axis=0)
+        exact = gsf_nucleon.p_and_n_error(E, "p")[0]
+        np.testing.assert_allclose(std, exact, rtol=0.05)
 
     @pytest.mark.slow
     def test_sample_statistics(self, pca_nucleon):
