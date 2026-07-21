@@ -8,22 +8,27 @@ import pytest
 from globalsplinefit.model import GSFEnergy, GSFEnergyPerNucleon, GSFRigidity
 
 
+# The shared model fixtures are pinned to the 2017 (non-isotope) set: the bulk
+# of the suite compares against the gsf_*_2017 reference data and uses bare
+# integer charge access (z_to_a[1], etc.), which is only defined for
+# single-species (non-isotope) charges. The package default is GSF2026 (an
+# isotope set); it is covered separately in test_versioned_sets.py.
 @pytest.fixture
 def gsf_energy():
-    """Create a GSF energy model instance for testing."""
-    return GSFEnergy()
+    """Create a GSF energy model instance for testing (2017 reference set)."""
+    return GSFEnergy(version="2017")
 
 
 @pytest.fixture
 def gsf_rigidity():
-    """Create a GSF rigidity model instance for testing."""
-    return GSFRigidity()
+    """Create a GSF rigidity model instance for testing (2017 reference set)."""
+    return GSFRigidity(version="2017")
 
 
 @pytest.fixture
 def gsf_nucleon():
-    """Create a GSF nucleon model instance for testing."""
-    return GSFEnergyPerNucleon()
+    """Create a GSF nucleon model instance for testing (2017 reference set)."""
+    return GSFEnergyPerNucleon(version="2017")
 
 
 @pytest.fixture

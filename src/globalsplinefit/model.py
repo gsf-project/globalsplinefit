@@ -136,7 +136,9 @@ class GSFBase(ABC):
             Optional path to custom data files. If None, uses default
             data files included with the package.
         version
-            Optional model version ("2017", "2019", "2025"). If specified,
+            Optional model version ("GSF2026", "GSF2026-USO", "2025", "2019",
+            "2017"). Defaults to "GSF2026" (Ghelfi-Maurin-Derome potential);
+            "GSF2026-USO" uses the Usoskin 2017 potential. If specified,
             overrides data_path and uses the corresponding package data directory.
         use_approximate_solar_cycle_average
             If True (default), solar cycle averages

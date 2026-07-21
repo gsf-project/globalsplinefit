@@ -96,6 +96,31 @@ rigidity = np.logspace(0, 3, 100)  # 1 GV to 1 TV
 flux = gsf_rigidity.flux(rigidity, "p")
 ```
 
+## Model Versions
+
+All model classes accept a `version` parameter selecting the fitted parameter set:
+
+```python
+gsf = GSFEnergy()                        # default: GSF2026
+gsf_uso = GSFEnergy(version="GSF2026-USO")
+gsf_2025 = GSFEnergy(version="2025")
+```
+
+| Version | Description |
+|---------|-------------|
+| `"GSF2026"` | **Default.** Current fit, Ghelfi--Maurin--Derome solar modulation potential |
+| `"GSF2026-USO"` | Same fit with the Usoskin 2017 potential |
+| `"2025"` | Previous release |
+| `"2019"` | Legacy release |
+| `"2017"` | Original GSF release (Dembinski et al. 2017) |
+
+The GSF2026 sets are fitted in isotope format (deuterium and the ³He/⁴He
+split are carried explicitly). The choice of solar modulation potential
+affects only the local interstellar spectrum below ~10 GV: relative to
+GSF2026, the Usoskin potential yields a 10--14% lower interstellar
+spectrum below 2 GV, with the two converging above ~10 GV. All
+higher-energy results are identical.
+
 ## Particle Groups
 
 All models support these cosmic ray groups:

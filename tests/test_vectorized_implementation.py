@@ -21,13 +21,13 @@ class TestVectorizedImplementation:
 
     @pytest.fixture
     def gsf_energy(self):
-        """Create GSFEnergy model for testing."""
-        return GSFEnergy()
+        """Create GSFEnergy model for testing (2017 set: bare-int charge access)."""
+        return GSFEnergy(version="2017")
 
     @pytest.fixture
     def gsf_nucleon(self):
-        """Create GSFEnergyPerNucleon model for testing."""
-        return GSFEnergyPerNucleon()
+        """Create GSFEnergyPerNucleon model for testing (2017 set)."""
+        return GSFEnergyPerNucleon(version="2017")
 
     def _reference_rigidity_from_energy(self, model, z, energy, phi):
         """Reference implementation of rigidity conversion (explicit, single phi)."""

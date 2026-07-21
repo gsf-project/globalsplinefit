@@ -95,10 +95,14 @@ class Parameters:
     ----------
     data_path : str or Path, optional
         Path to directory containing GSF data files. If None, uses the
-        default 2017 data version from the package.
+        default GSF2026 data version (Ghelfi-Maurin-Derome potential).
     version : str, optional
-        Model version to use ("2017", "2019", "2025"). If specified,
-        overrides data_path and uses the corresponding package data directory.
+        Model version to use ("GSF2026", "GSF2026-USO", "2025", "2019",
+        "2017"). "GSF2026" is the default (Ghelfi-Maurin-Derome modulation
+        potential); "GSF2026-USO" is the same fit with the Usoskin 2017
+        potential (a lower-flux low-rigidity interstellar spectrum). If
+        specified, overrides data_path and uses the corresponding package
+        data directory.
     use_approximate_solar_cycle_average : bool, optional
         When True (default), solar cycle averages are calculated approximately
         from the average of monthly phi values. When False, averages are
@@ -133,7 +137,7 @@ class Parameters:
                 )
             return data_dir
         if data_path is None:
-            data_dir = Path(__file__).parent / "data" / "2017"
+            data_dir = Path(__file__).parent / "data" / "GSF2026"
             if not data_dir.exists():
                 raise OSError(f"Default data directory not found: {data_dir}")
             return data_dir
