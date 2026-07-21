@@ -121,6 +121,14 @@ GSF2026, the Usoskin potential yields a 10--14% lower interstellar
 spectrum below 2 GV, with the two converging above ~10 GV. All
 higher-energy results are identical.
 
+Each set is re-modulated with the potential it was demodulated with:
+GSF2026 ships its own Ghelfi--Maurin--Derome monthly `phi(t)` table
+(`GSF2026/solar_modulation.dat`), while GSF2026-USO and the legacy sets
+use the bundled Usoskin table at the package data root. Because the two
+LIS are paired with their respective potentials, the resulting fluxes at
+Earth agree far better than the LIS do (the residual below a few GV is
+the solar-modulation systematic captured by the fit's `phi` nuisance).
+
 ## Particle Groups
 
 All models support these cosmic ray groups:

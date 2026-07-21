@@ -54,3 +54,36 @@ def test_usoskin_lowers_low_rigidity_lis():
         ju = uso.flux(R, g, time_interval="LIS")
         assert ju[0] / jg[0] - 1.0 < -0.05      # >5% lower at 1.5 GV
         assert abs(ju[-1] / jg[-1] - 1.0) < 0.02  # converged by 50 GV
+
+
+def test_gsf2026_ships_its_own_phi_table():
+    """GSF2026 (GMD) carries a version-local solar_modulation.dat; the fitted
+    LIS must be re-modulated with the potential it was demodulated with. The
+    Usoskin variant and the legacy sets fall back to the shared Usoskin table.
+    """
+    gmd = GSFRigidity(version="GSF2026")
+    uso = GSFRigidity(version="GSF2026-USO")
+    leg = GSFRigidity(version="2025")
+    # GMD runs a distinctly higher potential than Usoskin (~60-70 MV) over the
+    # neutron-monitor era, so its monthly table differs at the tens-of-MV level.
+    assert abs(gmd.phi[2015].mean() - uso.phi[2015].mean()) * 1e3 > 40.0
+    # Usoskin variant and legacy set share the bundled Usoskin table exactly.
+    np.testing.assert_allclose(uso.phi[2015], leg.phi[2015], rtol=0, atol=0)
+
+
+def test_toa_agrees_across_phi_sources():
+    """Although the LIS differ ~10-14% at low R, re-modulating each set with
+    its OWN table brings the fluxes at Earth much closer together — the residual
+    is the solar-modulation systematic, well below the LIS gap and shrinking
+    with rigidity."""
+    gmd = GSFRigidity(version="GSF2026")
+    uso = GSFRigidity(version="GSF2026-USO")
+    R = np.array([1.5, 5.0, 20.0])
+    epoch = (201105, 201805)  # AMS-02 era
+    for g in ("p", "He"):
+        lis_gap = abs(uso.flux(R, g, time_interval="LIS")[0]
+                      / gmd.flux(R, g, time_interval="LIS")[0] - 1.0)
+        toa = uso.flux(R, g, time_interval=epoch) / gmd.flux(R, g, time_interval=epoch)
+        assert lis_gap > 0.08                       # LIS differ markedly at 1.5 GV
+        assert abs(toa[0] - 1.0) < 0.5 * lis_gap    # TOA gap at least halved
+        assert abs(toa[-1] - 1.0) < 0.01            # ~converged by 20 GV

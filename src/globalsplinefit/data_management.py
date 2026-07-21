@@ -281,27 +281,44 @@ class Parameters:
             self.cov[(s2, s1)][j - self.offset[s2], i - self.offset[s1]] = val
 
     def _load_solar_modulation(self):
-        """Load solar modulation data from solar_modulation.dat.
+        """Load the monthly solar-modulation potential table (phi, MV).
 
-        The solar modulation file is observational data shared across all
-        model versions. It always lives at the package's data root, not
-        inside any version directory, so it's looked up independently of
-        ``self.data_path``.
+        Precedence: a VERSION-LOCAL ``<data_path>/solar_modulation.dat`` if the
+        parameter set ships its own potential, else the shared table at the
+        package data root. This matters because the LIS is demodulated with a
+        specific phi(t): the fitted LIS must be re-modulated by the SAME
+        potential to recover a flux at Earth. Sets whose LIS was demodulated
+        with a non-default potential (e.g. GSF2026, Ghelfi-Maurin-Derome) ship
+        their table alongside the parameters; legacy sets (2017/2019/2025) and
+        the Usoskin variant (GSF2026-USO) fall back to the shared Usoskin table.
+
+        Robust to both the shared file (UTF-16-BOM, Usoskin) and version-local
+        UTF-8 files: encoding is detected from the byte-order mark, header lines
+        are '#'-commented, and the columns are Year followed by the 12 monthly
+        values (a trailing Annual column, present in the Usoskin file, is
+        ignored). Rows with any NaN month (e.g. Jan 1951 in the Usoskin table)
+        are dropped.
         """
-        solar_file = Path(__file__).parent / "data" / "solar_modulation.dat"
+        local = self.data_path / "solar_modulation.dat"
+        shared = Path(__file__).parent / "data" / "solar_modulation.dat"
+        solar_file = local if local.exists() else shared
         if not solar_file.exists():
             raise FileNotFoundError(f"Solar modulation file not found: {solar_file}")
 
-        self.phi = {}
-        # File is UTF-16 with BOM (provenance: external observational source).
-        data_array = np.loadtxt(solar_file, skiprows=13, encoding="utf-16")
+        # Detect encoding from the byte-order mark (shared file is UTF-16-LE
+        # with BOM; version-local files are plain UTF-8).
+        with open(solar_file, "rb") as fh:
+            encoding = "utf-16" if fh.read(2) == b"\xff\xfe" else "utf-8"
 
+        # '#'-commented header of arbitrary length; data rows are numeric.
+        data_array = np.loadtxt(solar_file, comments="#", encoding=encoding)
+
+        self.phi = {}
         for row in data_array:
-            # Columns are Year, Jan..Dec, Annual — keep ONLY the 12 monthly
-            # values. Taking row[1:] would ingest the annual mean as a 13th
-            # "month", mis-weighting every multi-month interval average.
-            # (Jan 1951 is NaN in the source table.)
-            self.phi[int(row[0])] = row[1:13] * 1e-3  # Convert to GV
+            months = row[1:13]  # Year, Jan..Dec[, Annual] -> keep the 12 months
+            if np.isnan(months).any():  # drop incomplete years (e.g. Jan 1951)
+                continue
+            self.phi[int(row[0])] = months * 1e-3  # MV -> GV
 
     def _load_subleading(self):
         """Load the OPTIONAL subleading.dat extrapolation table: per sub-leading
