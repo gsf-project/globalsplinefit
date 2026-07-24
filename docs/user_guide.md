@@ -140,6 +140,38 @@ All models support these cosmic ray groups:
 | `"O"` | Oxygen group | Z = 3--9 |
 | `"Fe"` | Iron group | Z = 10--28 |
 
+## Sub-leading Elements and High-Energy Extrapolation
+
+Within each mass group only the *leading* element carries its own B-spline; the
+remaining *sub-leading* species are tied to their group leader through a
+rigidity-dependent flux ratio. Inside the range covered by direct data this
+ratio follows the fitted splines. **Above each species' top knot**
+$R_{\text{max}}$ (the highest rigidity at which that element has data), the
+ratio is extrapolated as a power law in rigidity that saturates to a constant:
+
+$$
+\frac{J_j(R)}{J_L(R)} = w_j \left(\frac{\min(R,\,R_{\text{sat}})}{R_{\text{max},j}}\right)^{s_j},
+\qquad R_{\text{sat}} = 5\ \text{PV},
+$$
+
+where $J_L$ is the group-leader flux. The normalization $w_j$ and the slope
+$s_j$ are **anchored to the data** — obtained from an error-weighted power-law
+fit to the measured member-to-leader ratio over the last decade of the
+element's direct data. The saturation rigidity $R_{\text{sat}} = 5$ PV sits
+near the proton knee, motivated by the common galactic origin and the assumed
+similarity of transport effects above it.
+
+For the `GSF2026` and `GSF2026-USO` sets these per-element parameters ship in
+`data/<version>/subleading.dat` (columns `Z A norm slope`). The legacy sets
+(`2017`, `2019`, `2025`) omit the file; a missing file — or a zero slope —
+reproduces the historical **constant-ratio** extrapolation bit-identically.
+
+!!! note
+    The norm and slope are best-fit point estimates; their uncertainty is not
+    propagated (`covariance.dat` stores the four group leaders only). The
+    saturation constant is exposed as
+    `globalsplinefit.model.SUBLEADING_SAT_LNR`.
+
 ## Uncertainty Quantification
 
 GSF provides full uncertainty quantification including correlations:

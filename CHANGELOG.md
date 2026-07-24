@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   classes
 - Isotope-aware (Z, A) species keying + FitResult v2 format (deuteron as a
   sub-leading Z=1 species); global `energy_scale` model parameter
+- Data-anchored power-law extrapolation of the sub-leading element abundances
+  above their top knot: the member-to-leader flux ratio is tilted by a fitted
+  spectral slope and normalization and saturates at `R_sat = 5` PV
+  (`SUBLEADING_SAT_LNR`). Parameters ship in `data/<version>/subleading.dat`
+  (`Z A norm slope`) for GSF2026 / GSF2026-USO. Previous releases held this
+  ratio constant; legacy sets without `subleading.dat` fall back to that
+  constant-ratio behavior bit-identically
 - Data loading infrastructure with resource management
 - PyPI packaging configuration
 - Code quality tooling (ruff) and pre-commit hooks

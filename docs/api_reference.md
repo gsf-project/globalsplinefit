@@ -90,3 +90,19 @@ corresponding group leader atomic numbers.
 from globalsplinefit.model import GSFBase
 print(GSFBase.GROUP_NAMES)
 ```
+
+### SUBLEADING_SAT_LNR
+
+Saturation rigidity for the sub-leading high-energy extrapolation, stored as
+$\ln(R/\text{GV})$ — i.e. `log(5e6)`, with $R_{\text{sat}} = 5$ PV.
+
+Above a sub-leading species' top knot the member-to-leader ratio is tilted by
+its fitted power-law slope and held constant beyond $R_{\text{sat}}$:
+`ratio(R) = norm * (min(R, R_sat)/Rmax)**slope`. See
+[Sub-leading Elements and High-Energy Extrapolation](user_guide.md#sub-leading-elements-and-high-energy-extrapolation).
+
+```python
+import numpy as np
+from globalsplinefit.model import SUBLEADING_SAT_LNR
+print(np.exp(SUBLEADING_SAT_LNR))  # 5e6 GV = 5 PV
+```
