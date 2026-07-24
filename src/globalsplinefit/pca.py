@@ -1,19 +1,25 @@
 """Hybrid PCA dimensionality reduction for GSF models.
 
-Reduces the full parameter covariance (88 correlated spline parameters)
-to a small number of uncorrelated latent parameters phi ~ N(0, I),
-while preserving the exact covariance between all mass groups at every
-reference-grid energy via a per-energy cross-group block correction.
+Reduces the retained interior of the spline-amplitude covariance to a small
+number of uncorrelated latent parameters phi ~ N(0, I), while preserving the
+exact covariance between all mass groups at every reference-grid energy via
+a per-energy cross-group block correction.  The first and final three
+coefficients of every group are omitted; this limits the reduction in the
+data-free high-energy tail.
 
-Flux model: f(E) = f_central(E) * (1 + M(E) @ phi)
+Reduced relative covariance:
+
+    Cov[delta f_i / f_i, delta f_j / f_j]
+        = M(E_i) M(E_j)^T + delta_ij B(E_i)
+
 where M(E) = J_rel(E) @ L_param is the reduced relative Jacobian,
 exact at any energy (no interpolation).
 
 Construction
 ------------
 On a reference energy grid the relative flux covariance
-``Sigma = J_rel C J_rel^T`` (C = parameter covariance) is reduced in two
-steps:
+``Sigma = J_rel C J_rel^T`` (C = retained interior parameter covariance) is
+reduced in two steps:
 
 1. **Low-rank factor.** With the default ``gauge="correlation"`` the
    *correlation* matrix ``R = D_s^-1/2 Sigma D_s^-1/2`` is diagonalized and
@@ -41,6 +47,12 @@ steps:
 The scalar diagonal correction D and the p-n cross term D_pn of the
 original construction (GSF 2025 analysis) are the diagonal entries of the
 block; they remain available as read-only properties.
+
+Monte Carlo samples include both terms by default and therefore draw from
+the same covariance returned by ``covariance`` and ``error``.  The block
+term is independent between requested energies and can look like bin-to-bin
+jitter.  Pass ``residual_noise=False`` only when a smooth, low-rank-only
+spectral deformation is desired.
 
 References
 ----------
@@ -742,24 +754,26 @@ class HybridPCA:
         n_samples: int,
         energy: ArrayLike,
         rng: np.random.Generator | None = None,
-        residual_noise: bool = False,
+        residual_noise: bool = True,
         diagonal_noise: bool | None = None,
         **kwargs,
     ) -> np.ndarray:
         """Draw random flux realizations from the reduced model.
 
-        By default, samples are smooth spectral perturbations driven by
-        the k correlated components:
+        By default, samples are drawn from the same low-rank + per-energy
+        block covariance used by :meth:`covariance` and :meth:`error`:
 
-            f(E) = f_central(E) * (1 + M(E) @ phi),  phi ~ N(0, I_k)
+            f_i = f_central,i * (1 + M_i @ phi + eps_i)
 
-        With ``residual_noise=True``, an additional per-energy noise term
-        drawn from the residual blocks is added, so that the sample
-        covariance matches the exact cross-group covariance at every
-        energy.  This noise is uncorrelated *between* energies, which
-        introduces bin-to-bin jitter that is not physical.  Use it only
-        when correct per-bin (co)variances matter more than spectral
-        smoothness.
+        Here ``phi ~ N(0, I_k)`` is shared by all energies and
+        ``eps_i ~ N(0, B_i)`` is independent between requested energies.
+        The residual term makes the sample covariance match the exact
+        cross-group covariance of the approximation at every energy.
+
+        Set ``residual_noise=False`` to draw only the correlated low-rank
+        modes.  Those draws are smooth, but they do not sample the covariance
+        returned by :meth:`covariance` and generally underestimate the
+        pointwise variance.
 
         Parameters
         ----------
@@ -770,9 +784,10 @@ class HybridPCA:
         rng : numpy.random.Generator, optional
             Random number generator. Default: ``np.random.default_rng()``.
         residual_noise : bool, optional
-            If True, add per-energy noise from the residual blocks B to
-            match the exact same-energy covariance. Default False (smooth
-            samples only).
+            If True, include per-energy noise from the residual blocks B so
+            that samples match the same-energy covariance returned by the
+            uncertainty methods. Default True. Set to False for smooth
+            low-rank-only draws.
         diagonal_noise : bool, optional
             Deprecated alias for ``residual_noise``.
         **kwargs

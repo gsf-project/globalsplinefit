@@ -326,15 +326,45 @@ class TestSampling:
         np.testing.assert_allclose(t4, t8, rtol=0.02)
 
     @pytest.mark.slow
-    def test_residual_noise_restores_variance(self, pca_nucleon, gsf_nucleon):
-        """With residual_noise, sample variance matches the exact error."""
+    def test_default_samples_match_reduced_covariance(self, pca_nucleon):
+        """Default samples include B and match the complete reduced covariance."""
         E = np.logspace(2, 5, 8)
         rng = np.random.default_rng(1)
-        samples = pca_nucleon.sample(20000, E, rng=rng, residual_noise=True)
-        # p group proton rows are the first len(E) rows
-        std = samples[:, : len(E)].std(axis=0)
-        exact = gsf_nucleon.p_and_n_error(E, "p")[0]
-        np.testing.assert_allclose(std, exact, rtol=0.05)
+        samples = pca_nucleon.sample(30000, E, rng=rng)
+        M, central = pca_nucleon._reduced_jacobian_full(E)
+
+        # Assemble the same relative covariance as covariance(): low-rank
+        # cross-energy structure plus the complete same-energy B blocks.
+        expected = M @ M.T
+        B = pca_nucleon._interpolate_B(E)
+        offsets = pca_nucleon._sub_row_offsets(len(E))
+        idx = np.arange(len(E))
+        for a, off_a in enumerate(offsets):
+            for b, off_b in enumerate(offsets):
+                expected[off_a + idx, off_b + idx] += B[:, a, b]
+
+        relative_samples = samples / central - 1.0
+        observed = np.cov(relative_samples, rowvar=False, ddof=0)
+        scale = np.sqrt(np.outer(np.diag(expected), np.diag(expected)))
+        normalized_difference = np.divide(
+            observed - expected,
+            scale,
+            out=np.zeros_like(expected),
+            where=scale > 0,
+        )
+        assert np.max(np.abs(normalized_difference)) < 0.04
+
+    def test_smooth_sampling_is_explicit_opt_out(self, pca_nucleon):
+        """residual_noise=False retains the former smooth-only behavior."""
+        E = np.logspace(2, 5, 8)
+        seed = 1234
+        smooth = pca_nucleon.sample(
+            20, E, rng=np.random.default_rng(seed), residual_noise=False
+        )
+        legacy_alias = pca_nucleon.sample(
+            20, E, rng=np.random.default_rng(seed), diagonal_noise=False
+        )
+        np.testing.assert_array_equal(smooth, legacy_alias)
 
     @pytest.mark.slow
     def test_sample_statistics(self, pca_nucleon):
