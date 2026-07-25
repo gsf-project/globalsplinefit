@@ -58,11 +58,14 @@ Calculate flux using rigidity:
 """
 
 from .data_management import (
+    DEFAULT_VERSION,
+    MODEL_VERSIONS,
     SOLAR_CYCLE_24_DURATION_YEARS,
     SOLAR_CYCLE_24_END,
     SOLAR_CYCLE_24_START,
     get_available_versions,
     list_versions,
+    version_info,
 )
 from .model import (
     GSFEnergy,
@@ -80,9 +83,12 @@ __all__ = [
     "GSFKineticEnergyPerNucleon",
     "GSFRigidity",
     "HybridPCA",
+    "DEFAULT_VERSION",
+    "MODEL_VERSIONS",
     "SOLAR_CYCLE_24_DURATION_YEARS",
     "SOLAR_CYCLE_24_END",
     "SOLAR_CYCLE_24_START",
     "get_available_versions",
     "list_versions",
+    "version_info",
 ]

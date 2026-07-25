@@ -7,7 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0] - Unreleased
 
+### Changed
+
+- **The distributed GSF2026 / GSF2026-USO parameter sets are now the mixture
+  fits.** Both previously shipped *single-interpretation* (Auger SIBYLL-2.3e
+  only) fits, which were intermediate products of the analysis: `GSF2026` is now
+  the equal-weight SIBYLL-2.3e/EPOS-LHC-R parameter-level mixture with the
+  Ghelfi-Maurin-Derome potential, and `GSF2026-USO` is the same mixture with the
+  Usoskin 2017 potential. Central all-particle flux moves by <0.02% below
+  10^8 GeV and by ~1.7% at 10^10 GeV; the 1-sigma band widens above ~10^8 GeV
+  (x1.3 at 10^10 GeV) because the mixture covariance carries the rank-one
+  between-model term, and `mean_lnA` above 10^9 GeV shifts by up to +0.34.
+
 ### Added
+
+- `DEFAULT_VERSION`, `MODEL_VERSIONS` and `version_info()`: an explicit registry
+  of distributable versions, marking each `current` (the default and its one
+  sanctioned alternative) or `historical` (a superseded release). Only registered
+  directories are offered as versions, so an intermediate fit exported into
+  `data/` cannot become distributable by accident -- unregistered directories
+  warn instead. `get_available_versions(include_historical=False)` returns just
+  the current sets
+- `Parameters.provenance`: the `covering` (air-shower interpretation) and
+  `solar_modulation_source` recorded with a parameter set, plus per-component fit
+  quality for a mixture. `fit_result.json` now ships in the wheel/sdist, so this
+  provenance travels with an install
+- `Model.version` now reports the version actually **resolved** -- a model built
+  with no arguments reports `"GSF2026"` rather than `None`
 
 - Complete rewrite of GSF model as modern Python package
 - Object-oriented model classes (`GSFEnergy`, `GSFRigidity`, `GSFEnergyPerNucleon`, etc.) replacing functional interface
@@ -15,8 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive test suite with pytest (regression-anchored against the
   2017 reference fluxes/errors)
 - Type hints throughout codebase
-- Solar modulation (force-field, monthly Usoskin phi table) on all model
-  classes
+- Solar modulation (force-field, monthly phi table) on all model classes. Each
+  parameter set is re-modulated with the potential it was demodulated with:
+  GSF2026 ships a version-local Ghelfi-Maurin-Derome table, while GSF2026-USO
+  and the historical sets use the bundled Usoskin table
 - Isotope-aware (Z, A) species keying + FitResult v2 format (deuteron as a
   sub-leading Z=1 species); global `energy_scale` model parameter
 - Data-anchored power-law extrapolation of the sub-leading element abundances

@@ -1,8 +1,9 @@
 """Coverage for the shipped parameter sets and the default version.
 
-GSF2026 is the default set (Ghelfi-Maurin-Derome modulation potential);
-GSF2026-USO is the same fit with the Usoskin 2017 potential, which yields a
-lower low-rigidity local interstellar spectrum. Both are isotope-format sets
+GSF2026 is the promoted default: the equal-weight SIBYLL-2.3e/EPOS-LHC-R
+mixture covering with the Ghelfi-Maurin-Derome modulation potential.
+GSF2026-USO is the same mixture fit with the Usoskin 2017 potential, which
+yields a lower low-rigidity local interstellar spectrum. Both are isotope-format sets
 (they carry deuterium and the He-isotope split), so bare integer-charge access
 is not defined for the multi-species charges Z=1 (p+D) and Z=2 (3He+4He); the
 name/tuple flux API is used throughout here.
@@ -11,7 +12,12 @@ import numpy as np
 import pytest
 
 from globalsplinefit import GSFEnergy, GSFRigidity
-from globalsplinefit.data_management import get_available_versions
+from globalsplinefit.data_management import (
+    DEFAULT_VERSION,
+    MODEL_VERSIONS,
+    get_available_versions,
+    version_info,
+)
 
 
 def test_new_sets_available():
@@ -27,6 +33,74 @@ def test_default_is_gsf2026():
     E = np.logspace(0, 4, 50)
     for g in ("p", "He", "O*", "Fe*"):
         np.testing.assert_allclose(default.flux(E, g), explicit.flux(E, g), rtol=1e-12)
+    assert DEFAULT_VERSION == "GSF2026"
+
+
+def test_resolved_version_is_reported():
+    """A model must report the version it actually loaded, not the argument.
+
+    Regression guard: `self.version` used to be the raw constructor argument, so
+    a default-constructed model reported None and nothing could tell which set
+    was in use.
+    """
+    assert GSFEnergy().version == "GSF2026"
+    assert GSFEnergy(version="GSF2026-USO").version == "GSF2026-USO"
+    assert GSFEnergy(version="2017").version == "2017"
+
+
+def test_only_registered_versions_are_offered():
+    """get_available_versions() is an allow-list, not a directory listing.
+
+    Guards the failure this registry was introduced for: a transient
+    single-interpretation fit exported into data/ must not become a
+    distributable version by accident.
+    """
+    for name in get_available_versions():
+        assert name in MODEL_VERSIONS, f"{name} is offered but not registered"
+    current = get_available_versions(include_historical=False)
+    assert set(current) == {"GSF2026", "GSF2026-USO"}
+    for name in current:
+        assert MODEL_VERSIONS[name]["status"] == "current"
+
+
+def test_unregistered_data_dir_warns_and_is_not_offered(tmp_path, monkeypatch):
+    """An unregistered directory under data/ warns and stays unavailable."""
+    import globalsplinefit.data_management as dm
+
+    fake_data = tmp_path / "data"
+    for name in ("GSF2026", "rogue_variant"):
+        d = fake_data / name
+        d.mkdir(parents=True)
+        for f in ("knots.dat", "nuclei.dat", "parameters.dat", "covariance.dat"):
+            (d / f).write_text("")
+    monkeypatch.setattr(dm, "__file__", str(tmp_path / "data_management.py"))
+    with pytest.warns(UserWarning, match="rogue_variant"):
+        versions = dm.get_available_versions()
+    assert versions == ["GSF2026"]
+    assert "rogue_variant" not in versions
+
+
+def test_current_sets_are_the_mixture_and_declare_provenance():
+    """Both distributed sets must be the mixture, and must say so.
+
+    The shipped sets were once single-interpretation (SIBYLL-only) fits while the
+    docs advertised the paper's mixture; nothing in the data recorded the
+    covering, so the mismatch was invisible. This asserts the provenance ships.
+    """
+    for version, phi in (("GSF2026", "GMD"), ("GSF2026-USO", "USO")):
+        prov = GSFEnergy(version=version).params.provenance
+        assert "mixture" in prov["covering"].lower(), version
+        assert "SIBYLL" in prov["covering"] and "EPOS" in prov["covering"], version
+        assert prov["solar_modulation_source"].startswith(phi), version
+        assert set(prov["mixture_components"]) == {"A", "B"}, version
+        assert prov["registry"]["status"] == "current"
+        assert version_info(version)["covering"] == prov["registry"]["covering"]
+
+
+def test_historical_sets_are_marked_historical():
+    """Legacy releases must not read as alternatives to the current fit."""
+    for name in ("2017", "2019", "2025"):
+        assert MODEL_VERSIONS[name]["status"] == "historical"
 
 
 @pytest.mark.parametrize("version", ["GSF2026", "GSF2026-USO"])

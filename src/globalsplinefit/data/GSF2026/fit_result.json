@@ -111,6 +111,31 @@
   "slope_freeze": "data",
   "norm_penalty": true,
   "subleading_slopes": true,
+  "mixture": "parameter-level mixture of fitresult_gmd (Auger SIBYLL-2.3e, GMD phi) and fitresult_epos_gmd (Auger EPOS-LHC-R, GMD phi); par=mean, cov=mean(cov)+outer(dpar/2). Built 2026-07-25. PROMOTED DEFAULT (GSF2026).",
+  "covering": "mixture: equal-weight Auger FD-2026 SIBYLL-2.3e + EPOS-LHC-R",
+  "solar_modulation_source": "GMD (Ghelfi-Maurin-Derome, Ghelfi:2016pcv)",
+  "mixture_weights": [
+    0.5,
+    0.5
+  ],
+  "mixture_chi2_note": "A parameter-level mixture has no chi2 of its own; the top-level chi2 / chi2_corrected / ndof / dphis fields are INHERITED from component A (kept for consumer compatibility). Use mixture_components for the per-component fit quality.",
+  "mixture_components": {
+    "A": {
+      "chi2": 1265.894894197355,
+      "chi2_corrected": 816.2803944684877,
+      "ndof": 972,
+      "chi2_corrected_refit": 816.2803944684877,
+      "ndof_refit": 972
+    },
+    "B": {
+      "chi2": 1249.1701991590205,
+      "chi2_corrected": 809.5212112385645,
+      "ndof": 968,
+      "chi2_corrected_refit": 809.5212112385645,
+      "ndof_refit": 968
+    }
+  },
+  "max_abs_dslope": 0.017890255927358278,
   "format": "gsf-dat-v2",
-  "written": "2026-07-24T03:39:53.544398+00:00"
+  "written": "2026-07-25T03:21:31.750242+00:00"
 }

@@ -75,7 +75,9 @@ all = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-globalsplinefit = ["data/**/*.dat"]
+# *.json ships fit_result.json, the only machine-readable record of
+# which covering and modulation potential a parameter set came from.
+globalsplinefit = ["data/**/*.dat", "data/**/*.json"]
 
 [tool.ruff]
 src = ["src", "tests"]

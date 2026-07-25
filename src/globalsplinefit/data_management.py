@@ -1,3 +1,5 @@
+import json
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -50,38 +52,150 @@ def _collect_phi_values(
     return np.concatenate(chunks)
 
 
-def get_available_versions() -> list[str]:
-    """Get list of available GSF data versions.
+#: The promoted default model version: a bare ``GSFEnergy()`` resolves to this.
+DEFAULT_VERSION = "GSF2026"
+
+#: Registry of the distributable model versions.
+#:
+#: ``status`` is one of:
+#:   ``"current"``     the promoted GSF2026 fit -- the default and its one
+#:                     sanctioned alternative, differing only in the solar
+#:                     modulation potential;
+#:   ``"historical"``  a previously published GSF release, kept so older work can
+#:                     be reproduced. NOT an alternative to the current fit.
+#:
+#: Both current sets use the same **mixture** covering: an equal-weight
+#: parameter-level combination of the Auger FD-2026 SIBYLL-2.3e and EPOS-LHC-R
+#: interpretations, whose covariance carries a rank-one between-model term so the
+#: band spans both hadronic interpretations instead of committing to one.
+#:
+#: This registry is an allow-list. Only directories named here are offered as
+#: model versions, so an intermediate or transient fit exported into ``data/``
+#: cannot become distributable by accident.
+MODEL_VERSIONS: dict[str, dict[str, str]] = {
+    "GSF2026": {
+        "status": "current",
+        "role": "default",
+        "covering": "mixture: equal-weight Auger FD-2026 SIBYLL-2.3e + EPOS-LHC-R",
+        "solar_modulation": "GMD (Ghelfi-Maurin-Derome, Ghelfi et al. 2017)",
+        "description": (
+            "Promoted default. Mixture covering with the Ghelfi-Maurin-Derome "
+            "modulation potential, which the data mildly prefer."
+        ),
+    },
+    "GSF2026-USO": {
+        "status": "current",
+        "role": "alternative",
+        "covering": "mixture: equal-weight Auger FD-2026 SIBYLL-2.3e + EPOS-LHC-R",
+        "solar_modulation": "USO (Usoskin et al. 2017)",
+        "description": (
+            "The one sanctioned alternative: the same mixture fit with the "
+            "Usoskin 2017 potential, which runs about 65 MV lower and yields a "
+            "10-14% lower interstellar spectrum below 2 GV. Use it to gauge the "
+            "solar-modulation systematic."
+        ),
+    },
+    "2025": {
+        "status": "historical",
+        "role": "superseded release",
+        "covering": "see the GSF 2025 release notes",
+        "solar_modulation": "USO (shared Usoskin table)",
+        "description": "Previous published release. Superseded by GSF2026.",
+    },
+    "2019": {
+        "status": "historical",
+        "role": "superseded release",
+        "covering": "see the GSF 2019 release notes",
+        "solar_modulation": "USO (shared Usoskin table)",
+        "description": "Legacy published release. Superseded by GSF2026.",
+    },
+    "2017": {
+        "status": "historical",
+        "role": "superseded release",
+        "covering": "see Dembinski et al. (2017)",
+        "solar_modulation": "USO (shared Usoskin table)",
+        "description": (
+            "Original GSF release (Dembinski et al. 2017). Superseded by GSF2026."
+        ),
+    },
+}
+
+_REQUIRED_FILES = ("knots.dat", "nuclei.dat", "parameters.dat", "covariance.dat")
+
+
+def get_available_versions(include_historical: bool = True) -> list[str]:
+    """Get the list of available GSF data versions.
+
+    Only versions in the :data:`MODEL_VERSIONS` allow-list are returned, and only
+    when their data files are actually present. A directory under ``data/`` that
+    is not registered is never offered as a version -- it warns instead, so a
+    transient or intermediate fit exported there cannot silently become
+    distributable.
+
+    Parameters
+    ----------
+    include_historical
+        When True (default) previously published releases are included alongside
+        the current fit. Pass False for just the current default and its
+        sanctioned alternative.
 
     Returns
     -------
     list[str]
-        List of available version names that can be used to initialize models.
+        Available version names, usable as the ``version=`` argument.
     """
-    current_dir = Path(__file__).parent
-    data_dir = current_dir / "data"
-
+    data_dir = Path(__file__).parent / "data"
     if not data_dir.exists():
         return []
 
-    versions = []
-    for version_path in data_dir.iterdir():
-        if (
-            version_path.is_dir()
-            and not version_path.name.startswith(".")
-            and not version_path.name.startswith("__")
-        ):
-            # Try to validate that this is a proper version by checking for required files
-            required_files = [
-                "knots.dat",
-                "nuclei.dat",
-                "parameters.dat",
-                "covariance.dat",
-            ]
-            if all((version_path / file).exists() for file in required_files):
-                versions.append(version_path.name)
+    present = {
+        p.name
+        for p in data_dir.iterdir()
+        if p.is_dir()
+        and not p.name.startswith((".", "__"))
+        and all((p / f).exists() for f in _REQUIRED_FILES)
+    }
 
-    return sorted(versions)
+    unregistered = sorted(present - MODEL_VERSIONS.keys())
+    if unregistered:
+        warnings.warn(
+            "ignoring unregistered model data director"
+            + ("ies" if len(unregistered) > 1 else "y")
+            + f" under {data_dir}: {', '.join(unregistered)}. Only versions in "
+            "globalsplinefit.data_management.MODEL_VERSIONS are distributable; "
+            "add an entry there if one of these is meant to be a release.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    return sorted(
+        name
+        for name in MODEL_VERSIONS
+        if name in present
+        and (include_historical or MODEL_VERSIONS[name]["status"] == "current")
+    )
+
+
+def version_info(version: str | None = None) -> dict[str, str]:
+    """Describe a model version: its status, covering and modulation potential.
+
+    Parameters
+    ----------
+    version
+        Version name. Defaults to :data:`DEFAULT_VERSION`.
+
+    Returns
+    -------
+    dict[str, str]
+        The :data:`MODEL_VERSIONS` entry for that version.
+    """
+    name = DEFAULT_VERSION if version is None else str(version).strip()
+    if name not in MODEL_VERSIONS:
+        raise ValueError(
+            f"Unknown model version {name!r}. Available versions: "
+            f"{get_available_versions()}"
+        )
+    return dict(MODEL_VERSIONS[name])
 
 
 class Parameters:
@@ -94,15 +208,19 @@ class Parameters:
     Parameters
     ----------
     data_path : str or Path, optional
-        Path to directory containing GSF data files. If None, uses the
-        default GSF2026 data version (Ghelfi-Maurin-Derome potential).
+        Path to directory containing GSF data files. If None, uses
+        :data:`DEFAULT_VERSION`.
     version : str, optional
-        Model version to use ("GSF2026", "GSF2026-USO", "2025", "2019",
-        "2017"). "GSF2026" is the default (Ghelfi-Maurin-Derome modulation
-        potential); "GSF2026-USO" is the same fit with the Usoskin 2017
-        potential (a lower-flux low-rigidity interstellar spectrum). If
-        specified, overrides data_path and uses the corresponding package
-        data directory.
+        Model version to use. "GSF2026" (the default) is the promoted fit: the
+        mixture covering -- an equal-weight combination of the Auger FD-2026
+        SIBYLL-2.3e and EPOS-LHC-R interpretations -- with the
+        Ghelfi-Maurin-Derome modulation potential. "GSF2026-USO" is the one
+        sanctioned alternative: the same mixture fit with the Usoskin 2017
+        potential (about 65 MV lower, giving a 10-14% lower interstellar
+        spectrum below 2 GV). "2025", "2019" and "2017" are superseded
+        historical releases, kept only so older work can be reproduced. See
+        :data:`MODEL_VERSIONS`. If specified, overrides data_path and uses the
+        corresponding package data directory.
     use_approximate_solar_cycle_average : bool, optional
         When True (default), solar cycle averages are calculated approximately
         from the average of monthly phi values. When False, averages are
@@ -123,7 +241,11 @@ class Parameters:
     def _setup_data_path(
         self, data_path: str | Path | None, version: str | None
     ) -> Path:
-        """Set up the data path."""
+        """Set up the data path, recording which version was resolved."""
+        #: Resolved version name, or None when loading an arbitrary data_path.
+        #: Unlike the constructor argument this is filled in for the default, so
+        #: a model built with no arguments still reports what it loaded.
+        self.version = None
         if version is not None:
             version_str = str(version).strip()
             if not version_str:
@@ -135,16 +257,62 @@ class Parameters:
                 raise ValueError(
                     f"Version '{version_str}' not found. Available versions: {get_available_versions()}"
                 )
+            self.version = version_str
             return data_dir
         if data_path is None:
-            data_dir = Path(__file__).parent / "data" / "GSF2026"
+            data_dir = Path(__file__).parent / "data" / DEFAULT_VERSION
             if not data_dir.exists():
                 raise OSError(f"Default data directory not found: {data_dir}")
+            self.version = DEFAULT_VERSION
             return data_dir
         path = Path(data_path)
         if not path.exists():
             raise OSError(f"Data path does not exist: {path}")
+        # An explicit path may still point at a packaged version directory.
+        if (
+            path.resolve().parent == (Path(__file__).parent / "data").resolve()
+            and path.name in MODEL_VERSIONS
+        ):
+            self.version = path.name
         return path
+
+    @property
+    def provenance(self) -> dict:
+        """What this parameter set actually is, read from its ``fit_result.json``.
+
+        Returns the recorded fit provenance -- most importantly ``covering`` (the
+        air-shower interpretation, e.g. the SIBYLL/EPOS mixture) and
+        ``solar_modulation_source`` (GMD or USO), the two axes that distinguish
+        the fits. For a registered version the :data:`MODEL_VERSIONS` entry is
+        merged in under ``registry``.
+
+        Returns an empty dict for legacy sets, which predate the metadata file.
+        """
+        info: dict = {}
+        meta_file = self.data_path / "fit_result.json"
+        if meta_file.exists():
+            try:
+                loaded = json.loads(meta_file.read_text())
+            except (OSError, ValueError):
+                loaded = {}
+            meta = loaded.get("metadata", loaded)
+            for key in (
+                "covering",
+                "solar_modulation_source",
+                "mixture",
+                "mixture_components",
+                "mixture_weights",
+                "mixture_chi2_note",
+                "slope_freeze",
+                "norm_penalty",
+                "written",
+            ):
+                if key in meta:
+                    info[key] = meta[key]
+        if self.version is not None:
+            info["registry"] = dict(MODEL_VERSIONS[self.version])
+            info["version"] = self.version
+        return info
 
     def _load_all_data(self):
         """Load all required GSF data files."""

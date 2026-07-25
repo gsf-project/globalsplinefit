@@ -19,9 +19,9 @@ pip install globalsplinefit
 from globalsplinefit import GSFEnergy
 import numpy as np
 
-model = GSFEnergy()          # default parameter set: GSF2026 (Ghelfi-Maurin-Derome modulation)
-model_uso = GSFEnergy(version="GSF2026-USO")  # GSF2026 with the Usoskin 2017 LIS
-model_2025 = GSFEnergy(version="2025")   # older fit version
+model = GSFEnergy()          # promoted default: GSF2026 (SIBYLL/EPOS mixture, GMD modulation)
+model_uso = GSFEnergy(version="GSF2026-USO")  # the alternative: same mixture, Usoskin 2017 modulation
+model_2025 = GSFEnergy(version="2025")   # superseded historical release (not an alternative)
 energy = np.logspace(0, 3, 100)  # 1 GeV to 1 TeV total energy
 
 proton_flux = model.flux(energy, "p")

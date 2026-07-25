@@ -111,6 +111,30 @@
   "slope_freeze": "data",
   "norm_penalty": true,
   "subleading_slopes": true,
+  "mixture": "parameter-level mixture of fitresult_sibyll (Auger SIBYLL-2.3e, Usoskin phi) and fitresult_epos (Auger EPOS-LHC-R, Usoskin phi); par=mean, cov=mean(cov)+outer(dpar/2). Built runs/2026-07-24_norm-penalty-promotion; provenance metadata added 2026-07-25 without touching the numbers. SANCTIONED ALTERNATIVE (ships as GSF2026-USO).",
   "format": "gsf-dat-v2",
-  "written": "2026-07-24T03:38:13.649956+00:00"
+  "written": "2026-07-25T03:19:39.066564+00:00",
+  "covering": "mixture: equal-weight Auger FD-2026 SIBYLL-2.3e + EPOS-LHC-R",
+  "solar_modulation_source": "USO (Usoskin 2017)",
+  "mixture_weights": [
+    0.5,
+    0.5
+  ],
+  "mixture_chi2_note": "A parameter-level mixture has no chi2 of its own; the top-level chi2 / chi2_corrected / ndof / dphis fields are INHERITED from component A (fitresult_sibyll) by run_promotion.py:267 and are NOT the mixture's. Use mixture_components for per-component fit quality.",
+  "mixture_components": {
+    "A": {
+      "dir": "fitresult_sibyll",
+      "covering": "Auger FD-2026 SIBYLL-2.3e",
+      "phi": "USO",
+      "chi2_corrected": 821.8155446840856,
+      "ndof": 970
+    },
+    "B": {
+      "dir": "fitresult_epos",
+      "covering": "Auger FD-2026 EPOS-LHC-R",
+      "phi": "USO",
+      "chi2_corrected": 815.0186115213573,
+      "ndof": 967
+    }
+  }
 }

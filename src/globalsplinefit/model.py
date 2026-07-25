@@ -136,9 +136,17 @@ class GSFBase(ABC):
             Optional path to custom data files. If None, uses default
             data files included with the package.
         version
-            Optional model version ("GSF2026", "GSF2026-USO", "2025", "2019",
-            "2017"). Defaults to "GSF2026" (Ghelfi-Maurin-Derome potential);
-            "GSF2026-USO" uses the Usoskin 2017 potential. If specified,
+            Optional model version. Defaults to ``"GSF2026"``, the promoted
+            default: the mixture covering (an equal-weight combination of the
+            Auger FD-2026 SIBYLL-2.3e and EPOS-LHC-R interpretations) with the
+            Ghelfi-Maurin-Derome modulation potential. ``"GSF2026-USO"`` is the
+            one sanctioned alternative -- the same mixture fit with the Usoskin
+            2017 potential -- and is how the solar-modulation systematic is
+            gauged. ``"2025"``, ``"2019"`` and ``"2017"`` are superseded
+            historical releases, kept only to reproduce older work; they are not
+            alternatives to the current fit. See
+            :data:`~globalsplinefit.data_management.MODEL_VERSIONS` and
+            :func:`~globalsplinefit.data_management.version_info`. If specified,
             overrides data_path and uses the corresponding package data directory.
         use_approximate_solar_cycle_average
             If True (default), solar cycle averages
@@ -172,8 +180,10 @@ class GSFBase(ABC):
         self.default_rigidity_cutoff = default_rigidity_cutoff
         self.cutoff_width = cutoff_width
 
-        # Store version for compatibility decisions
-        self.version = version
+        # The RESOLVED version name, not the constructor argument: a model built
+        # with no arguments reports the default it actually loaded rather than
+        # None. None only when data_path points outside the packaged versions.
+        self.version = self.params.version
 
         # Copy frequently used parameters for convenience. Species are keyed by
         # ``sid = (Z, A)`` so isotopes (e.g. D and p both at Z=1) coexist; for a

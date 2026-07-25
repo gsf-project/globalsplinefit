@@ -101,18 +101,47 @@ flux = gsf_rigidity.flux(rigidity, "p")
 All model classes accept a `version` parameter selecting the fitted parameter set:
 
 ```python
-gsf = GSFEnergy()                        # default: GSF2026
-gsf_uso = GSFEnergy(version="GSF2026-USO")
-gsf_2025 = GSFEnergy(version="2025")
+gsf = GSFEnergy()                        # promoted default: GSF2026
+gsf_uso = GSFEnergy(version="GSF2026-USO")   # the one sanctioned alternative
+gsf_2025 = GSFEnergy(version="2025")     # superseded historical release
 ```
 
-| Version | Description |
-|---------|-------------|
-| `"GSF2026"` | **Default.** Current fit, Ghelfi--Maurin--Derome solar modulation potential |
-| `"GSF2026-USO"` | Same fit with the Usoskin 2017 potential |
-| `"2025"` | Previous release |
-| `"2019"` | Legacy release |
-| `"2017"` | Original GSF release (Dembinski et al. 2017) |
+There is **one promoted model** and **one alternative to it**. Both describe the
+same fit and differ only in the solar modulation potential; everything else in
+the table is a superseded release kept so that older work can be reproduced.
+
+| Version | Status | Covering | Modulation | Description |
+|---------|--------|----------|------------|-------------|
+| `"GSF2026"` | **current -- default** | SIBYLL-2.3e / EPOS-LHC-R mixture | Ghelfi--Maurin--Derome | **The promoted model.** Use this unless you have a specific reason not to |
+| `"GSF2026-USO"` | current -- alternative | SIBYLL-2.3e / EPOS-LHC-R mixture | Usoskin 2017 | The same fit with the other potential; use it to gauge the solar-modulation systematic |
+| `"2025"` | historical | superseded | Usoskin | Previous published release |
+| `"2019"` | historical | superseded | Usoskin | Legacy published release |
+| `"2017"` | historical | superseded | Usoskin | Original GSF release (Dembinski et al. 2017) |
+
+The historical sets are **not** alternatives to the current fit: they are earlier
+published releases, retained only for reproducing results that cited them.
+
+`get_available_versions(include_historical=False)` returns just the two current
+sets, and `version_info(version)` reports any version's status, covering and
+modulation potential. A loaded model also carries its own provenance:
+
+```python
+gsf.version                      # -> "GSF2026", the version actually loaded
+gsf.params.provenance["covering"]                  # the air-shower interpretation
+gsf.params.provenance["solar_modulation_source"]   # GMD or USO
+```
+
+### What "covering" means, and why both current sets are a mixture
+
+Above ~10^8 GeV the mass composition inferred from air-shower data depends on the
+hadronic interaction model used to interpret it. Rather than committing to one,
+both current sets use an equal-weight **parameter-level mixture** of the Auger
+FD-2026 SIBYLL-2.3e and EPOS-LHC-R interpretations: parameters are the mean of
+the two fits, and the covariance carries an additional rank-one between-model
+term. The published band therefore spans both interpretations where they diverge
+and collapses to the ordinary fit covariance where they agree (below
+~2x10^8 GeV, where the two coincide). Single-interpretation fits exist inside the
+analysis but are intermediate products and are not distributed.
 
 The GSF2026 sets are fitted in isotope format (deuterium and the ³He/⁴He
 split are carried explicitly). The choice of solar modulation potential
@@ -123,7 +152,7 @@ higher-energy results are identical.
 
 Each set is re-modulated with the potential it was demodulated with:
 GSF2026 ships its own Ghelfi--Maurin--Derome monthly `phi(t)` table
-(`GSF2026/solar_modulation.dat`), while GSF2026-USO and the legacy sets
+(`GSF2026/solar_modulation.dat`), while GSF2026-USO and the historical sets
 use the bundled Usoskin table at the package data root. Because the two
 LIS are paired with their respective potentials, the resulting fluxes at
 Earth agree far better than the LIS do (the residual below a few GV is
