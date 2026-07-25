@@ -112,8 +112,8 @@ the table is a superseded release kept so that older work can be reproduced.
 
 | Version | Status | Covering | Modulation | Description |
 |---------|--------|----------|------------|-------------|
-| `"GSF2026"` | **current -- default** | SIBYLL-2.3e / EPOS-LHC-R mixture | Ghelfi--Maurin--Derome | **The promoted model.** Use this unless you have a specific reason not to |
-| `"GSF2026-USO"` | current -- alternative | SIBYLL-2.3e / EPOS-LHC-R mixture | Usoskin 2017 | The same fit with the other potential; use it to gauge the solar-modulation systematic |
+| `"GSF2026"` | **current -- default** | SIBYLL-2.3e / EPOS-LHC-R mixture | Ghelfi--Maurin--Derome (**baseline**) | **The promoted model.** Use this unless you have a specific reason not to |
+| `"GSF2026-USO"` | current -- alternative | SIBYLL-2.3e / EPOS-LHC-R mixture | Usoskin 2017 (alternative) | The same fit with the other potential; use it to gauge the solar-modulation systematic |
 | `"2025"` | historical | superseded | Usoskin | Previous published release |
 | `"2019"` | historical | superseded | Usoskin | Legacy published release |
 | `"2017"` | historical | superseded | Usoskin | Original GSF release (Dembinski et al. 2017) |

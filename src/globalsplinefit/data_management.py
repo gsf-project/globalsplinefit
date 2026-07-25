@@ -79,8 +79,9 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
         "covering": "mixture: equal-weight Auger FD-2026 SIBYLL-2.3e + EPOS-LHC-R",
         "solar_modulation": "GMD (Ghelfi-Maurin-Derome, Ghelfi et al. 2017)",
         "description": (
-            "Promoted default. Mixture covering with the Ghelfi-Maurin-Derome "
-            "modulation potential, which the data mildly prefer."
+            "Promoted default, and the BASELINE on the solar-modulation axis: "
+            "mixture covering with the Ghelfi-Maurin-Derome potential, which the "
+            "data mildly prefer."
         ),
     },
     "GSF2026-USO": {
@@ -89,10 +90,10 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
         "covering": "mixture: equal-weight Auger FD-2026 SIBYLL-2.3e + EPOS-LHC-R",
         "solar_modulation": "USO (Usoskin et al. 2017)",
         "description": (
-            "The one sanctioned alternative: the same mixture fit with the "
-            "Usoskin 2017 potential, which runs about 65 MV lower and yields a "
-            "10-14% lower interstellar spectrum below 2 GV. Use it to gauge the "
-            "solar-modulation systematic."
+            "The one sanctioned ALTERNATIVE to the GMD baseline: the same mixture "
+            "fit with the Usoskin 2017 potential, which runs about 65 MV lower "
+            "and yields a 10-14% lower interstellar spectrum below 2 GV. Use it "
+            "to gauge the solar-modulation systematic."
         ),
     },
     "2025": {
