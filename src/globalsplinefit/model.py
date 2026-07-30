@@ -75,6 +75,14 @@ class GSFBase(ABC):
         active_groups: List of active element groups ["p", "He", "O*", "Fe*"]
     """
 
+    # Species (single-isotope) name mappings: name -> charge of the species.
+    # Resolved against the loaded data in _resolve_z; model versions without
+    # a separate species of that name reject the target with ValueError.
+    SPECIES_NAMES = {
+        "D": 1,
+        "deuterium": 1,
+    }
+
     # Group name mappings
     GROUP_NAMES = {
         "p": 1,
@@ -192,10 +200,10 @@ class GSFBase(ABC):
         self.kx = self.params.kx                  # sid (+int charge alias) -> knots
         self.pars = self.params.pars              # sid (+int alias) -> coeffs
         self.npar = self.params.npar              # sid (+int alias) -> n coeffs
-        self.z_group = self.params.z_group        # int leader charge -> [member sids]
+        self.z_group = self.params.z_group        # leader charge -> [member charges]
         self.z_to_a = self.params.z_to_a          # sid (+int alias) -> A
         self.z_to_sids = self.params.z_to_sids    # charge Z -> [sids]
-        self.z_ungroup = self.params.z_ungroup    # sid -> leader_sid
+        self.z_ungroup = self.params.z_ungroup    # charge -> leader charge
         self.cov = self.params.cov                # (sid,sid) (+int alias) -> block
         self.phi = self.params.phi
         self.flux_ratio = self.params.flux_ratio  # sid (+int alias) -> (leader_sid, ratio)
@@ -237,22 +245,28 @@ class GSFBase(ABC):
                 oldest_key = next(iter(self._jacobian_cache))
                 del self._jacobian_cache[oldest_key]
 
-    def _resolve_z(self, target: str | int | list[int]) -> tuple[list[int], int]:
-        """Resolve group/element specification to a list of atomic numbers and group leader.
+    def _resolve_z(
+        self, target: str | int | tuple[int, float] | list[int]
+    ) -> tuple[list, int]:
+        """Resolve group/element/species specification to charges and group leader.
 
         Parameters
         ----------
         target
             Target specification, which can be:
             - String: Group name ("p", "proton", "H", "He", "helium", "alpha",
-            "O", "oxygen", "CNO", "O*", "Fe", "iron", "Fe*")
+            "O", "oxygen", "CNO", "O*", "Fe", "iron", "Fe*") or species name
+            ("D", "deuterium" — model versions carrying it as its own species)
             - Integer: Single element atomic number (e.g., 1 for hydrogen, 2 for helium)
+            - Species id ``(Z, A)``: a single isotope, e.g. ``(1, 2.014)`` for D
             - List/array: Multiple element atomic numbers from the same group
 
         Returns
         -------
             Tuple of:
-            - List of atomic numbers included in the target
+            - List of atomic numbers included in the target; a single-species
+              target yields a one-element list holding the species id tuple
+              instead of a bare charge (see ``_target_sids``)
             - Group leader atomic number (1 for H, 2 for He, 8 for O*, 26 for Fe*)
 
         Raises
@@ -265,16 +279,36 @@ class GSFBase(ABC):
             >>> model._resolve_z("p")  # returns ([1], 1)
             >>> model._resolve_z(1)    # returns ([1], 1)
             >>> model._resolve_z([6, 7, 8])  # returns ([6, 7, 8], 8) for CNO group
+            >>> model._resolve_z("D")  # returns ([(1, 2.014)], 1)
         """
         if isinstance(target, str):
             # String input -> resolve to group (returns member element charges)
             if target in self.GROUP_NAMES:
                 group_leader = self.GROUP_NAMES[target]
                 return list(self.z_group[group_leader]), group_leader
+            elif target in self.SPECIES_NAMES:
+                # Named single species: the non-leader isotope at its charge
+                # (currently only D at Z=1; absent in one-species-per-charge
+                # model versions).
+                z = self.SPECIES_NAMES[target]
+                leader_sid = self._leader_by_charge.get(z)
+                sids = [s for s in self.z_to_sids.get(z, []) if s != leader_sid]
+                if len(sids) != 1:
+                    raise ValueError(
+                        f"Species '{target}' is not carried by model version "
+                        f"{self.version} - it has no separate isotope at Z={z}"
+                    )
+                return sids, self.z_ungroup[z]
             else:
                 raise ValueError(
-                    f"Unknown group name: {target} - valid names are {list(self.GROUP_NAMES.keys())}"
+                    f"Unknown group name: {target} - valid names are "
+                    f"{list(self.GROUP_NAMES.keys()) + list(self.SPECIES_NAMES.keys())}"
                 )
+
+        elif isinstance(target, tuple) and target in self.species:
+            # Explicit species id (Z, A) -> that single isotope. Checked before
+            # the generic tuple branch below, which reads a tuple as charges.
+            return [target], self.z_ungroup[target[0]]
 
         elif isinstance(target, int | np.integer):
             # Single integer charge -> that element charge (its species are
@@ -302,6 +336,20 @@ class GSFBase(ABC):
                 f"Target must be string (group), integer (element), or list of integers (elements). "
                 f"Got {type(target)}"
             )
+
+    def _target_sids(self, zlist: list) -> list:
+        """Expand ``_resolve_z`` output to species ids.
+
+        Bare charges expand to every species at that charge (p, D, … at Z=1);
+        explicit species-id tuples pass through unchanged.
+        """
+        sids = []
+        for zi in zlist:
+            if isinstance(zi, tuple):
+                sids.append(zi)
+            else:
+                sids.extend(self.z_to_sids[zi])
+        return sids
 
     def _resolve_time_interval(
         self, time_interval: tuple[int, int] | str | None
@@ -772,17 +820,14 @@ class GSFBase(ABC):
     def _flux_one_species(
         self, energy_or_rigidity, sid, *, time_interval=None, rigidity_cutoff=None
     ):
-        """Flux of a single species ``sid=(Z, A)``. For a charge with one species
-        (always, in a v1 model) this is just ``flux(Z)``; subclasses override to
-        evaluate one isotope of a multi-species charge (e.g. D vs p at Z=1)."""
-        if len(self.z_to_sids[sid[0]]) == 1:
-            return self.flux(
-                energy_or_rigidity, sid[0],
-                time_interval=time_interval, rigidity_cutoff=rigidity_cutoff,
-            )
-        raise NotImplementedError(
-            f"per-species flux for a multi-isotope charge (Z={sid[0]}) is only "
-            f"implemented for energy models, not {type(self).__name__}"
+        """Flux of a single species ``sid=(Z, A)``.
+
+        Equivalent to ``flux()`` with an explicit species-id target: isolates
+        one isotope of a multi-species charge (e.g. D vs p at Z=1).
+        """
+        return self.flux(
+            energy_or_rigidity, sid,
+            time_interval=time_interval, rigidity_cutoff=rigidity_cutoff,
         )
 
     def _element_lnA_fluxes(
@@ -905,8 +950,10 @@ class GSFBase(ABC):
             Input energy or rigidity values. Units depend on subclass.
         target
             Target specification (see _resolve_z for details):
-            - String: Group name ("p", "He", "O*", "Fe*", etc.)
+            - String: Group name ("p", "He", "O*", "Fe*", etc.) or species
+              name ("D")
             - Integer: Single element atomic number
+            - Species id ``(Z, A)``: a single isotope
             - List: Multiple element atomic numbers from same group
         time_interval
             Time period specification:
@@ -1038,21 +1085,6 @@ class GSFEnergy(GSFBase):
         """
         return self._scale_energy(np.atleast_1d(energy).astype(float))
 
-    def _flux_one_species(
-        self, energy, sid, *, time_interval=None, rigidity_cutoff=None
-    ):
-        """Single-species flux. Multi-isotope charges (e.g. D vs p at Z=1) are
-        evaluated per species via the element spline; single-species charges
-        defer to the group ``flux`` (v1-identical)."""
-        if len(self.z_to_sids[sid[0]]) == 1:
-            return super()._flux_one_species(
-                energy, sid, time_interval=time_interval,
-                rigidity_cutoff=rigidity_cutoff)
-        rigidity_cutoff = self._resolve_rigidity_cutoff(rigidity_cutoff)
-        e = self._transform_energy(energy, sid[0])
-        mask = self._rigidity_cutoff_mask(sid, e, rigidity_cutoff)
-        return self._element_flux(sid, e, time_interval) * mask
-
     def flux(
         self,
         energy: ArrayLike,
@@ -1070,7 +1102,10 @@ class GSFEnergy(GSFBase):
         target
             Target specification:
             - String: Group name ("p", "proton", "H", "He", "O*", "Fe*", etc.)
+              or species name ("D" for deuterium, in model versions that
+              carry it as its own species)
             - Integer: Single element atomic number (e.g., 1 for H, 2 for He)
+            - Species id ``(Z, A)``: a single isotope, e.g. ``(1, 2.014)``
             - List: Multiple elements from same group (e.g., [6,7,8] for CNO)
         time_interval
             Time period specification:
@@ -1098,10 +1133,9 @@ class GSFEnergy(GSFBase):
         energy = self._transform_energy(energy, target)
 
         flux = np.zeros_like(energy, dtype=float)
-        for zi in zlist:
-            for sid in self.z_to_sids[zi]:   # expand a charge to its species (p, D, …)
-                mask = self._rigidity_cutoff_mask(sid, energy, rigidity_cutoff)
-                flux += self._element_flux(sid, energy, time_interval) * mask
+        for sid in self._target_sids(zlist):   # charges expand to species (p, D, …)
+            mask = self._rigidity_cutoff_mask(sid, energy, rigidity_cutoff)
+            flux += self._element_flux(sid, energy, time_interval) * mask
         return flux
 
     def jacobian(
@@ -1118,13 +1152,12 @@ class GSFEnergy(GSFBase):
         energy = self._transform_energy(energy, target)
 
         jac = 0.0
-        for zi in zlist:
-            for sid in self.z_to_sids[zi]:
-                mask = self._rigidity_cutoff_mask(sid, energy, rigidity_cutoff)
-                jac += (
-                    self._element_flux_jacobian(sid, energy, time_interval)
-                    * mask[:, np.newaxis]
-                )
+        for sid in self._target_sids(zlist):
+            mask = self._rigidity_cutoff_mask(sid, energy, rigidity_cutoff)
+            jac += (
+                self._element_flux_jacobian(sid, energy, time_interval)
+                * mask[:, np.newaxis]
+            )
         return np.asarray(jac)
 
     def covariance(
@@ -1198,10 +1231,15 @@ class GSFKineticEnergy(GSFEnergy):
     ) -> np.ndarray:
         """Convert kinetic energy per nucleus to total energy per nucleus."""
         kinetic_energy = self._scale_energy(np.atleast_1d(kinetic_energy).astype(float))
-        _zlist, leader = self._resolve_z(target)
-        # leader is a charge; resolve to its species id (z, a) so a multi-species
-        # charge (p + D at Z=1) — which has no bare-int z_to_a alias — still works.
-        sid = self._leader_by_charge.get(leader, leader)
+        zlist, leader = self._resolve_z(target)
+        if len(zlist) == 1 and isinstance(zlist[0], tuple):
+            # Explicit single-species target ("D", (1, 2.014)): its own mass.
+            sid = zlist[0]
+        else:
+            # leader is a charge; resolve to its species id (z, a) so a
+            # multi-species charge (p + D at Z=1) — which has no bare-int
+            # z_to_a alias — still works.
+            sid = self._leader_by_charge.get(leader, leader)
         rest_mass = self.z_to_a[sid] * NUCLEON_MASS_GEV
         return kinetic_energy + rest_mass
 
@@ -1308,13 +1346,12 @@ class GSFRigidity(GSFBase):
 
         flux = np.zeros_like(rigidity, dtype=float)
         for phi in phis:  # loop version (safe, readable)
-            for zi in zlist:
-                for sid in self.z_to_sids[zi]:   # expand charge -> species (p, D, …)
-                    if phi == 0.0:
-                        flux += self._rigidity_flux_lis(sid, rigidity)
-                    else:
-                        R_is, fac = self._rigidity_phi_transform(sid, rigidity, phi)
-                        flux += self._rigidity_flux_lis(sid, R_is) * fac
+            for sid in self._target_sids(zlist):   # charges expand to species (p, D, …)
+                if phi == 0.0:
+                    flux += self._rigidity_flux_lis(sid, rigidity)
+                else:
+                    R_is, fac = self._rigidity_phi_transform(sid, rigidity, phi)
+                    flux += self._rigidity_flux_lis(sid, R_is) * fac
 
         flux /= len(phis)
 
@@ -1345,36 +1382,35 @@ class GSFRigidity(GSFBase):
         phis = self._phi_list(time_interval)
         jac = 0.0
         for phi in phis:
-            for zi in zlist:
-                for sid in self.z_to_sids[zi]:
-                    leading, ratio = self.flux_ratio[sid]
-                    slope = self.flux_slope[sid]
+            for sid in self._target_sids(zlist):
+                leading, ratio = self.flux_ratio[sid]
+                slope = self.flux_slope[sid]
 
-                    def _tilt(R):
-                        # extrapolation tilt above the species' top knot
-                        # (clamped below xmax and saturated at R_sat;
-                        # 1.0 for slope 0)
-                        if slope == 0.0:
-                            return 1.0
-                        xmax = self.kx[sid][-1]
-                        dx_sat = max(SUBLEADING_SAT_LNR - xmax, 0.0)
-                        with np.errstate(divide="ignore"):
-                            return np.exp(slope * np.clip(
-                                np.log(R) - xmax, 0.0, dx_sat))
+                def _tilt(R, slope=slope, sid=sid):
+                    # extrapolation tilt above the species' top knot
+                    # (clamped below xmax and saturated at R_sat;
+                    # 1.0 for slope 0)
+                    if slope == 0.0:
+                        return 1.0
+                    xmax = self.kx[sid][-1]
+                    dx_sat = max(SUBLEADING_SAT_LNR - xmax, 0.0)
+                    with np.errstate(divide="ignore"):
+                        return np.exp(slope * np.clip(
+                            np.log(R) - xmax, 0.0, dx_sat))
 
-                    if phi == 0.0:
-                        contrib = ratio * self._rigidity_flux_jacobian(
-                            leading, rigidity)
-                        if slope != 0.0:
-                            contrib = contrib * _tilt(rigidity)[:, None]
-                    else:
-                        R_is, fac = self._rigidity_phi_transform(sid, rigidity, phi)
-                        contrib = (
-                            ratio
-                            * self._rigidity_flux_jacobian(leading, R_is)
-                            * (fac * _tilt(R_is))[:, None]
-                        )
-                    jac += contrib
+                if phi == 0.0:
+                    contrib = ratio * self._rigidity_flux_jacobian(
+                        leading, rigidity)
+                    if slope != 0.0:
+                        contrib = contrib * _tilt(rigidity)[:, None]
+                else:
+                    R_is, fac = self._rigidity_phi_transform(sid, rigidity, phi)
+                    contrib = (
+                        ratio
+                        * self._rigidity_flux_jacobian(leading, R_is)
+                        * (fac * _tilt(R_is))[:, None]
+                    )
+                jac += contrib
         jac = np.asarray(jac) / len(phis)
 
         # Apply rigidity cutoff (in rigidity space, cutoff is Z-independent)
@@ -1514,14 +1550,13 @@ class GSFEnergyPerNucleon(GSFBase):
         )
 
         flux = np.zeros((2, len(energy_per_nucleon)))
-        for charge in zlist:
-            for sid in self.z_to_sids[charge]:
-                zi, ai = sid[0], self.z_to_a[sid]
-                energy = energy_per_nucleon * ai
-                mask = self._rigidity_cutoff_mask(sid, energy, rigidity_cutoff)
-                fl = self._element_flux(sid, energy, time_interval)
-                flux[0] += fl * ai * zi * mask  # protons
-                flux[1] += fl * ai * (ai - zi) * mask  # neutrons
+        for sid in self._target_sids(zlist):
+            zi, ai = sid[0], self.z_to_a[sid]
+            energy = energy_per_nucleon * ai
+            mask = self._rigidity_cutoff_mask(sid, energy, rigidity_cutoff)
+            fl = self._element_flux(sid, energy, time_interval)
+            flux[0] += fl * ai * zi * mask  # protons
+            flux[1] += fl * ai * (ai - zi) * mask  # neutrons
         return flux
 
     def flux(
@@ -1596,14 +1631,13 @@ class GSFEnergyPerNucleon(GSFBase):
 
         jac_p = 0.0
         jac_n = 0.0
-        for charge in zlist:
-            for sid in self.z_to_sids[charge]:
-                zi, ai = sid[0], self.z_to_a[sid]
-                energy = energy_per_nucleon * ai
-                mask = self._rigidity_cutoff_mask(sid, energy, rigidity_cutoff)
-                j = self._element_flux_jacobian(sid, energy, time_interval)
-                jac_p += j * (ai * zi * mask)[:, np.newaxis]
-                jac_n += j * (ai * (ai - zi) * mask)[:, np.newaxis]
+        for sid in self._target_sids(zlist):
+            zi, ai = sid[0], self.z_to_a[sid]
+            energy = energy_per_nucleon * ai
+            mask = self._rigidity_cutoff_mask(sid, energy, rigidity_cutoff)
+            j = self._element_flux_jacobian(sid, energy, time_interval)
+            jac_p += j * (ai * zi * mask)[:, np.newaxis]
+            jac_n += j * (ai * (ai - zi) * mask)[:, np.newaxis]
         return np.asarray(jac_p), np.asarray(jac_n)
 
     def jacobian(
