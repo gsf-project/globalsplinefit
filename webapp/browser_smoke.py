@@ -2,8 +2,8 @@
 
 Boots the real page in headless chromium and fails on any console/page error
 or broken interaction. This is the acceptance gate: the desktop Python is not
-the runtime — Pyodide ships its own package versions (same lesson as the
-retired stlite front end, wiki/lessons/stlite-streamlit-version-drift.md).
+the runtime — Pyodide ships its own package versions, so only in-browser
+tests count.
 
 Usage:
     pip install playwright && playwright install chromium

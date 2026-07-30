@@ -1,7 +1,7 @@
 """Core evaluation and publication-figure code for the GSF Explorer web app.
 
-Pure functions over ``globalsplinefit`` models — no Streamlit imports here, so
-this module runs headless (tests, scripts) and in the browser (stlite/Pyodide)
+Pure functions over ``globalsplinefit`` models — no UI imports here, so this
+module runs headless (tests, scripts) and in the browser (Pyodide worker)
 unchanged. The figure style reproduces the paper's matplotlib conventions:
 serif/mathtext fonts, framed axes with inward major+minor ticks, the GSF group
 colors, no chartjunk.
