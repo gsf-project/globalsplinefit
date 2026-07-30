@@ -37,3 +37,6 @@ examples/*.pdf
 # Misc
 .cache/
 
+
+# GSF Explorer webapp: the wheel is built by update_wheel.sh / CI, not committed
+webapp/globalsplinefit-*.whl

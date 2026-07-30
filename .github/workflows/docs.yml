@@ -35,3 +35,8 @@ jobs:
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./site
+        # keep_files: the GSF Explorer lives at /explorer/ on the same
+        # branch and is deployed by release.yml on version tags only —
+        # a docs deploy must not wipe it. (Cost: files deleted from the
+        # docs also need a manual prune from gh-pages.)
+        keep_files: true

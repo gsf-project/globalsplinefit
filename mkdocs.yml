@@ -69,6 +69,8 @@ extra_javascript:
 
 nav:
   - Home: index.md
+  # in-browser model explorer, deployed to /explorer/ by release.yml
+  - Explorer: https://gsf-project.github.io/globalsplinefit/explorer/
   - User Guide: user_guide.md
   - Tutorials:
     - Cosmic Ray Flux: examples/cosmic_ray_flux.ipynb

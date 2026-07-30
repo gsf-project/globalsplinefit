@@ -1,0 +1,520 @@
+"""GSF Explorer — full UI test suite.
+
+Exercises EVERY control element on the live page (headless chromium against
+the real Pyodide runtime) and fails on any error toast, console error, page
+error, or missing effect. Checks keep running after a failure; the summary
+lists every control with PASS/FAIL.
+
+Usage:
+    pip install playwright && playwright install chromium
+    python test_ui.py [--fast]     # --fast skips matplotlib exports
+
+Sections: boot · about/citations · model list (add/remove/reorder) ·
+abscissa (all 5, incl. deuterium on rigidity) · components (groups + all element
+chips + deuterium) · display (gamma, scale, bands, overlay hatches,
+opacity) · modulation (SC24/LIS/interval, reversed, edges) · advanced
+(escale, cutoff, npts) · plot navigation (box-zoom, pan, wheel-pinch,
+wheel-pan, home, double-click) · hover readout · exports (CSV, PDF/SVG/PNG,
+snapshot, data table) · theme (toggle, persistence, browser default) ·
+responsive (mobile viewport).
+"""
+
+import argparse
+import pathlib
+import re
+import subprocess
+import sys
+import time
+
+from playwright.sync_api import sync_playwright
+
+WEBAPP = pathlib.Path(__file__).resolve().parent
+PORT = 8129
+URL = f"http://localhost:{PORT}/"
+
+results = []
+console_errors = []
+
+
+def check(name):
+    """Decorator-ish context: run fn, record PASS/FAIL, keep going."""
+    class _Ctx:
+        def __enter__(self):
+            self.t0 = time.time()
+            self.err0 = len(console_errors)
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            dt = time.time() - self.t0
+            new_errs = console_errors[self.err0:]
+            if exc is None and not new_errs:
+                results.append((name, "PASS", f"{dt:.1f}s"))
+            else:
+                msg = (f"{type(exc).__name__}: {str(exc)[:120]}" if exc
+                       else f"console: {new_errs[0][:120]}")
+                results.append((name, "FAIL", msg))
+            return True   # swallow, keep testing
+    return _Ctx()
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--fast", action="store_true",
+                    help="skip matplotlib figure exports")
+    args = ap.parse_args()
+
+    srv = subprocess.Popen(
+        [sys.executable, "-m", "http.server", str(PORT), "-d", str(WEBAPP)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            ctx = browser.new_context(
+                viewport={"width": 1680, "height": 1000},
+                permissions=["clipboard-read", "clipboard-write"])
+            page = ctx.new_page()
+            page.on("console", lambda m: m.type == "error"
+                    and console_errors.append(m.text[:200]))
+            page.on("pageerror",
+                    lambda e: console_errors.append(str(e)[:200]))
+
+            # ---------------------------------------------------- helpers
+            def toast():
+                return (page.text_content(".toast")[:150]
+                        if page.query_selector(".toast") else None)
+
+            def settle(ms=2500):
+                page.wait_for_timeout(ms)
+                t = toast()
+                assert t is None, f"error toast: {t}"
+                assert page.query_selector("svg.chart path"), "chart empty"
+
+            def open_panel(title):
+                sel = f".panel:has(h2:text-is('{title}'))"
+                if "closed" in (page.get_attribute(sel, "class") or ""):
+                    page.click(f"{sel} > header")
+                    page.wait_for_timeout(150)
+
+            def by_label(label):
+                return page.locator(f"label.field:has-text('{label}')")
+
+            def el_chip(sym):
+                return page.locator(".elgrid button",
+                                    has_text=re.compile(f"^{sym}$"))
+
+            def header_tag():
+                return page.text_content(".wordmark .tag")
+
+            def yticks():
+                return page.eval_on_selector_all(
+                    "svg.chart text[text-anchor='end']",
+                    "els => els.map(e => e.textContent).join(' ')")
+
+            def plot_frame():
+                """Plot-area frame in page coords (mirrors chart.js insets)."""
+                bb = page.locator("svg.chart").bounding_box()
+                return {"l": bb["x"] + 308 + 74, "r": bb["x"] + bb["width"] - 44,
+                        "t": bb["y"] + 46 + 18, "b": bb["y"] + bb["height"] - 64}
+
+            # ------------------------------------------------------- boot
+            with check("boot: pyodide + first evaluation"):
+                page.goto(URL, timeout=60_000)
+                page.wait_for_selector("svg.chart path", timeout=300_000)
+                settle(800)
+
+            # -------------------------------------------- about/citations
+            with check("about: open via top rail button"):
+                page.click(".aboutbtn")
+                page.wait_for_selector(".modal", timeout=5_000)
+                assert "Global Spline Fit" in page.text_content(".modal")
+
+            with check("about: 3 BibTeX records + TBD + copy works"):
+                assert page.locator(".cite").count() == 4
+                assert page.locator(".cite button").count() == 3
+                for key in ("Dembinski:2017zsh", "Fujisue:2025wnp",
+                            "Dembinski:2025nmp"):
+                    assert key in page.text_content(".modal"), key
+                page.click(".cite button >> nth=0")
+                page.wait_for_timeout(250)
+                clip = page.evaluate("navigator.clipboard.readText()")
+                assert clip.startswith("@article{Dembinski:2017zsh")
+
+            with check("about: close"):
+                page.click(".modal header button")
+                assert not page.query_selector(".modal")
+
+            # ------------------------------------------------- model list
+            with check("model: add overlay (GSF2026-USO)"):
+                open_panel("Model")
+                page.select_option(
+                    "label.field:has-text('Add model') select", "GSF2026-USO")
+                settle(3_500)
+                assert page.locator(".modelrow").count() == 2
+                assert "GSF2026 vs GSF2026-USO" in header_tag()
+
+            with check("model: add third (2017), cap reached"):
+                page.select_option(
+                    "label.field:has-text('Add model') select", "2017")
+                settle(4_000)
+                assert page.locator(".modelrow").count() == 3
+                assert not page.query_selector(
+                    "label.field:has-text('Add model')")
+
+            with check("model: drag-reorder promotes new primary"):
+                page.drag_and_drop(".modelrow >> nth=1", ".modelrow >> nth=0")
+                settle(4_000)
+                assert header_tag().startswith("GSF2026-USO")
+                page.drag_and_drop(".modelrow >> nth=1", ".modelrow >> nth=0")
+                settle(4_000)
+                assert header_tag().startswith("GSF2026 ")
+
+            with check("model: legend shows model line styles"):
+                assert "GSF2026-USO" in page.text_content("svg.chart")
+
+            with check("model: remove overlays"):
+                while page.locator(".modelrow .mdel").count() > 0 \
+                        and page.locator(".modelrow").count() > 1:
+                    page.click(".modelrow .mdel >> nth=-1")
+                    page.wait_for_timeout(1_500)
+                settle(2_500)
+                assert page.locator(".modelrow").count() == 1
+
+            # ---------------------------------------------------- abscissa
+            for basis, label in [("ekin", "Kinetic energy / nucleus"),
+                                 ("rig", "Rigidity"),
+                                 ("en", "Total energy / nucleon"),
+                                 ("ekn", "Kinetic energy / nucleon"),
+                                 ("etot", "Total energy / nucleus")]:
+                with check(f"abscissa: {basis}"):
+                    page.select_option(
+                        "label.field:has-text('Abscissa') select", basis)
+                    settle(3_000)
+                    open_panel("Components")
+                    assert not el_chip("D").is_disabled(), \
+                        "D chip should be enabled on " + basis
+                    if basis == "rig":
+                        # regression: D was gated off non-energy abscissas
+                        # before globalsplinefit accepted "D" as a target
+                        el_chip("D").click()
+                        settle(3_000)
+                        assert "D" in page.text_content("svg.chart")
+                        el_chip("D").click()
+                        settle(2_000)
+
+            # -------------------------------------------------- components
+            with check("components: toggle all-particle + each group"):
+                open_panel("Components")
+                for name in ("all-particle", "p", "He", "O*", "Fe*"):
+                    row = page.locator(".seriesrow",
+                                       has_text=re.compile(f"^{re.escape(name)}$"))
+                    row.click(); page.wait_for_timeout(120)
+                    row.click(); page.wait_for_timeout(120)
+                settle(1_200)
+
+            with check("components: deuterium selectable on E basis"):
+                assert not el_chip("D").is_disabled()
+                el_chip("D").click()
+                settle(3_000)
+                assert "D" in page.text_content("svg.chart")
+                el_chip("D").click()
+                settle(2_000)
+
+            with check("components: every element chip on, then off"):
+                n = page.locator(".elgrid button:not(:disabled)").count()
+                for i in range(n):
+                    page.locator(".elgrid button:not(:disabled)").nth(i).click()
+                    page.wait_for_timeout(40)
+                settle(12_000)   # all-elements evaluation is the heaviest
+                on = page.locator(".elgrid button.on")
+                while on.count():
+                    on.first.click(); page.wait_for_timeout(40)
+                settle(6_000)
+
+            # ------------------------------------------------------ display
+            with check("display: gamma slider (0, 3.2, 2.7)"):
+                open_panel("Display")
+                slider = page.locator(".rail.left input[type=range]").first
+                for v in ("0", "3.2", "2.7"):
+                    slider.fill(v); page.wait_for_timeout(150)
+                settle(800)
+
+            with check("display: log/linear"):
+                page.click(".rail.left .seg button:text-is('linear')")
+                page.wait_for_timeout(300)
+                page.click(".rail.left .seg button:text-is('log')")
+                settle(600)
+
+            with check("display: ratio-to-total view"):
+                page.click(".rail.left .seg button:text-is('ratio to total')")
+                settle(800)
+                assert "Φ / Φ(all-particle)" in page.text_content("svg.chart")
+                page.click(".rail.left .seg button:text-is('flux')")
+                settle(600)
+
+            with check("nav: hover on/off toolbar toggle"):
+                page.mouse.move(900, 420); page.wait_for_timeout(300)
+                assert page.query_selector(".hoverbox")
+                page.click(".plottools button[title*='Hover']")
+                page.mouse.move(880, 420); page.wait_for_timeout(300)
+                assert not page.query_selector(".hoverbox"), "hover not disabled"
+                page.click(".plottools button[title*='Hover']")
+                page.mouse.move(20, 20)
+
+            with check("display: bands off/on + opacity"):
+                bands = page.locator("label.check:has-text('uncertainty') input")
+                bands.click(); page.wait_for_timeout(200)
+                bands.click(); page.wait_for_timeout(200)
+                page.locator(".rail.left input[type=range]").nth(1).fill("0.4")
+                settle(600)
+
+            with check("display: overlay hatch bands (needs 2nd model)"):
+                open_panel("Model")
+                page.select_option(
+                    "label.field:has-text('Add model') select", "GSF2026-USO")
+                settle(3_500)
+                page.locator(
+                    "label.check:has-text('compared models') input").click()
+                settle(800)
+                assert page.query_selector("svg.chart pattern"), "no hatch"
+                page.locator(
+                    "label.check:has-text('compared models') input").click()
+                page.click(".modelrow .mdel >> nth=-1")
+                settle(2_500)
+
+            # ---------------------------------------------------- modulation
+            with check("modulation: LIS / SC24"):
+                open_panel("Solar modulation")
+                page.click(".rail.left .seg button:text-is('LIS')")
+                settle(3_000)
+                page.click(".rail.left .seg button:text-is('SC24')")
+                settle(2_500)
+
+            with check("modulation: custom interval + edges"):
+                page.click(".rail.left .seg button:text-is('Interval')")
+                settle(4_000)
+                page.fill("input[type=month] >> nth=0", "1975-01")
+                settle(4_000)
+                page.fill("input[type=month] >> nth=1", "2025-12")
+                settle(6_000)
+
+            with check("modulation: reversed interval auto-sorts"):
+                page.fill("input[type=month] >> nth=0", "2020-06")
+                settle(4_000)
+                page.fill("input[type=month] >> nth=1", "2010-01")
+                settle(5_000)
+                assert "2010/01–2020/06" in header_tag()
+                page.click(".rail.left .seg button:text-is('SC24')")
+                settle(2_500)
+
+            # ------------------------------------------------------ advanced
+            with check("advanced: energy scale 0.8 / 1.2 / 1.0"):
+                open_panel("Advanced")
+                inp = by_label("Energy-scale").locator("input")
+                for v in ("0.8", "1.2", "1.0"):
+                    inp.fill(v); inp.dispatch_event("change")
+                    page.wait_for_timeout(400)
+                settle(2_500)
+
+            with check("advanced: rigidity cutoff 30 / 0"):
+                inp = by_label("Rigidity cutoff").locator("input")
+                inp.fill("30"); inp.dispatch_event("change")
+                settle(3_000)
+                inp.fill("0"); inp.dispatch_event("change")
+                settle(2_500)
+
+            with check("advanced: grid points 240 / 960 / 480"):
+                for n in ("240", "960", "480"):
+                    page.click(f".rail.left .seg button:text-is('{n}')")
+                    settle(3_500)
+                    assert f"{n} pts" in page.text_content(".statuspill")
+
+            # ---------------------------------------------- plot navigation
+            with check("nav: box-zoom sets window + custom y"):
+                page.mouse.move(700, 300); page.mouse.down()
+                page.mouse.move(1200, 650, steps=6); page.mouse.up()
+                settle(3_000)
+                assert "10⁻¹–10¹¹" not in header_tag()
+                assert "custom y-range" in page.text_content(".rail.left")
+
+            with check("nav: home button resets"):
+                page.click(".plottools button[title*='Reset']")
+                settle(2_500)
+                assert "10⁻¹–10¹¹" in header_tag()
+
+            with check("nav: x-axis drag zooms x only (y frozen)"):
+                f = plot_frame()
+                t0 = yticks()
+                yax = f["b"] + 25          # on the x-axis tick strip
+                page.mouse.move(f["l"] + 0.45 * (f["r"] - f["l"]), yax)
+                page.mouse.down()
+                page.mouse.move(f["l"] + 0.75 * (f["r"] - f["l"]), yax, steps=5)
+                page.mouse.up()
+                settle(3_000)
+                assert "10⁻¹–10¹¹" not in header_tag(), "x window unchanged"
+                assert yticks() == t0, "y scale moved on an x-axis drag"
+                page.click(".plottools button[title*='Reset']")
+                settle(2_500)
+
+            with check("nav: y-axis drag zooms y only (x frozen)"):
+                f = plot_frame()
+                t0 = yticks()
+                xax = f["l"] - 30          # on the y-axis tick strip
+                page.mouse.move(xax, f["t"] + 0.30 * (f["b"] - f["t"]))
+                page.mouse.down()
+                page.mouse.move(xax, f["t"] + 0.65 * (f["b"] - f["t"]), steps=5)
+                page.mouse.up()
+                settle(3_000)
+                assert "10⁻¹–10¹¹" in header_tag(), "x window moved on a y-axis drag"
+                assert yticks() != t0, "y scale unchanged"
+                page.click(".plottools button[title*='Reset']")
+                settle(2_500)
+
+            with check("nav: auto y-scale fits the visible x-window"):
+                # zoom into the high-energy end, then move gamma -> y resets
+                # to AUTO; the auto range must come from the means INSIDE the
+                # window, so it differs from the full-domain auto range at
+                # the same gamma
+                page.mouse.move(900, 300); page.mouse.down()
+                page.mouse.move(1250, 700, steps=6); page.mouse.up()
+                settle(3_000)
+                open_panel("Display")
+                gamma = page.locator(".rail.left input[type=range]").first
+                gamma.fill("2")
+                settle(2_500)
+                zoomed = yticks()
+                page.click(".plottools button[title*='Reset']")
+                settle(2_500)
+                assert zoomed != yticks(), "auto y-scale ignored the x-window"
+                gamma.fill("2.7")
+                settle(1_500)
+
+            with check("nav: pan drags the window"):
+                page.click(".plottools button[title*='Pan']")
+                page.mouse.move(1000, 500); page.mouse.down()
+                page.mouse.move(850, 540, steps=5); page.mouse.up()
+                settle(3_000)
+                assert not page.locator(
+                    ".plottools button[title*='Reset']").is_disabled()
+                page.click(".plottools button[title*='Zoom'], .plottools button[title*='Box']")
+
+            with check("nav: double-click = home"):
+                page.dblclick("svg.chart", position={"x": 900, "y": 500})
+                settle(2_500)
+                assert "10⁻¹–10¹¹" in header_tag()
+
+            with check("nav: wheel pinch-zoom (trackpad)"):
+                page.mouse.move(1000, 500)
+                page.keyboard.down("Control")
+                page.mouse.wheel(0, -240)
+                page.keyboard.up("Control")
+                settle(3_000)
+                assert "10⁻¹–10¹¹" not in header_tag()
+
+            with check("nav: wheel two-finger pan + home"):
+                page.mouse.wheel(0, 120)
+                settle(3_000)
+                page.click(".plottools button[title*='Reset']")
+                settle(2_500)
+                assert "10⁻¹–10¹¹" in header_tag()
+
+            # --------------------------------------------------------- hover
+            with check("hover: crosshair readout with series values"):
+                page.mouse.move(900, 420)
+                page.wait_for_timeout(400)
+                assert page.query_selector(".hoverbox")
+                assert page.locator(".hoverbox .hrow").count() >= 4
+                page.mouse.move(20, 20)
+
+            # ------------------------------------------------------- exports
+            with check("export: data table modal + its CSV download"):
+                open_panel("Export")
+                page.click("button:text-is('Data table')")
+                page.wait_for_selector(".modal table.data", timeout=10_000)
+                assert page.locator(".modal table.data tbody tr").count() >= 100
+                with page.expect_download(timeout=30_000) as dl:
+                    page.click(".modal header button:has-text('Download CSV')")
+                assert dl.value.suggested_filename.startswith("gsf_view")
+                page.click(".modal header button >> nth=-1")
+
+            with check("export: CSV per model (2 active -> 2 files)"):
+                open_panel("Model")
+                page.select_option(
+                    "label.field:has-text('Add model') select", "GSF2026-USO")
+                settle(4_500)
+                open_panel("Export")
+                with page.expect_download(timeout=90_000) as dl:
+                    page.click("button:text-is('CSV')")
+                f1 = dl.value.suggested_filename
+                dl2 = page.wait_for_event("download", timeout=90_000)
+                names = {f1, dl2.suggested_filename}
+                assert any("uso" in n for n in names), names
+                page.click(".modelrow .mdel >> nth=-1")
+                settle(3_000)
+
+            with check("export: live view snapshot SVG"):
+                with page.expect_download(timeout=30_000) as dl:
+                    page.click("button:has-text('View → SVG')")
+                assert dl.value.suggested_filename.endswith(".svg")
+
+            if not args.fast:
+                for fmt in ("pdf", "svg", "png"):
+                    with check(f"export: publication figure {fmt}"):
+                        page.click(f".rail.left .seg button:text-is('{fmt}')")
+                        with page.expect_download(timeout=300_000) as dl:
+                            page.click("button:text-is('Download')")
+                        assert dl.value.suggested_filename.endswith(f".{fmt}")
+
+            # --------------------------------------------------------- theme
+            with check("theme: toggle + persistence"):
+                before = page.evaluate("document.documentElement.dataset.theme")
+                page.click(".iconbtn[title='Switch theme']")
+                page.wait_for_timeout(400)
+                after = page.evaluate("document.documentElement.dataset.theme")
+                assert after != before
+                assert page.evaluate("localStorage.getItem('gsfTheme')") == after
+                page.click(".iconbtn[title='Switch theme']")
+
+            with check("theme: fresh browser follows prefers-color-scheme"):
+                c2 = browser.new_context(color_scheme="light",
+                                         viewport={"width": 1200, "height": 800})
+                p2 = c2.new_page()
+                p2.goto(URL, timeout=60_000)
+                p2.wait_for_timeout(1_000)
+                assert p2.evaluate(
+                    "document.documentElement.dataset.theme") == "light"
+                c2.close()
+
+            # ---------------------------------------------------- responsive
+            with check("responsive: 420px mobile renders"):
+                c3 = browser.new_context(viewport={"width": 420, "height": 900})
+                p3 = c3.new_page()
+                p3.goto(URL, timeout=60_000)
+                p3.wait_for_selector("svg.chart path", timeout=300_000)
+                assert p3.query_selector(".rail.left .panel")
+                c3.close()
+
+            # ----------------------------------------------- panel collapse
+            with check("panels: every header expands and collapses"):
+                for t in ("Model", "Components", "Display",
+                          "Solar modulation", "Advanced", "Export"):
+                    sel = f".panel:has(h2:text-is('{t}'))"
+                    page.click(f"{sel} > header")
+                    page.wait_for_timeout(100)
+                    page.click(f"{sel} > header")
+                    page.wait_for_timeout(100)
+
+            browser.close()
+    finally:
+        srv.terminate()
+
+    width = max(len(n) for n, _, _ in results)
+    fails = 0
+    for name, status, info in results:
+        fails += status == "FAIL"
+        print(f"{'✓' if status == 'PASS' else '✗'} {name:<{width}}  {info}")
+    print(f"\n{len(results) - fails}/{len(results)} passed")
+    return 1 if fails else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
