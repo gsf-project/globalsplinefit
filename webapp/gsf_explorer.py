@@ -75,8 +75,10 @@ BASES = {
 }
 
 VERSION_NOTES = {
-    "GSF2026": "default — mixture covering, GMD potential",
-    "GSF2026-USO": "Usoskin-2017 potential (modulation systematic)",
+    "2026": "default — mixture covering, GMD potential",
+    "2026-USO": "Usoskin-2017 potential (modulation systematic)",
+    "2026-UHE-S23e": "SIBYLL-2.3e only (UHE single-interpretation variant)",
+    "2026-EPOS-LHCR": "EPOS-LHC-R only (single-interpretation variant)",
     "2025": "historical release",
     "2019": "historical release",
     "2017": "historical release (Dembinski et al., ICRC2017)",
@@ -164,7 +166,7 @@ def evaluate(
     for g in groups:
         out["series"][g] = f_and_e(g)
     for z in elements:
-        # "D" (GSF2026+ deuterium species) is a native flux/error target.
+        # "D" (2026+ deuterium species) is a native flux/error target.
         name = "D" if z == "D" else ELEMENT_SYMBOLS.get(z, f"Z={z}")
         if name in out["series"]:
             continue  # e.g. element He duplicates the He group series

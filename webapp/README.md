@@ -11,7 +11,7 @@ Pages) suffices. First visit downloads ~25 MB of runtime (cached afterwards).
 Two-speed state model:
 
 - **Display state** (spectral weight γ, flux/ratio-to-total quantity,
-  log/linear, component visibility, bands + opacity, hover, x-window and
+  log/linear, component visibility, line weight, bands + opacity, hover, x-window and
   y-range — i.e. ALL navigation: box-zoom, pan, trackpad pinch/scroll) is
   applied by `chart.js` in plain JS — instant, no Python. The model grid
   always covers the full 10⁰–10¹¹ range (default 480 pts), so zooming and
@@ -41,12 +41,12 @@ clamps to the plot bottom — "consistent with zero" — rather than collapsing.
 | file | role |
 |---|---|
 | `index.html` | shell: fonts, theme pre-paint stamp, error surface, splash |
-| `main.js` | app: state, worker RPC, floating panels, exports, modals, citations |
+| `main.js` | app: state, worker RPC, command overlays, display dock, exports, modals, citations |
 | `chart.js` | reactive SVG spectrum chart (log axes, bands + hatches, legend, crosshair, box-zoom/pan) |
 | `worker.js` | Pyodide web worker; lazy-loads matplotlib on first figure export |
 | `bridge.py` | JSON adapter between the worker RPC and `gsf_explorer` |
 | `gsf_explorer.py` | model/figure/CSV core (no UI imports — testable headless) |
-| `style.css` | design tokens + panels ("observatory console", dark, self-hosted fonts) |
+| `style.css` | Liquid Canvas design tokens, responsive overlays/sheets, and self-hosted fonts |
 | `fonts/` | IBM Plex Sans + IBM Plex Mono (self-hosted woff2, ~75 kB) |
 | `globalsplinefit-*.whl` | the model package + all parameter sets |
 | `update_wheel.sh` | rebuild the wheel from this repo (clean temp copy) |
@@ -145,24 +145,28 @@ checks) — don't tweak hues casually.
 
 ## Design notes
 
-"Observatory console" in two moods: dark (`#0d1117`) and light (`#f6f7f9`),
-defaulting to the browser's `prefers-color-scheme` and toggleable in the
-header (explicit choice persists in localStorage; stamped pre-paint to
-avoid a theme flash). Controls live in a single left rail of floating glass
-panels, all collapsed except Model. Typography is all-sans (maintainer,
-2026-07-30): IBM Plex Sans for UI, wordmark and axis titles, IBM Plex Mono
-for numerics and the telegraphic state line next to the wordmark
-(`MODEL(s) · modulation · range · abscissa` — this replaced the long figure
-caption). The legend is a boxed block at the plot's top right (components,
-plus model line styles when comparing). Group colors are the paper's hues
-re-stepped **per surface** and validated for CVD/contrast (dataviz six
-checks, adjacent pairs PASS) — dark: p `#e64d6e`, He `#c08a00`,
+"Liquid Canvas" in dark (`#101317`) and light (`#f7f8fa`), defaulting to the
+browser's `prefers-color-scheme` and toggleable in the header (explicit choice
+persists in localStorage; stamped pre-paint to avoid a theme flash). The chart
+is the full content plane. Navigation floats at the top, immediate display
+controls sit in the bottom dock, and Series / Settings / Export open
+consistent anchored command panes. Series combines parameter-set overlays with
+component and element visibility (including a one-step element reset); Settings
+contains Abscissa, Solar modulation, and Advanced controls. All three panes
+reserve a visible scrollbar and become scrollable bottom sheets on mobile.
+Opening them does not change the chart size or trigger evaluation.
+Typography is IBM Plex Sans for UI, wordmark and axis titles, with IBM Plex
+Mono for numerics and the telegraphic state line
+(`MODEL(s) · modulation · range · abscissa`). The top-right legend tightens
+its spacing as the plot narrows, auto-collapses on compact canvases, and can
+always be toggled with pointer or keyboard. Group colors are the paper's hues
+re-stepped **per surface** and validated for CVD/contrast
+(dataviz six checks, adjacent pairs PASS) — dark: p `#e64d6e`, He `#c08a00`,
 O* `#1a9e70`, Fe* `#3d8ce0`; light: p `#c73558`, He `#ab8200`,
-O* `#006e42`, Fe* `#2a6fc0`; all-particle is ink in both. Model overlays
-are distinguished by line style (solid/dotted/dash-dot), never by
-repainting the component hues. Signature interaction: dragging γ morphs the
-spectrum in real time; hover gives a crosshair readout of every visible
-component across all models.
+O* `#006e42`, Fe* `#2a6fc0`; all-particle is ink in both. Model overlays are
+distinguished by line style (solid/dotted/dash-dot), never by repainting the
+component hues. Dragging γ morphs the spectrum in real time; hover gives a
+crosshair readout of every visible component across all models.
 
 The paper aesthetic lives on **in the exports only**: publication figures
 re-render via matplotlib with the paper rc (DejaVu Serif, inward ticks, PRX

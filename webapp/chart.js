@@ -9,28 +9,26 @@
  * only, no bands.
  */
 
-import { html, useState, useRef, useMemo }
+import { html, useState, useEffect, useRef, useMemo }
   from "https://cdn.jsdelivr.net/npm/htm@3.1.1/preact/standalone.module.js";
 
 /* Series palettes validated per surface (dataviz six checks, adjacent PASS) */
 export const THEMES = {
   dark: {
-    surface: "#0d1117",
+    surface: "#101317",
     ink: "#e9edf4", ink2: "#98a1b3", ink3: "#5b6472",
     hair: "rgba(233,237,244,0.10)", hair2: "rgba(233,237,244,0.22)",
-    accent: "#a08dfa", accentDim: "rgba(160,141,250,0.14)",
+    accent: "#8bacd2", accentDim: "rgba(139,172,210,0.15)",
     groups: { "p": "#e64d6e", "He": "#c08a00", "O*": "#1a9e70", "Fe*": "#3d8ce0" },
     elements: ["#a5b0c2", "#b18cff", "#7d8590", "#d0a9ff", "#8e9dbb", "#c7b9ff"],
-    glow: 0.22,
   },
   light: {
-    surface: "#f6f7f9",
+    surface: "#f7f8fa",
     ink: "#1a2130", ink2: "#4d5668", ink3: "#8892a3",
     hair: "rgba(26,33,48,0.09)", hair2: "rgba(26,33,48,0.24)",
-    accent: "#6c58e8", accentDim: "rgba(108,88,232,0.12)",
+    accent: "#315f8e", accentDim: "rgba(49,95,142,0.12)",
     groups: { "p": "#c73558", "He": "#ab8200", "O*": "#006e42", "Fe*": "#2a6fc0" },
     elements: ["#5c6880", "#7a5fd0", "#98a1b3", "#9d7fe0", "#66738c", "#8f7fd8"],
-    glow: 0.10,
   },
 };
 
@@ -151,6 +149,7 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
                         width, height, insets, onWindow, onHome, onHoverInfo }) {
   const [hover, setHover] = useState(null);
   const [drag, setDrag] = useState(null);   // {x0,y0,x1,y1}
+  const [legendOpen, setLegendOpen] = useState(true);
   const svgRef = useRef(null);
 
   const m = {
@@ -160,6 +159,20 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
   };
   const pw = Math.max(width - m.l - m.r, 40);
   const ph = Math.max(height - m.t - m.b, 40);
+
+  /* The legend first tightens its metrics, then collapses when the actual
+     plot area (not merely the browser viewport) becomes narrow. Crossing
+     back into a wider layout restores it; users can still toggle either
+     state explicitly at the current size. */
+  const compactLegend = pw < 700;
+  const autoCollapseLegend = pw < 460 || ph < 300;
+  const prevAutoCollapse = useRef(false);
+  useEffect(() => {
+    if (autoCollapseLegend !== prevAutoCollapse.current) {
+      setLegendOpen(!autoCollapseLegend);
+      prevAutoCollapse.current = autoCollapseLegend;
+    }
+  }, [autoCollapseLegend]);
 
   const built = useMemo(() => {
     if (!models?.length || !models[0].data) return null;
@@ -252,6 +265,7 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
   const { X, Y, Yinv, lgx0, lgx1, ylo, yhi } = scale;
   const px = built.x.map(X);
   const bottomY = m.t + ph;
+  const lineWeight = Math.max(0.4, view.lineWeight ?? 1);
   const shapes = built.rows.map((r) => ({
     ...r,
     py: r.w.map(Y),
@@ -263,24 +277,34 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
   const legendRows = shapes.filter((s) => s.mi === 0).map((s) => ({
     text: s.name, color: s.color,
     dash: s.kind === "element" ? "5 3.5" : "none",
-    lw: s.kind === "total" ? 2.6 : 2,
+    lw: (s.kind === "total" ? 2.6 : 2) * lineWeight,
   }));
   if (models.length > 1) {
     legendRows.push(null);   // separator
     models.forEach((mm, mi) => legendRows.push({
-      text: mm.version, color: theme.ink, dash: MODEL_DASH[mi], lw: 1.8,
+      text: mm.version, color: theme.ink, dash: MODEL_DASH[mi],
+      lw: 1.8 * lineWeight,
     }));
   }
-  const LG = { rowH: 17, pad: 10, sample: 20, gap: 7 };
-  const lgW = LG.pad * 2 + LG.sample + LG.gap + Math.max(...legendRows.map(
-    (r) => (r ? r.text.length : 0))) * 6.6;
-  const lgH = LG.pad * 2 - 4 +
+  const LG = compactLegend
+    ? { rowH: 15, pad: 8, sample: 16, gap: 6, charW: 6.0, headH: 25 }
+    : { rowH: 18, pad: 10, sample: 20, gap: 7, charW: 6.6, headH: 29 };
+  const openLgW = LG.pad * 2 + LG.sample + LG.gap + Math.max(
+    48, Math.max(...legendRows.map((r) => (r ? r.text.length : 0))) * LG.charW);
+  const lgW = legendOpen ? openLgW : (compactLegend ? 74 : 82);
+  const contentH = LG.pad * 2 - 4 +
     legendRows.reduce((a, r) => a + (r ? LG.rowH : 8), 0);
-  const lgX = m.l + pw - lgW - 10, lgY = m.t + 10;
+  const lgH = LG.headH + (legendOpen ? contentH : 0);
+  const lgX = Math.max(m.l + 4, m.l + pw - lgW - 10);
+  const lgY = m.t + 10;
+  const toggleLegend = (e) => {
+    e?.stopPropagation?.();
+    setLegendOpen((open) => !open);
+  };
 
   /* axes */
-  const xt = logTicks(lgx0, lgx1, pw, 38);
-  const yAxis = view.ylog ? logTicks(ylo, yhi, ph, 22)
+  const xt = logTicks(lgx0, lgx1, pw, 44);
+  const yAxis = view.ylog ? logTicks(ylo, yhi, ph, 25)
                           : linTicks(ylo, yhi, ph);
   const yTickY = (t) => (view.ylog ? Y(10 ** t) : Y(t));
 
@@ -428,9 +452,6 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
          onwheel=${onWheel} ondblclick=${() => onHome?.()}>
       <defs>
         <clipPath id="plot"><rect x=${m.l} y=${m.t} width=${pw} height=${ph}/></clipPath>
-        <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation="3.5" />
-        </filter>
         ${shapes.map((s, i) => s.band && s.mi > 0 && html`
           <pattern id="hatch${i}" patternUnits="userSpaceOnUse"
                    width="5.5" height="5.5"
@@ -456,13 +477,11 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
                   fill=${s.mi > 0 ? `url(#hatch${i})` : s.color}
                   opacity=${s.mi > 0
                     ? Math.min(view.bandAlpha * 2.5, 0.8) : view.bandAlpha} />`)}
-          ${shapes.map((s) => s.kind !== "element" && s.mi === 0 && html`
-            <path d=${linePath(px, s.py)} fill="none" stroke=${s.color}
-                  stroke-width="4" opacity=${theme.glow} filter="url(#glow)"/>`)}
           ${shapes.map((s) => html`
             <path d=${linePath(px, s.py)} fill="none" stroke=${s.color}
-                  stroke-width=${s.kind === "total" ? (s.mi ? 2 : 2.6)
-                                 : s.kind === "group" ? (s.mi ? 1.6 : 2) : 1.5}
+                  stroke-width=${(s.kind === "total" ? (s.mi ? 2 : 2.6)
+                                 : s.kind === "group" ? (s.mi ? 1.6 : 2) : 1.5)
+                                * lineWeight}
                   stroke-dasharray=${s.kind === "element" ? "6 4" : MODEL_DASH[s.mi]}
                   stroke-linejoin="round" stroke-linecap="round"/>`)}
         </g>
@@ -511,12 +530,32 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
               class="tickminor">${L.text}</text>`)}
 
       <!-- legend -->
-      <g>
+      <g class="legend">
         <rect x=${lgX} y=${lgY} width=${lgW} height=${lgH} rx="7"
-              fill=${theme.surface} fill-opacity="0.8"
+              fill=${theme.surface} fill-opacity="0.92"
               stroke=${theme.hair2} stroke-width="1"/>
-        ${(() => {
-          let y = lgY + LG.pad + 6;
+        <g class="legend-toggle" role="button" tabindex="0"
+           aria-label=${legendOpen ? "Collapse legend" : "Expand legend"}
+           aria-expanded=${legendOpen}
+           onclick=${toggleLegend}
+           onkeydown=${(e) => {
+             if (e.key === "Enter" || e.key === " ") {
+               e.preventDefault();
+               toggleLegend(e);
+             }
+           }}
+           onpointerdown=${(e) => e.stopPropagation()}
+           onpointerup=${(e) => e.stopPropagation()}
+           ondblclick=${(e) => e.stopPropagation()}>
+          <rect class="legendhit" x=${lgX} y=${lgY} width=${lgW}
+                height=${LG.headH} rx="7" fill="transparent"/>
+          <text x=${lgX + LG.pad} y=${lgY + LG.headH / 2 + 4}
+                class="legendtitle">Legend</text>
+          <text x=${lgX + lgW - LG.pad} y=${lgY + LG.headH / 2 + 4}
+                text-anchor="end" class="legendchev">${legendOpen ? "−" : "+"}</text>
+        </g>
+        ${legendOpen && (() => {
+          let y = lgY + LG.headH + LG.pad + 5;
           return legendRows.map((r) => {
             if (!r) { y += 8; return html`
               <line x1=${lgX + LG.pad} x2=${lgX + lgW - LG.pad}
@@ -528,7 +567,7 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
                     stroke-width=${r.lw} stroke-dasharray=${r.dash}
                     stroke-linecap="round"/>
               <text x=${lgX + LG.pad + LG.sample + LG.gap} y=${y}
-                    class="serieslabel">${r.text}</text>`;
+                    class="legendlabel">${r.text}</text>`;
             y += LG.rowH;
             return row;
           });
@@ -536,7 +575,7 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
       </g>
 
       <!-- axis titles -->
-      <text x=${m.l + pw / 2} y=${height - 14} text-anchor="middle"
+      <text x=${m.l + pw / 2} y=${bottomY + 44} text-anchor="middle"
             class="axistitle">${view.xTitle}</text>
       <text transform="translate(${m.l - 52},${m.t + ph / 2}) rotate(-90)"
             text-anchor="middle" class="axistitle">${view.yTitle}</text>

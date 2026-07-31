@@ -90,6 +90,21 @@ def main() -> int:
                 assert page.query_selector("svg.chart path"), "chart empty"
 
             def open_panel(title):
+                command = {
+                    "Components": "Series",
+                    "Model": "Series",
+                    "Abscissa": "Settings",
+                    "Solar modulation": "Settings",
+                    "Advanced": "Settings",
+                    "Export": "Export",
+                }.get(title)
+                if command and not page.query_selector(
+                        f".panel:has(h2:text-is('{title}'))"):
+                    page.click(f".commandbtn:text-is('{command}')")
+                    page.wait_for_selector(
+                        f".panel:has(h2:text-is('{title}'))", timeout=5_000)
+                if title == "Display":
+                    return
                 sel = f".panel:has(h2:text-is('{title}'))"
                 if "closed" in (page.get_attribute(sel, "class") or ""):
                     page.click(f"{sel} > header")
@@ -113,8 +128,10 @@ def main() -> int:
             def plot_frame():
                 """Plot-area frame in page coords (mirrors chart.js insets)."""
                 bb = page.locator("svg.chart").bounding_box()
-                return {"l": bb["x"] + 308 + 74, "r": bb["x"] + bb["width"] - 44,
-                        "t": bb["y"] + 46 + 18, "b": bb["y"] + bb["height"] - 64}
+                return {"l": bb["x"] + 14 + 74,
+                        "r": bb["x"] + bb["width"] - 44,
+                        "t": bb["y"] + 72 + 18,
+                        "b": bb["y"] + bb["height"] - 140}
 
             # ------------------------------------------------------- boot
             with check("boot: pyodide + first evaluation"):
@@ -144,13 +161,13 @@ def main() -> int:
                 assert not page.query_selector(".modal")
 
             # ------------------------------------------------- model list
-            with check("model: add overlay (GSF2026-USO)"):
+            with check("model: add overlay (2026-USO)"):
                 open_panel("Model")
                 page.select_option(
-                    "label.field:has-text('Add model') select", "GSF2026-USO")
+                    "label.field:has-text('Add model') select", "2026-USO")
                 settle(3_500)
                 assert page.locator(".modelrow").count() == 2
-                assert "GSF2026 vs GSF2026-USO" in header_tag()
+                assert "2026 vs 2026-USO" in header_tag()
 
             with check("model: add third (2017), cap reached"):
                 page.select_option(
@@ -163,13 +180,19 @@ def main() -> int:
             with check("model: drag-reorder promotes new primary"):
                 page.drag_and_drop(".modelrow >> nth=1", ".modelrow >> nth=0")
                 settle(4_000)
-                assert header_tag().startswith("GSF2026-USO")
+                assert header_tag().startswith("2026-USO")
                 page.drag_and_drop(".modelrow >> nth=1", ".modelrow >> nth=0")
                 settle(4_000)
-                assert header_tag().startswith("GSF2026 ")
+                assert header_tag().startswith("2026 ")
 
             with check("model: legend shows model line styles"):
-                assert "GSF2026-USO" in page.text_content("svg.chart")
+                assert "2026-USO" in page.text_content("svg.chart")
+                toggle = page.locator(".legend-toggle")
+                assert toggle.get_attribute("aria-expanded") == "true"
+                toggle.click()
+                assert toggle.get_attribute("aria-expanded") == "false"
+                toggle.press("Enter")
+                assert toggle.get_attribute("aria-expanded") == "true"
 
             with check("model: remove overlays"):
                 while page.locator(".modelrow .mdel").count() > 0 \
@@ -186,8 +209,9 @@ def main() -> int:
                                  ("ekn", "Kinetic energy / nucleon"),
                                  ("etot", "Total energy / nucleus")]:
                 with check(f"abscissa: {basis}"):
+                    open_panel("Abscissa")
                     page.select_option(
-                        "label.field:has-text('Abscissa') select", basis)
+                        ".panel:has(h2:text-is('Abscissa')) select", basis)
                     settle(3_000)
                     open_panel("Components")
                     assert not el_chip("D").is_disabled(), \
@@ -204,6 +228,8 @@ def main() -> int:
             # -------------------------------------------------- components
             with check("components: toggle all-particle + each group"):
                 open_panel("Components")
+                assert page.query_selector(
+                    ".series-popover .panel:has(h2:text-is('Model'))")
                 for name in ("all-particle", "p", "He", "O*", "Fe*"):
                     row = page.locator(".seriesrow",
                                        has_text=re.compile(f"^{re.escape(name)}$"))
@@ -219,36 +245,36 @@ def main() -> int:
                 el_chip("D").click()
                 settle(2_000)
 
-            with check("components: every element chip on, then off"):
+            with check("components: every element chip on, then reset"):
                 n = page.locator(".elgrid button:not(:disabled)").count()
                 for i in range(n):
                     page.locator(".elgrid button:not(:disabled)").nth(i).click()
                     page.wait_for_timeout(40)
                 settle(12_000)   # all-elements evaluation is the heaviest
-                on = page.locator(".elgrid button.on")
-                while on.count():
-                    on.first.click(); page.wait_for_timeout(40)
+                assert page.locator(".elgrid button.on").count() == n
+                page.click(".resetbtn")
                 settle(6_000)
+                assert page.locator(".elgrid button.on").count() == 0
+                assert page.locator(".resetbtn").is_disabled()
 
             # ------------------------------------------------------ display
             with check("display: gamma slider (0, 3.2, 2.7)"):
-                open_panel("Display")
-                slider = page.locator(".rail.left input[type=range]").first
+                slider = page.locator(".displaydock input[type=range]").first
                 for v in ("0", "3.2", "2.7"):
                     slider.fill(v); page.wait_for_timeout(150)
                 settle(800)
 
             with check("display: log/linear"):
-                page.click(".rail.left .seg button:text-is('linear')")
+                page.click(".displaydock .seg button:text-is('Linear')")
                 page.wait_for_timeout(300)
-                page.click(".rail.left .seg button:text-is('log')")
+                page.click(".displaydock .seg button:text-is('Log')")
                 settle(600)
 
             with check("display: ratio-to-total view"):
-                page.click(".rail.left .seg button:text-is('ratio to total')")
+                page.click(".displaydock .seg button:text-is('Ratio')")
                 settle(800)
                 assert "Φ / Φ(all-particle)" in page.text_content("svg.chart")
-                page.click(".rail.left .seg button:text-is('flux')")
+                page.click(".displaydock .seg button:text-is('Flux')")
                 settle(600)
 
             with check("nav: hover on/off toolbar toggle"):
@@ -260,37 +286,53 @@ def main() -> int:
                 page.click(".plottools button[title*='Hover']")
                 page.mouse.move(20, 20)
 
+            with check("display: line weight is immediate"):
+                line = page.locator("svg.chart path[fill='none']").first
+                before = float(line.get_attribute("stroke-width"))
+                weight = page.locator(
+                    ".lineweight-control input[type=range]")
+                weight.fill("1.6")
+                page.wait_for_timeout(180)
+                after = float(line.get_attribute("stroke-width"))
+                assert after > before * 1.5
+                assert "busy" not in (
+                    page.get_attribute(".statuspill", "class") or "")
+                weight.fill("1")
+                settle(500)
+
             with check("display: bands off/on + opacity"):
-                bands = page.locator("label.check:has-text('uncertainty') input")
+                bands = page.locator(
+                    ".band-control .switchcheck:has-text('Bands')")
                 bands.click(); page.wait_for_timeout(200)
                 bands.click(); page.wait_for_timeout(200)
-                page.locator(".rail.left input[type=range]").nth(1).fill("0.4")
+                page.locator(".opacity-control input[type=range]").fill("0.4")
                 settle(600)
 
             with check("display: overlay hatch bands (needs 2nd model)"):
                 open_panel("Model")
                 page.select_option(
-                    "label.field:has-text('Add model') select", "GSF2026-USO")
+                    "label.field:has-text('Add model') select", "2026-USO")
                 settle(3_500)
                 page.locator(
-                    "label.check:has-text('compared models') input").click()
+                    ".band-control .switchcheck:has-text('Compared')").click()
                 settle(800)
                 assert page.query_selector("svg.chart pattern"), "no hatch"
                 page.locator(
-                    "label.check:has-text('compared models') input").click()
+                    ".band-control .switchcheck:has-text('Compared')").click()
+                open_panel("Model")
                 page.click(".modelrow .mdel >> nth=-1")
                 settle(2_500)
 
             # ---------------------------------------------------- modulation
             with check("modulation: LIS / SC24"):
                 open_panel("Solar modulation")
-                page.click(".rail.left .seg button:text-is('LIS')")
+                page.click(".settings-popover .seg button:text-is('LIS')")
                 settle(3_000)
-                page.click(".rail.left .seg button:text-is('SC24')")
+                page.click(".settings-popover .seg button:text-is('SC24')")
                 settle(2_500)
 
             with check("modulation: custom interval + edges"):
-                page.click(".rail.left .seg button:text-is('Interval')")
+                page.click(".settings-popover .seg button:text-is('Interval')")
                 settle(4_000)
                 page.fill("input[type=month] >> nth=0", "1975-01")
                 settle(4_000)
@@ -303,7 +345,7 @@ def main() -> int:
                 page.fill("input[type=month] >> nth=1", "2010-01")
                 settle(5_000)
                 assert "2010/01–2020/06" in header_tag()
-                page.click(".rail.left .seg button:text-is('SC24')")
+                page.click(".settings-popover .seg button:text-is('SC24')")
                 settle(2_500)
 
             # ------------------------------------------------------ advanced
@@ -324,7 +366,7 @@ def main() -> int:
 
             with check("advanced: grid points 240 / 960 / 480"):
                 for n in ("240", "960", "480"):
-                    page.click(f".rail.left .seg button:text-is('{n}')")
+                    page.click(f".settings-popover .seg button:text-is('{n}')")
                     settle(3_500)
                     assert f"{n} pts" in page.text_content(".statuspill")
 
@@ -334,7 +376,8 @@ def main() -> int:
                 page.mouse.move(1200, 650, steps=6); page.mouse.up()
                 settle(3_000)
                 assert "10⁻¹–10¹¹" not in header_tag()
-                assert "custom y-range" in page.text_content(".rail.left")
+                assert not page.locator(
+                    ".plottools button[title*='Reset']").is_disabled()
 
             with check("nav: home button resets"):
                 page.click(".plottools button[title*='Reset']")
@@ -377,8 +420,7 @@ def main() -> int:
                 page.mouse.move(900, 300); page.mouse.down()
                 page.mouse.move(1250, 700, steps=6); page.mouse.up()
                 settle(3_000)
-                open_panel("Display")
-                gamma = page.locator(".rail.left input[type=range]").first
+                gamma = page.locator(".displaydock input[type=range]").first
                 gamma.fill("2")
                 settle(2_500)
                 zoomed = yticks()
@@ -439,7 +481,7 @@ def main() -> int:
             with check("export: CSV per model (2 active -> 2 files)"):
                 open_panel("Model")
                 page.select_option(
-                    "label.field:has-text('Add model') select", "GSF2026-USO")
+                    "label.field:has-text('Add model') select", "2026-USO")
                 settle(4_500)
                 open_panel("Export")
                 with page.expect_download(timeout=90_000) as dl:
@@ -448,10 +490,12 @@ def main() -> int:
                 dl2 = page.wait_for_event("download", timeout=90_000)
                 names = {f1, dl2.suggested_filename}
                 assert any("uso" in n for n in names), names
+                open_panel("Model")
                 page.click(".modelrow .mdel >> nth=-1")
                 settle(3_000)
 
             with check("export: live view snapshot SVG"):
+                open_panel("Export")
                 with page.expect_download(timeout=30_000) as dl:
                     page.click("button:has-text('View → SVG')")
                 assert dl.value.suggested_filename.endswith(".svg")
@@ -459,7 +503,7 @@ def main() -> int:
             if not args.fast:
                 for fmt in ("pdf", "svg", "png"):
                     with check(f"export: publication figure {fmt}"):
-                        page.click(f".rail.left .seg button:text-is('{fmt}')")
+                        page.click(f".export-popover .seg button:text-is('{fmt}')")
                         with page.expect_download(timeout=300_000) as dl:
                             page.click("button:text-is('Download')")
                         assert dl.value.suggested_filename.endswith(f".{fmt}")
@@ -486,17 +530,42 @@ def main() -> int:
 
             # ---------------------------------------------------- responsive
             with check("responsive: 420px mobile renders"):
-                c3 = browser.new_context(viewport={"width": 420, "height": 900})
+                c3 = browser.new_context(viewport={"width": 420, "height": 560})
                 p3 = c3.new_page()
                 p3.goto(URL, timeout=60_000)
                 p3.wait_for_selector("svg.chart path", timeout=300_000)
-                assert p3.query_selector(".rail.left .panel")
+                assert p3.locator(".commandbtn").count() == 3
+                legend = p3.locator(".legend-toggle")
+                assert legend.get_attribute("aria-expanded") == "false"
+                legend.click()
+                assert legend.get_attribute("aria-expanded") == "true"
+                for command, selector in (
+                        ("Series", ".series-popover"),
+                        ("Settings", ".settings-popover"),
+                        ("Export", ".export-popover")):
+                    p3.click(f".commandbtn:text-is('{command}')")
+                    pane = p3.locator(selector)
+                    scroller = pane.locator(".panescroll")
+                    assert scroller.evaluate(
+                        "e => getComputedStyle(e).overflowY") == "auto"
+                    dims = scroller.evaluate(
+                        "e => ({h:e.clientHeight, sh:e.scrollHeight})")
+                    assert dims["sh"] > dims["h"], (command, dims)
+                    assert pane.locator(".scrollrail.active").count() == 1
+                    scroller.evaluate("e => { e.scrollTop = e.scrollHeight; }")
+                    assert scroller.evaluate("e => e.scrollTop") > 0
+                    p3.click(f"{selector} .closebtn")
+                p3.click(".commandbtn:text-is('Settings')")
+                sheet = p3.locator(".overlay-surface")
+                assert sheet.is_visible()
+                assert sheet.bounding_box()["y"] > 100
                 c3.close()
 
             # ----------------------------------------------- panel collapse
             with check("panels: every header expands and collapses"):
-                for t in ("Model", "Components", "Display",
+                for t in ("Model", "Components", "Abscissa",
                           "Solar modulation", "Advanced", "Export"):
+                    open_panel(t)
                     sel = f".panel:has(h2:text-is('{t}'))"
                     page.click(f"{sel} > header")
                     page.wait_for_timeout(100)

@@ -47,24 +47,25 @@ def main() -> int:
             page.wait_for_timeout(1_000)
             print("boot: chart rendered")
 
-            # instant display controls (no worker round-trip)
-            page.click(".panel header:has-text('Display')")
-            page.locator(".rail.left input[type=range]").first.fill("1.5")
-            page.click(".rail.left .seg button:has-text('linear')")
-            page.click(".rail.left .seg button:has-text('log')")
+            # instant display dock controls (no worker round-trip)
+            page.locator(".displaydock input[type=range]").first.fill("1.5")
+            page.click(".displaydock .seg button:has-text('Linear')")
+            page.click(".displaydock .seg button:has-text('Log')")
 
-            # worker round-trips (open collapsed panels first)
-            page.click(".panel header:has-text('Components')")
+            # worker round-trips in task-specific command surfaces
+            page.click(".commandbtn:text-is('Series')")
             page.click(".elgrid button:has-text('Fe')")
-            page.click(".panel header:has-text('Solar modulation')")
-            page.click(".rail.left .seg button:has-text('LIS')")
+            page.click(".commandbtn:text-is('Settings')")
+            page.click(".settings-popover .seg button:has-text('LIS')")
             page.click(".aboutbtn")
             page.wait_for_timeout(600)
             page.click(".modal header button")
             page.wait_for_timeout(3_000)
 
             # second model overlay
-            page.select_option(".panel select", value="GSF2026-USO")
+            page.click(".commandbtn:text-is('Series')")
+            page.select_option(
+                "label.field:has-text('Add model') select", value="2026-USO")
             page.wait_for_timeout(3_000)
 
             # toolbar: box zoom, pan, home
@@ -86,7 +87,7 @@ def main() -> int:
             print("interactions: ok")
 
             # exports: CSV (worker), publication PDF (lazy matplotlib), SVG
-            page.click(".panel header:has-text('Export')")
+            page.click(".commandbtn:text-is('Export')")
             for label, timeout in (("CSV", 60_000), ("Download", 300_000),
                                    ("View → SVG", 30_000)):
                 with page.expect_download(timeout=timeout) as dl:
@@ -96,12 +97,30 @@ def main() -> int:
             if args.shots:
                 out = pathlib.Path(args.shots)
                 out.mkdir(parents=True, exist_ok=True)
+                if page.query_selector(".export-popover"):
+                    page.click(".commandbtn:text-is('Export')")
                 page.screenshot(path=out / "smoke_desktop.png")
-                m = b.new_page(viewport={"width": 420, "height": 900})
+                page.click(".iconbtn[title='Switch theme']")
+                page.wait_for_timeout(250)
+                page.screenshot(path=out / "smoke_desktop_alt.png")
+                page.set_viewport_size({"width": 760, "height": 800})
+                page.wait_for_timeout(250)
+                page.screenshot(path=out / "smoke_compact.png")
+                page.set_viewport_size({"width": 520, "height": 760})
+                page.wait_for_timeout(250)
+                page.screenshot(path=out / "smoke_autocollapsed.png")
+                m = b.new_page(viewport={"width": 390, "height": 844})
                 m.goto(f"http://localhost:{PORT}/", timeout=60_000)
                 m.wait_for_selector("svg.chart path", timeout=300_000)
                 m.wait_for_timeout(1_200)
-                m.screenshot(path=out / "smoke_mobile.png", full_page=True)
+                m.screenshot(path=out / "smoke_mobile.png")
+                m.click(".commandbtn:text-is('Series')")
+                m.wait_for_timeout(250)
+                m.screenshot(path=out / "smoke_mobile_series.png")
+                m.click(".series-popover .closebtn")
+                m.click(".commandbtn:text-is('Settings')")
+                m.wait_for_timeout(250)
+                m.screenshot(path=out / "smoke_mobile_sheet.png")
             b.close()
     finally:
         srv.terminate()

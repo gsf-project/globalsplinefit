@@ -168,6 +168,39 @@ function Panel({ title, children, open = false }) {
     </section>`;
 }
 
+function ScrollBody({ label, children }) {
+  const scrollerRef = useRef(null);
+  const contentRef = useRef(null);
+  const [metrics, setMetrics] = useState({ top: 0, client: 1, total: 1 });
+  const measure = () => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    setMetrics({ top: el.scrollTop, client: el.clientHeight,
+                 total: el.scrollHeight });
+  };
+  useEffect(() => {
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (contentRef.current) ro.observe(contentRef.current);
+    return () => ro.disconnect();
+  }, []);
+  const overflow = metrics.total > metrics.client + 1;
+  const thumbH = overflow
+    ? Math.max(14, (metrics.client / metrics.total) * 100) : 100;
+  const thumbTop = overflow
+    ? (metrics.top / (metrics.total - metrics.client)) * (100 - thumbH) : 0;
+  return html`
+    <div class="panebody">
+      <div class="panescroll" ref=${scrollerRef} tabindex="0"
+           aria-label=${`${label} pane contents`} onscroll=${measure}>
+        <div class="scrollcontent" ref=${contentRef}>${children}</div>
+      </div>
+      <div class="scrollrail ${overflow ? "active" : ""}" aria-hidden="true">
+        <span style="height:${thumbH}%;top:${thumbTop}%"></span>
+      </div>
+    </div>`;
+}
+
 function Slider({ label, min, max, step, value, onInput, fmt = (v) => v }) {
   const pct = ((value - min) / (max - min)) * 100;
   return html`
@@ -232,12 +265,12 @@ function App() {
   /* model state: requires Python. The grid always covers the full
      10^0–10^11 range so pan/zoom are pure display operations. */
   const [params, setParams] = useState({
-    versions: ["GSF2026"], basis: "etot", npts: 480,
+    versions: ["2026"], basis: "etot", npts: 480,
     elements: [], mod: "SC24", cutoff: 0, escale: 1.0,
   });
   const [view, setView] = useState({
     gamma: 2.7, ylog: true, ratio: false, showTotal: true, showBands: true,
-    bandAlpha: 0.16, yRange: null, xWindow: [...X_DOMAIN],
+    bandAlpha: 0.16, lineWeight: 1, yRange: null, xWindow: [...X_DOMAIN],
     overlayBands: false,
     visible: { "p": true, "He": true, "O*": true, "Fe*": true },
   });
@@ -254,6 +287,7 @@ function App() {
   const [about, setAbout] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [mode, setMode] = useState("zoom");
+  const [overlay, setOverlay] = useState(null);
   const [theme, setTheme] = useState(initialTheme);
   const [exp, setExp] = useState({ preset: "full", fmt: "pdf", dpi: 300,
                                    csvN: 100, cov: true });
@@ -339,7 +373,7 @@ function App() {
   }, [paramsKey, meta]);
 
   /* element list follows the primary model (e.g. deuterium exists only in
-     isotope-format sets like GSF2026) */
+     isotope-format sets like 2026) */
   useEffect(() => {
     if (!meta) return;
     rpc("meta", { basis: params.basis, version: params.versions[0] })
@@ -362,8 +396,28 @@ function App() {
     return () => ro.disconnect();
   }, []);
   const wide = size.w > 980;
-  const insets = wide ? { l: 308, r: 18, t: 46, b: 6 }
-                      : { l: 4, r: 10, t: 6, b: 0 };
+  /* These insets are stable while overlays open and close: the chart never
+     resizes or recomputes merely because a command surface is visible. */
+  const insets = wide ? { l: 14, r: 18, t: 72, b: 82 }
+                      : { l: 0, r: 2, t: 126, b: 230 };
+
+  /* Command surfaces close consistently with Escape or an outside press.
+     Their DOM is overlaid, never inserted into the chart's sizing flow. */
+  useEffect(() => {
+    if (!overlay) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setOverlay(null);
+    };
+    const onPointer = (e) => {
+      if (!e.target.closest(".overlay-surface, .commandbtn")) setOverlay(null);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
+    };
+  }, [overlay]);
 
   const setP = (patch) => setParams((p) => ({ ...p, ...patch }));
   const setV = (patch) => setView((v) => ({ ...v, ...patch }));
@@ -491,8 +545,8 @@ function App() {
     const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
     style.textContent = `
       svg{background:${T.surface}}
-      .tick{fill:${T.ink3};font:11.5px 'IBM Plex Mono',monospace}
-      .serieslabel{fill:${T.ink2};font:500 12px 'IBM Plex Sans',sans-serif}
+      .tick{fill:${T.ink3};font:13.5px 'IBM Plex Mono',monospace}
+      .serieslabel,.legendlabel,.legendtitle,.legendchev{fill:${T.ink2};font:500 12px 'IBM Plex Sans',sans-serif}
       .axistitle{fill:${T.ink2};font:500 13px 'IBM Plex Sans',sans-serif}`;
     clone.insertBefore(style, clone.firstChild);
     download("gsf_explorer_view.svg",
@@ -522,6 +576,34 @@ function App() {
   const freeVersions =
     (meta?.versions ?? []).filter((v) => !params.versions.includes(v));
   const primary = models?.[0]?.data;
+  const modelControls = html`
+    <div class="serieslist">
+      ${params.versions.map((v, i) => html`
+        <div class="modelrow ${dragIdx === i ? "dragging" : ""} ${overIdx === i && dragIdx !== i ? "dragover" : ""}"
+             draggable=${params.versions.length > 1}
+             ondragstart=${(e) => { setDragIdx(i); e.dataTransfer.effectAllowed = "move"; }}
+             ondragover=${(e) => { e.preventDefault(); setOverIdx(i); }}
+             ondragleave=${() => setOverIdx(null)}
+             ondrop=${(e) => { e.preventDefault(); moveModel(dragIdx, i); setDragIdx(null); setOverIdx(null); }}
+             ondragend=${() => { setDragIdx(null); setOverIdx(null); }}>
+          ${params.versions.length > 1 && html`<span class="grip" aria-hidden="true">⠿</span>`}
+          <${DashSample} i=${i} ink=${T.ink} />
+          <span class="mname">${v}</span>
+          ${params.versions.length > 1 && html`
+            <button class="mdel" title="Remove ${v}" aria-label=${`Remove ${v}`}
+                    onclick=${() => removeModel(v)}>×</button>`}
+        </div>`)}
+    </div>
+    ${params.versions.length > 1 && html`
+      <p class="hinttext">Drag to reorder. The first model carries bands and elements.</p>`}
+    ${params.versions.length < MAX_MODELS && freeVersions.length > 0 && html`
+      <label class="field"><span>Add model (overlay)</span>
+        <select value="" onchange=${(e) => { addModel(e.target.value); e.target.value = ""; }}>
+          <option value="" disabled selected>Choose a parameter set…</option>
+          ${freeVersions.map((v) => html`
+            <option value=${v}>${v}${meta?.notes?.[v] ? ` — ${meta.notes[v]}` : ""}</option>`)}
+        </select></label>`}
+  `;
 
   return html`
     <div class="stage">
@@ -533,7 +615,7 @@ function App() {
             onWindow=${onWindow} onHome=${goHome} onHoverInfo=${setHover} />`}
         ${hover && html`
           <div class="hoverbox"
-               style="left:${Math.min(hover.pxX + 18, size.w - 224)}px; top:${insets.t + 26}px">
+               style="left:${Math.max(12, Math.min(hover.pxX + 18, size.w - 224))}px;top:${insets.t + 42}px">
             <div class="hx">x = ${sciLabel(hover.x)} ${basisMeta?.unit ?? ""}</div>
             ${hover.rows.map((r) => html`
               <div class="hrow">
@@ -542,222 +624,269 @@ function App() {
                 <span class="v">${sciLabel(r.v)}</span>
               </div>`)}
           </div>`}
-        ${models && html`
-          <div class="plottools" style="left:${insets.l + 86}px; top:${insets.t + 26}px">
-            <button class=${mode === "zoom" ? "on" : ""} title="Box zoom (drag a region)"
-                    onclick=${() => setMode("zoom")}>${ICONS.zoom}</button>
-            <button class=${mode === "pan" ? "on" : ""} title="Pan (drag to move the window)"
-                    onclick=${() => setMode("pan")}>${ICONS.pan}</button>
-            <button title="Reset view (double-click plot does the same)"
-                    disabled=${isHome} onclick=${goHome}>${ICONS.home}</button>
-            <button class=${hoverOn ? "on" : ""} title="Hover readout on/off"
-                    onclick=${() => { setHoverOn(!hoverOn); setHover(null); }}>
-              ${ICONS.crosshair}</button>
-          </div>`}
       </div>
 
-      <div class="wordmark">
-        <span class="name">GSF Explorer</span>
-        <span class="tag">${meta
-          ? stateLine(params, basisMeta?.unit ?? "GeV", view.xWindow)
-          : "global spline fit"}</span>
-      </div>
-
-      <div class="topright">
-        <div class="statuspill ${busy ? "busy" : ""}">
-          <span class="dot"></span>
-          ${busy ? (models ? "computing…" : stage)
-                 : `${params.versions[0]}${params.versions.length > 1 ? ` +${params.versions.length - 1}` : ""} · ${params.npts} pts · ${evalMs} ms`}
+      <header class="appheader">
+        <div class="wordmark">
+          <span class="name">GSF Explorer</span>
+          <span class="tag">${meta
+            ? stateLine(params, basisMeta?.unit ?? "GeV", view.xWindow)
+            : "global spline fit"}</span>
         </div>
-        <button class="iconbtn" title="Switch theme"
-                onclick=${() => pickTheme(theme === "dark" ? "light" : "dark")}>
-          ${theme === "dark" ? ICONS.sun : ICONS.moon}
-        </button>
-      </div>
-
-      <div class="rail left">
-        <button class="aboutbtn" onclick=${openAbout}>
-          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor"
-               stroke-width="1.6" stroke-linecap="round">
-            <circle cx="10" cy="10" r="7.5"/>
-            <line x1="10" y1="9" x2="10" y2="13.6"/>
-            <circle cx="10" cy="6.4" r="0.4" fill="currentColor"/>
-          </svg>
-          About · citations
-        </button>
-
-        <${Panel} title="Model" open=${true}>
-          <div class="serieslist">
-            ${params.versions.map((v, i) => html`
-              <div class="modelrow ${dragIdx === i ? "dragging" : ""} ${overIdx === i && dragIdx !== i ? "dragover" : ""}"
-                   draggable=${params.versions.length > 1}
-                   title=${meta?.notes?.[v] ?? ""}
-                   ondragstart=${(e) => { setDragIdx(i); e.dataTransfer.effectAllowed = "move"; }}
-                   ondragover=${(e) => { e.preventDefault(); setOverIdx(i); }}
-                   ondragleave=${() => setOverIdx(null)}
-                   ondrop=${(e) => { e.preventDefault(); moveModel(dragIdx, i); setDragIdx(null); setOverIdx(null); }}
-                   ondragend=${() => { setDragIdx(null); setOverIdx(null); }}>
-                ${params.versions.length > 1 && html`<span class="grip">⠿</span>`}
-                <${DashSample} i=${i} ink=${T.ink} />
-                <span class="mname">${v}</span>
-                ${params.versions.length > 1 && html`
-                  <button class="mdel" title="Remove ${v}"
-                          onclick=${() => removeModel(v)}>✕</button>`}
-              </div>`)}
+        <div class="topright">
+          <div class="statuspill ${busy ? "busy" : ""}" role="status" aria-live="polite">
+            <span class="dot"></span>
+            <span>${busy ? (models ? "computing…" : stage)
+              : `${params.versions[0]}${params.versions.length > 1 ? ` +${params.versions.length - 1}` : ""} · ${params.npts} pts · ${evalMs} ms`}</span>
           </div>
-          ${params.versions.length > 1 && html`
-            <span style="font-size:11px;color:var(--ink-3)">
-              Drag to reorder — the first model is solid and carries
-              bands and elements.</span>`}
-          ${params.versions.length < MAX_MODELS && freeVersions.length > 0 && html`
-            <label class="field"><span>Add model (overlay)</span>
-              <select value="" onchange=${(e) => { addModel(e.target.value); e.target.value = ""; }}>
-                <option value="" disabled selected>choose…</option>
-                ${freeVersions.map((v) => html`
-                  <option value=${v}>${v}${meta?.notes?.[v] ? ` — ${meta.notes[v]}` : ""}</option>`)}
-              </select></label>`}
-          <label class="field"><span>Abscissa</span>
-            <select value=${params.basis}
-                    onchange=${(e) => setP({ basis: e.target.value })}>
-              ${Object.entries(BASIS_LABELS).map(([k, l]) => html`
-                <option value=${k}>${l}</option>`)}
-            </select></label>
-        <//>
+          <button class="iconbtn aboutbtn has-tooltip" title="About and citations"
+                  aria-label="About and citations" onclick=${openAbout}>
+            <span aria-hidden="true">i</span>
+            <span class="tooltip">About and citations</span>
+          </button>
+          <button class="iconbtn has-tooltip" title="Switch theme"
+                  aria-label=${`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+                  onclick=${() => pickTheme(theme === "dark" ? "light" : "dark")}>
+            ${theme === "dark" ? ICONS.sun : ICONS.moon}
+            <span class="tooltip">Switch theme</span>
+          </button>
+        </div>
+      </header>
 
-        <${Panel} title="Components">
-          <div class="serieslist">
-            <button class="seriesrow ${view.showTotal ? "" : "off"}"
-                    onclick=${() => setV({ showTotal: !view.showTotal })}>
-              <span class="swatch" style="--c:${T.ink}"></span>all-particle
-            </button>
-            ${GROUPS.map((g) => html`
-              <button class="seriesrow ${view.visible[g] ? "" : "off"}"
-                      onclick=${() => toggleSeries(g)}>
-                <span class="swatch" style="--c:${T.groups[g]}"></span>${g}
-              </button>`)}
-          </div>
-          <label class="field"><span>Individual elements (dashed${params.versions.length > 1 ? ", primary model" : ""})</span>
-            <div class="elgrid">
-              ${(meta?.elements ?? []).map((el) => html`
-                <button class=${params.elements.includes(el.z) ? "on" : ""}
-                        title=${el.z === "D" ? "deuterium (Z=1, A=2)" : `Z = ${el.z}`}
-                        onclick=${() => toggleElement(el.z)}>${el.sym}</button>`)}
-            </div></label>
-        <//>
+      ${models && html`
+        <nav class="plottools" aria-label="Plot navigation">
+          <button class="has-tooltip ${mode === "zoom" ? "on" : ""}"
+                  title="Box zoom (drag a region)" aria-label="Box zoom"
+                  aria-pressed=${mode === "zoom"} onclick=${() => setMode("zoom")}>
+            ${ICONS.zoom}<span class="tooltip">Box zoom</span></button>
+          <button class="has-tooltip ${mode === "pan" ? "on" : ""}"
+                  title="Pan (drag to move the window)" aria-label="Pan"
+                  aria-pressed=${mode === "pan"} onclick=${() => setMode("pan")}>
+            ${ICONS.pan}<span class="tooltip">Pan</span></button>
+          <button class="has-tooltip" title="Reset view (double-click plot does the same)"
+                  aria-label="Reset view" disabled=${isHome} onclick=${goHome}>
+            ${ICONS.home}<span class="tooltip">Reset view</span></button>
+          <button class="has-tooltip ${hoverOn ? "on" : ""}"
+                  title="Hover readout on/off" aria-label="Hover readout"
+                  aria-pressed=${hoverOn}
+                  onclick=${() => { setHoverOn(!hoverOn); setHover(null); }}>
+            ${ICONS.crosshair}<span class="tooltip">Hover readout</span></button>
+        </nav>`}
 
-        <${Panel} title="Display">
-          <label class="field"><span>Quantity</span>
-            <${Seg} value=${view.ratio}
-              onSelect=${(v) => setV({ ratio: v, yRange: null })}
-              options=${[{ v: false, label: "flux" },
-                         { v: true, label: "ratio to total" }]} /></label>
-          ${view.ratio
-            ? html`<span style="font-size:11px;color:var(--ink-3)">
-                Φᵢ / Φ(all-particle); γ-weighting cancels. Bands are
-                σᵢ/Φ_total — correlation with the total neglected.</span>`
-            : html`<${Slider} label="Spectral weight  xᵞ · Φ" min="0" max="3.2"
-                step="0.05" value=${view.gamma}
-                onInput=${(v) => setV({ gamma: v, yRange: null })}
-                fmt=${(v) => v.toFixed(2)} />`}
-          <label class="field"><span>${view.ratio ? "Ratio" : "Flux"} scale</span>
-            <${Seg} value=${view.ylog}
-              onSelect=${(v) => setV({ ylog: v, yRange: null })}
-              options=${[{ v: true, label: "log" }, { v: false, label: "linear" }]} /></label>
-          <label class="check">
+      <nav class="commandbar" aria-label="Explorer commands">
+        ${[
+          { id: "series", label: "Series" },
+          { id: "settings", label: "Settings" },
+          { id: "export", label: "Export" },
+        ].map((command) => html`
+          <button class="commandbtn ${overlay === command.id ? "on" : ""}"
+                  aria-expanded=${overlay === command.id}
+                  aria-controls=${`${command.id}-surface`}
+                  onclick=${() => setOverlay(
+                    overlay === command.id ? null : command.id)}>
+            ${command.label}
+          </button>`)}
+      </nav>
+
+      <section class="displaydock" aria-label="Display controls">
+        <div class="dockcontrol quantity-control">
+          <span class="docklabel">Quantity</span>
+          <${Seg} value=${view.ratio}
+            onSelect=${(v) => setV({ ratio: v, yRange: null })}
+            options=${[{ v: false, label: "Flux" },
+                       { v: true, label: "Ratio" }]} />
+        </div>
+        <div class="dockcontrol gamma-control ${view.ratio ? "disabled" : ""}">
+          <${Slider} label="Spectral weight γ" min="0" max="3.2"
+            step="0.05" value=${view.gamma}
+            onInput=${(v) => setV({ gamma: v, yRange: null })}
+            fmt=${(v) => v.toFixed(2)} />
+          ${view.ratio && html`<span class="docknote">Cancels in ratio view</span>`}
+        </div>
+        <div class="dockcontrol scale-control">
+          <span class="docklabel">${view.ratio ? "Ratio" : "Flux"} scale</span>
+          <${Seg} value=${view.ylog}
+            onSelect=${(v) => setV({ ylog: v, yRange: null })}
+            options=${[{ v: true, label: "Log" }, { v: false, label: "Linear" }]} />
+        </div>
+        <div class="dockcontrol band-control">
+          <label class="switchcheck">
             <input type="checkbox" checked=${view.showBands}
                    onchange=${() => setV({ showBands: !view.showBands })} />
-            ±1σ uncertainty bands</label>
+            <span class="switchtrack" aria-hidden="true"></span>
+            <span>Bands</span>
+          </label>
           ${view.showBands && params.versions.length > 1 && html`
-            <label class="check">
+            <label class="switchcheck compact">
               <input type="checkbox" checked=${view.overlayBands}
                      onchange=${() => setV({ overlayBands: !view.overlayBands })} />
-              bands for compared models (hatched)</label>`}
-          ${view.showBands && html`
+              <span class="switchtrack" aria-hidden="true"></span>
+              <span>Compared</span>
+            </label>`}
+        </div>
+        <div class="dockcontrol style-controls ${view.showBands ? "split" : ""}">
+          <div class="lineweight-control">
+            <${Slider} label="Line weight" min="0.6" max="2" step="0.05"
+              value=${view.lineWeight}
+              onInput=${(v) => setV({ lineWeight: v })}
+              fmt=${(v) => `${v.toFixed(2)}×`} />
+          </div>
+          ${view.showBands && html`<div class="opacity-control">
             <${Slider} label="Band opacity" min="0.05" max="0.6" step="0.01"
               value=${view.bandAlpha} onInput=${(v) => setV({ bandAlpha: v })}
-              fmt=${(v) => v.toFixed(2)} />`}
-          <span style="font-size:11px;color:var(--ink-3)">
-            window 10${sup(Math.round(view.xWindow[0] * 10) / 10)}–10${sup(Math.round(view.xWindow[1] * 10) / 10)}
-            ${view.yRange ? " · custom y-range" : ""} ·
-            box-zoom / pan / pinch / reset on the plot</span>
-        <//>
+              fmt=${(v) => v.toFixed(2)} />
+          </div>`}
+        </div>
+      </section>
 
-        <${Panel} title="Solar modulation">
-          <${Seg} value=${modKind} onSelect=${setMod}
-            options=${[{ v: "SC24", label: "SC24" },
-                       { v: "LIS", label: "LIS" },
-                       { v: "custom", label: "Interval" }]} />
-          ${modKind === "custom" && html`
-            <div style="display:grid;gap:7px">
-              <label class="field"><span>from</span>
-                <input type="month" value=${months[0]}
-                       min="${y0}-01" max="${y1}-12"
-                       onchange=${(e) => setInterval_(e.target.value, months[1])} /></label>
-              <label class="field"><span>to</span>
-                <input type="month" value=${months[1]}
-                       min="${y0}-01" max="${y1}-12"
-                       onchange=${(e) => setInterval_(months[0], e.target.value)} /></label>
-            </div>`}
-          <span style="font-size:11px;color:var(--ink-3)">
-            Potential data cover ${y0}–${y1}.</span>
-        <//>
+      ${overlay && html`<div class="sheet-scrim" aria-hidden="true"></div>`}
 
-        <${Panel} title="Advanced">
-          <label class="field"><span>Energy-scale factor</span>
-            <input type="number" min="0.80" max="1.20" step="0.01"
-                   value=${params.escale}
-                   onchange=${(e) => setP({ escale: +e.target.value })} /></label>
-          <label class="field"><span>Rigidity cutoff [GV] · 0 = off</span>
-            <input type="number" min="0" max="30" step="0.5"
-                   value=${params.cutoff}
-                   onchange=${(e) => setP({ cutoff: +e.target.value })} /></label>
-          <label class="field"><span>Grid points (full range, cached)</span>
-            <${Seg} value=${params.npts}
-              onSelect=${(v) => setP({ npts: v })}
-              options=${[{ v: 240, label: "240" }, { v: 480, label: "480" },
-                         { v: 960, label: "960" }]} /></label>
-        <//>
-
-        <${Panel} title="Export">
-          <span class="subhead">Publication figure</span>
-          <label class="field">
-            <span>paper style${params.versions.length > 1 ? " · one file per model" : ""}</span>
-            <select value=${exp.preset}
-                    onchange=${(e) => setExp({ ...exp, preset: e.target.value })}>
-              ${Object.entries(PRESETS).map(([k, p]) => html`
-                <option value=${k}>${p.label}</option>`)}
-            </select></label>
-          <div class="btnrow">
-            <${Seg} value=${exp.fmt}
-              onSelect=${(v) => setExp({ ...exp, fmt: v })}
-              options=${["pdf", "svg", "png"].map((f) => ({ v: f, label: f }))} />
-            <button class="action primary" disabled=${exporting || busy}
-                    onclick=${doFigure}>
-              ${exporting ? "rendering…" : "Download"}</button>
+      ${overlay === "series" && html`
+        <aside id="series-surface" class="overlay-surface commandpane series-popover rail left"
+               role="dialog" aria-modal="false" aria-label="Series visibility">
+          <div class="surfacehead">
+            <div><h2>Series</h2><p>Choose the curves shown on the canvas.</p></div>
+            <button class="closebtn" aria-label="Close Series"
+                    onclick=${() => setOverlay(null)}>×</button>
           </div>
+          <${ScrollBody} label="Series">
+            <${Panel} title="Model" open=${true}>
+              ${modelControls}
+            <//>
+            <${Panel} title="Components" open=${true}>
+              <div class="serieslist">
+                <button class="seriesrow ${view.showTotal ? "" : "off"}"
+                        aria-pressed=${view.showTotal}
+                        onclick=${() => setV({ showTotal: !view.showTotal })}>
+                  <span class="swatch" style="--c:${T.ink}"></span>all-particle
+                </button>
+                ${GROUPS.map((g) => html`
+                  <button class="seriesrow ${view.visible[g] ? "" : "off"}"
+                          aria-pressed=${!!view.visible[g]}
+                          onclick=${() => toggleSeries(g)}>
+                    <span class="swatch" style="--c:${T.groups[g]}"></span>${g}
+                  </button>`)}
+              </div>
+              <div class="elementfield">
+                <div class="fieldhead">
+                  <span>Individual elements (dashed${params.versions.length > 1 ? ", primary model" : ""})</span>
+                  <button class="resetbtn" disabled=${params.elements.length === 0}
+                          onclick=${() => setP({ elements: [] })}>
+                    Reset
+                  </button>
+                </div>
+                <div class="elgrid">
+                  ${(meta?.elements ?? []).map((el) => html`
+                    <button class=${params.elements.includes(el.z) ? "on" : ""}
+                            aria-pressed=${params.elements.includes(el.z)}
+                            title=${el.z === "D" ? "Deuterium (Z=1, A=2)" : `Atomic number ${el.z}`}
+                            onclick=${() => toggleElement(el.z)}>${el.sym}</button>`)}
+                </div>
+              </div>
+            <//>
+          <//>
+        </aside>`}
 
-          <span class="subhead">Data</span>
-          <label class="field">
-            <span>CSV, current window${params.versions.length > 1 ? " · one file per model" : ""}</span>
-            <div class="btnrow" style="align-items:center">
-              <input type="number" min="20" max="300" step="10" value=${exp.csvN}
-                     style="width:72px"
-                     onchange=${(e) => setExp({ ...exp, csvN: +e.target.value })} />
-              <label class="check" style="font-size:11.5px">
-                <input type="checkbox" checked=${exp.cov}
-                       onchange=${() => setExp({ ...exp, cov: !exp.cov })} />
-                covariance</label>
-              <button class="action" disabled=${exporting || busy}
-                      onclick=${doCsv}>CSV</button>
-            </div></label>
-
-          <span class="subhead">View</span>
-          <div class="btnrow">
-            <button class="action" onclick=${doSnapshot}>View → SVG</button>
-            <button class="action" onclick=${() => setModal("table")}>Data table</button>
+      ${overlay === "settings" && html`
+        <aside id="settings-surface" class="overlay-surface commandpane settings-popover rail left"
+               role="dialog" aria-modal="false" aria-label="Settings">
+          <div class="surfacehead">
+            <div><h2>Settings</h2><p>Scientific model settings.</p></div>
+            <button class="closebtn" aria-label="Close Settings"
+                    onclick=${() => setOverlay(null)}>×</button>
           </div>
-        <//>
-      </div>
+          <${ScrollBody} label="Settings">
+            <${Panel} title="Abscissa" open=${true}>
+            <label class="field"><span>Horizontal axis</span>
+              <select value=${params.basis}
+                      onchange=${(e) => setP({ basis: e.target.value })}>
+                ${Object.entries(BASIS_LABELS).map(([k, l]) => html`
+                  <option value=${k}>${l}</option>`)}
+              </select></label>
+            <//>
+            <${Panel} title="Solar modulation" open=${true}>
+            <${Seg} value=${modKind} onSelect=${setMod}
+              options=${[{ v: "SC24", label: "SC24" },
+                         { v: "LIS", label: "LIS" },
+                         { v: "custom", label: "Interval" }]} />
+            ${modKind === "custom" && html`
+              <div class="monthgrid">
+                <label class="field"><span>From</span>
+                  <input type="month" value=${months[0]}
+                         min="${y0}-01" max="${y1}-12"
+                         onchange=${(e) => setInterval_(e.target.value, months[1])} /></label>
+                <label class="field"><span>To</span>
+                  <input type="month" value=${months[1]}
+                         min="${y0}-01" max="${y1}-12"
+                         onchange=${(e) => setInterval_(months[0], e.target.value)} /></label>
+              </div>`}
+            <p class="hinttext">Potential data cover ${y0}–${y1}.</p>
+            <//>
+            <${Panel} title="Advanced" open=${true}>
+            <label class="field"><span>Energy-scale factor</span>
+              <input type="number" min="0.80" max="1.20" step="0.01"
+                     value=${params.escale}
+                     onchange=${(e) => setP({ escale: +e.target.value })} /></label>
+            <label class="field"><span>Rigidity cutoff [GV] · 0 = off</span>
+              <input type="number" min="0" max="30" step="0.5"
+                     value=${params.cutoff}
+                     onchange=${(e) => setP({ cutoff: +e.target.value })} /></label>
+            <label class="field"><span>Grid points (full range, cached)</span>
+              <${Seg} value=${params.npts}
+                onSelect=${(v) => setP({ npts: v })}
+                options=${[{ v: 240, label: "240" }, { v: 480, label: "480" },
+                           { v: 960, label: "960" }]} /></label>
+            <//>
+          <//>
+        </aside>`}
+
+      ${overlay === "export" && html`
+        <aside id="export-surface" class="overlay-surface commandpane export-popover rail left"
+               role="dialog" aria-modal="false" aria-label="Export">
+          <div class="surfacehead">
+            <div><h2>Export</h2><p>Download the current model or live view.</p></div>
+            <button class="closebtn" aria-label="Close Export"
+                    onclick=${() => setOverlay(null)}>×</button>
+          </div>
+          <${ScrollBody} label="Export">
+            <${Panel} title="Export" open=${true}>
+            <span class="subhead">Publication figure</span>
+            <label class="field">
+              <span>Paper style${params.versions.length > 1 ? " · one file per model" : ""}</span>
+              <select value=${exp.preset}
+                      onchange=${(e) => setExp({ ...exp, preset: e.target.value })}>
+                ${Object.entries(PRESETS).map(([k, p]) => html`
+                  <option value=${k}>${p.label}</option>`)}
+              </select></label>
+            <div class="btnrow">
+              <${Seg} value=${exp.fmt}
+                onSelect=${(v) => setExp({ ...exp, fmt: v })}
+                options=${["pdf", "svg", "png"].map((f) => ({ v: f, label: f }))} />
+              <button class="action primary" disabled=${exporting || busy}
+                      onclick=${doFigure}>
+                ${exporting ? "Rendering…" : "Download"}</button>
+            </div>
+            <span class="subhead">Data</span>
+            <label class="field">
+              <span>CSV, current window${params.versions.length > 1 ? " · one file per model" : ""}</span>
+              <div class="btnrow csvrow">
+                <input type="number" min="20" max="300" step="10" value=${exp.csvN}
+                       onchange=${(e) => setExp({ ...exp, csvN: +e.target.value })} />
+                <label class="check">
+                  <input type="checkbox" checked=${exp.cov}
+                         onchange=${() => setExp({ ...exp, cov: !exp.cov })} />
+                  Covariance</label>
+                <button class="action" disabled=${exporting || busy}
+                        onclick=${doCsv}>CSV</button>
+              </div></label>
+            <span class="subhead">Live view</span>
+            <div class="btnrow">
+              <button class="action" onclick=${doSnapshot}>View → SVG</button>
+              <button class="action" onclick=${() => setModal("table")}>Data table</button>
+            </div>
+            <//>
+          <//>
+        </aside>`}
 
       ${error && html`<div class="toast">${error}</div>`}
 
