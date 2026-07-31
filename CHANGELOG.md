@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Model versions are now named by bare year — the `GSF` prefix is gone.**
+  `GSF2026` → `2026` and `GSF2026-USO` → `2026-USO` (data directories,
+  `version=` strings, `DEFAULT_VERSION`, docs, webapp). The historical sets
+  were already year-named.
+- **The shipping state is now documented and enforced by the registry**: after
+  every promotion the four `current` sets (`2026`, `2026-USO`,
+  `2026-UHE-S23e`, `2026-EPOS-LHCR`) are regenerated from the promoted run and
+  re-shipped together; `2025`/`2019`/`2017` are static historical releases.
+  All seven directories constitute the release-complete package.
+
+### Added
+
+- **`2026-UHE-S23e`** and **`2026-EPOS-LHCR`**: the single-interpretation
+  Auger FD-2026 SIBYLL-2.3e and EPOS-LHC-R variants of the 2026 fit (GMD
+  potential) — the two halves of the mixture, for applications that need one
+  definite hadronic-interaction model rather than the mixture band.
+
 - **The distributed GSF2026 / GSF2026-USO parameter sets are now the mixture
   fits.** Both previously shipped *single-interpretation* (Auger SIBYLL-2.3e
   only) fits, which were intermediate products of the analysis: `GSF2026` is now

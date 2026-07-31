@@ -1,6 +1,6 @@
 """The public deuterium target: flux()/error() accept "D" and species-id tuples.
 
-GSF2026 carries deuterium as its own species (1, 2.014) at Z=1. These tests
+2026 carries deuterium as its own species (1, 2.014) at Z=1. These tests
 pin the target-resolution contract: the string "D" (and an explicit species
 id) selects that single isotope on every model class, uncertainties propagate
 through the leader covariance, mean/var lnA iterate all species on every

@@ -53,18 +53,34 @@ def _collect_phi_values(
 
 
 #: The promoted default model version: a bare ``GSFEnergy()`` resolves to this.
-DEFAULT_VERSION = "GSF2026"
+DEFAULT_VERSION = "2026"
 
 #: Registry of the distributable model versions.
 #:
+#: Model names are bare years (plus a variant suffix) -- no "GSF" prefix.
+#:
 #: ``status`` is one of:
-#:   ``"current"``     the promoted GSF2026 fit -- the default and its one
-#:                     sanctioned alternative, differing only in the solar
-#:                     modulation potential;
+#:   ``"current"``     part of the promoted 2026 fit: the default and its
+#:                     sanctioned variants;
 #:   ``"historical"``  a previously published GSF release, kept so older work can
 #:                     be reproduced. NOT an alternative to the current fit.
 #:
-#: Both current sets use the same **mixture** covering: an equal-weight
+#: THE SHIPPING STATE. After every promotion (a new fit becoming the paper
+#: default), the four ``current`` sets are regenerated from the promoted run
+#: and re-shipped together:
+#:
+#:   ``2026``            mixture covering + GMD potential   (the default)
+#:   ``2026-USO``        mixture covering + USO potential   (modulation systematic)
+#:   ``2026-UHE-S23e``   single-interpretation Auger FD-2026 SIBYLL-2.3e + GMD
+#:                       (for UHE/air-shower work that needs one hadronic model)
+#:   ``2026-EPOS-LHCR``  single-interpretation Auger FD-2026 EPOS-LHC-R + GMD
+#:                       (the other half of the mixture)
+#:
+#: The ``historical`` sets (``2025``, ``2019``, ``2017``) are static published
+#: releases and are never regenerated. All seven directories must be present
+#: for the package to be release-complete.
+#:
+#: The mixture covering of the two 2026 mixture sets is an equal-weight
 #: parameter-level combination of the Auger FD-2026 SIBYLL-2.3e and EPOS-LHC-R
 #: interpretations, whose covariance carries a rank-one between-model term so the
 #: band spans both hadronic interpretations instead of committing to one.
@@ -73,7 +89,7 @@ DEFAULT_VERSION = "GSF2026"
 #: model versions, so an intermediate or transient fit exported into ``data/``
 #: cannot become distributable by accident.
 MODEL_VERSIONS: dict[str, dict[str, str]] = {
-    "GSF2026": {
+    "2026": {
         "status": "current",
         "role": "default",
         "covering": "mixture: equal-weight Auger FD-2026 SIBYLL-2.3e + EPOS-LHC-R",
@@ -84,7 +100,7 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
             "data mildly prefer."
         ),
     },
-    "GSF2026-USO": {
+    "2026-USO": {
         "status": "current",
         "role": "alternative",
         "covering": "mixture: equal-weight Auger FD-2026 SIBYLL-2.3e + EPOS-LHC-R",
@@ -96,19 +112,43 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
             "to gauge the solar-modulation systematic."
         ),
     },
+    "2026-UHE-S23e": {
+        "status": "current",
+        "role": "UHE single-interpretation variant",
+        "covering": "Auger FD-2026 SIBYLL-2.3e (single interpretation, no mixture)",
+        "solar_modulation": "GMD (Ghelfi-Maurin-Derome, Ghelfi et al. 2017)",
+        "description": (
+            "The 2026 fit under the SIBYLL-2.3e interpretation of the Auger "
+            "FD-2026 composition alone, for UHE/air-shower applications that "
+            "need a single consistent hadronic-interaction model rather than "
+            "the mixture band. Same GMD potential as the default."
+        ),
+    },
+    "2026-EPOS-LHCR": {
+        "status": "current",
+        "role": "single-interpretation variant",
+        "covering": "Auger FD-2026 EPOS-LHC-R (single interpretation, no mixture)",
+        "solar_modulation": "GMD (Ghelfi-Maurin-Derome, Ghelfi et al. 2017)",
+        "description": (
+            "The 2026 fit under the EPOS-LHC-R interpretation of the Auger "
+            "FD-2026 composition alone -- the other half of the mixture, for "
+            "applications that need a single consistent hadronic-interaction "
+            "model. Same GMD potential as the default."
+        ),
+    },
     "2025": {
         "status": "historical",
         "role": "superseded release",
         "covering": "see the GSF 2025 release notes",
         "solar_modulation": "USO (shared Usoskin table)",
-        "description": "Previous published release. Superseded by GSF2026.",
+        "description": "Previous published release. Superseded by 2026.",
     },
     "2019": {
         "status": "historical",
         "role": "superseded release",
         "covering": "see the GSF 2019 release notes",
         "solar_modulation": "USO (shared Usoskin table)",
-        "description": "Legacy published release. Superseded by GSF2026.",
+        "description": "Legacy published release. Superseded by 2026.",
     },
     "2017": {
         "status": "historical",
@@ -116,7 +156,7 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
         "covering": "see Dembinski et al. (2017)",
         "solar_modulation": "USO (shared Usoskin table)",
         "description": (
-            "Original GSF release (Dembinski et al. 2017). Superseded by GSF2026."
+            "Original GSF release (Dembinski et al. 2017). Superseded by 2026."
         ),
     },
 }
@@ -212,13 +252,15 @@ class Parameters:
         Path to directory containing GSF data files. If None, uses
         :data:`DEFAULT_VERSION`.
     version : str, optional
-        Model version to use. "GSF2026" (the default) is the promoted fit: the
+        Model version to use. "2026" (the default) is the promoted fit: the
         mixture covering -- an equal-weight combination of the Auger FD-2026
         SIBYLL-2.3e and EPOS-LHC-R interpretations -- with the
-        Ghelfi-Maurin-Derome modulation potential. "GSF2026-USO" is the one
+        Ghelfi-Maurin-Derome modulation potential. "2026-USO" is the one
         sanctioned alternative: the same mixture fit with the Usoskin 2017
         potential (about 65 MV lower, giving a 10-14% lower interstellar
-        spectrum below 2 GV). "2025", "2019" and "2017" are superseded
+        spectrum below 2 GV). "2026-UHE-S23e" and "2026-EPOS-LHCR" are the
+        single-interpretation variants (SIBYLL-2.3e and EPOS-LHC-R,
+        respectively). "2025", "2019" and "2017" are superseded
         historical releases, kept only so older work can be reproduced. See
         :data:`MODEL_VERSIONS`. If specified, overrides data_path and uses the
         corresponding package data directory.
@@ -457,9 +499,9 @@ class Parameters:
         package data root. This matters because the LIS is demodulated with a
         specific phi(t): the fitted LIS must be re-modulated by the SAME
         potential to recover a flux at Earth. Sets whose LIS was demodulated
-        with a non-default potential (e.g. GSF2026, Ghelfi-Maurin-Derome) ship
+        with a non-default potential (e.g. 2026, Ghelfi-Maurin-Derome) ship
         their table alongside the parameters; legacy sets (2017/2019/2025) and
-        the Usoskin variant (GSF2026-USO) fall back to the shared Usoskin table.
+        the Usoskin variant (2026-USO) fall back to the shared Usoskin table.
 
         Robust to both the shared file (UTF-16-BOM, Usoskin) and version-local
         UTF-8 files: encoding is detected from the byte-order mark, header lines

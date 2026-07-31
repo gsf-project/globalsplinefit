@@ -284,7 +284,7 @@ class HybridPCA:
     --------
     >>> from globalsplinefit import GSFEnergyPerNucleon
     >>> from globalsplinefit.pca import HybridPCA
-    >>> gsf = GSFEnergyPerNucleon()          # promoted default (GSF2026)
+    >>> gsf = GSFEnergyPerNucleon()          # promoted default (2026)
     >>> pca = HybridPCA(gsf, n_components=8)
     >>> E = np.logspace(1, 6, 50)
     >>> flux = pca.flux(E, "p")             # same as gsf.flux(E, "p")

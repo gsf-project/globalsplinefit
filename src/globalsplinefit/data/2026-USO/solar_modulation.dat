@@ -1,5 +1,5 @@
 #The monthly values of the solar-modulation potential phi (in MV) for the
-#GSF2026-USO alternative parameter set (Usoskin et al. 2017 reconstruction).
+#2026-USO alternative parameter set (Usoskin et al. 2017 reconstruction).
 #Transcribed from the shared bundled table at the package data root (identical
 #values; that file is a UTF-16 export carrying a trailing Annual column, which
 #is dropped here). Shipped per-set so the alternative set names its own

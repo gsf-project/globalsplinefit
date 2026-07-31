@@ -10,10 +10,10 @@ Examples
 --------
 >>> from globalsplinefit import GSFEnergy
 >>> from globalsplinefit.plotting import make_deck, compare_models
->>> make_deck(GSFEnergy(), "deck_gsf2026", label="GSF2026")
+>>> make_deck(GSFEnergy(), "deck_gsf2026", label="2026")
 >>> make_deck(GSFEnergy(data_path="my_fit/"), "deck_mine", label="my fit")
 >>> compare_models(GSFEnergy(data_path="my_fit/"), GSFEnergy(),
-...                "cmp", label="my fit", ref_label="GSF2026")
+...                "cmp", label="my fit", ref_label="2026")
 """
 from __future__ import annotations
 

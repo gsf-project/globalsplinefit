@@ -101,19 +101,25 @@ flux = gsf_rigidity.flux(rigidity, "p")
 All model classes accept a `version` parameter selecting the fitted parameter set:
 
 ```python
-gsf = GSFEnergy()                        # promoted default: GSF2026
-gsf_uso = GSFEnergy(version="GSF2026-USO")   # the one sanctioned alternative
+gsf = GSFEnergy()                        # promoted default: 2026
+gsf_uso = GSFEnergy(version="2026-USO")   # the one sanctioned alternative
+gsf_uhe = GSFEnergy(version="2026-UHE-S23e")  # single-interpretation UHE variant
+gsf_epos = GSFEnergy(version="2026-EPOS-LHCR")  # single-interpretation EPOS variant
 gsf_2025 = GSFEnergy(version="2025")     # superseded historical release
 ```
 
-There is **one promoted model** and **one alternative to it**. Both describe the
-same fit and differ only in the solar modulation potential; everything else in
-the table is a superseded release kept so that older work can be reproduced.
+There is **one promoted model** and **three sanctioned variants of it**: the
+same fit under the Usoskin potential (the solar-modulation systematic) and
+the two single-interpretation sets (SIBYLL-2.3e for UHE work, EPOS-LHC-R as
+the other half of the mixture). Everything else in the table is a superseded
+release kept so that older work can be reproduced.
 
 | Version | Status | Covering | Modulation | Description |
 |---------|--------|----------|------------|-------------|
-| `"GSF2026"` | **current -- default** | SIBYLL-2.3e / EPOS-LHC-R mixture | Ghelfi--Maurin--Derome (**baseline**) | **The promoted model.** Use this unless you have a specific reason not to |
-| `"GSF2026-USO"` | current -- alternative | SIBYLL-2.3e / EPOS-LHC-R mixture | Usoskin 2017 (alternative) | The same fit with the other potential; use it to gauge the solar-modulation systematic |
+| `"2026"` | **current -- default** | SIBYLL-2.3e / EPOS-LHC-R mixture | Ghelfi--Maurin--Derome (**baseline**) | **The promoted model.** Use this unless you have a specific reason not to |
+| `"2026-USO"` | current -- alternative | SIBYLL-2.3e / EPOS-LHC-R mixture | Usoskin 2017 (alternative) | The same fit with the other potential; use it to gauge the solar-modulation systematic |
+| `"2026-UHE-S23e"` | current -- UHE variant | Auger FD-2026 SIBYLL-2.3e only | Ghelfi--Maurin--Derome | Single hadronic-interaction interpretation, for UHE/air-shower applications that cannot use a mixture band |
+| `"2026-EPOS-LHCR"` | current -- variant | Auger FD-2026 EPOS-LHC-R only | Ghelfi--Maurin--Derome | The other single-interpretation half of the mixture |
 | `"2025"` | historical | superseded | Usoskin | Previous published release |
 | `"2019"` | historical | superseded | Usoskin | Legacy published release |
 | `"2017"` | historical | superseded | Usoskin | Original GSF release (Dembinski et al. 2017) |
@@ -121,12 +127,18 @@ the table is a superseded release kept so that older work can be reproduced.
 The historical sets are **not** alternatives to the current fit: they are earlier
 published releases, retained only for reproducing results that cited them.
 
-`get_available_versions(include_historical=False)` returns just the two current
+After every promotion of a new fit, the four current sets are regenerated
+together from the promoted run and re-shipped; the historical sets are static.
+This seven-directory lineup (`2026`, `2026-USO`, `2026-UHE-S23e`,
+`2026-EPOS-LHCR`, `2025`, `2019`, `2017`) is the package's release-complete
+shipping state.
+
+`get_available_versions(include_historical=False)` returns just the current
 sets, and `version_info(version)` reports any version's status, covering and
 modulation potential. A loaded model also carries its own provenance:
 
 ```python
-gsf.version                      # -> "GSF2026", the version actually loaded
+gsf.version                      # -> "2026", the version actually loaded
 gsf.params.provenance["covering"]                  # the air-shower interpretation
 gsf.params.provenance["solar_modulation_source"]   # GMD or USO
 ```
@@ -140,20 +152,23 @@ FD-2026 SIBYLL-2.3e and EPOS-LHC-R interpretations: parameters are the mean of
 the two fits, and the covariance carries an additional rank-one between-model
 term. The published band therefore spans both interpretations where they diverge
 and collapses to the ordinary fit covariance where they agree (below
-~2x10^8 GeV, where the two coincide). Single-interpretation fits exist inside the
-analysis but are intermediate products and are not distributed.
+~2x10^8 GeV, where the two coincide). The two halves of the mixture are also
+distributed as single-interpretation sets — `2026-UHE-S23e` (SIBYLL-2.3e only)
+and `2026-EPOS-LHCR` (EPOS-LHC-R only) — for applications that need a definite
+hadronic model; all other intermediate fits are not distributed.
 
-The GSF2026 sets are fitted in isotope format (deuterium and the ³He/⁴He
+The 2026 sets are fitted in isotope format (deuterium and the ³He/⁴He
 split are carried explicitly). The choice of solar modulation potential
 affects only the local interstellar spectrum below ~10 GV: relative to
-GSF2026, the Usoskin potential yields a 10--14% lower interstellar
+2026, the Usoskin potential yields a 10--14% lower interstellar
 spectrum below 2 GV, with the two converging above ~10 GV. All
 higher-energy results are identical.
 
-Each set is re-modulated with the potential it was demodulated with:
-GSF2026 ships its own Ghelfi--Maurin--Derome monthly `phi(t)` table
-(`GSF2026/solar_modulation.dat`), while GSF2026-USO and the historical sets
-use the bundled Usoskin table at the package data root. Because the two
+Each set is re-modulated with the potential it was demodulated with: every
+current set ships its own monthly `phi(t)` table
+(`<version>/solar_modulation.dat` — Ghelfi--Maurin--Derome for all but
+2026-USO, which carries the Usoskin table), while the historical sets use the
+bundled Usoskin table at the package data root. Because the two
 LIS are paired with their respective potentials, the resulting fluxes at
 Earth agree far better than the LIS do (the residual below a few GV is
 the solar-modulation systematic captured by the fit's `phi` nuisance).
@@ -190,7 +205,7 @@ element's direct data. The saturation rigidity $R_{\text{sat}} = 5$ PV sits
 near the proton knee, motivated by the common galactic origin and the assumed
 similarity of transport effects above it.
 
-For the `GSF2026` and `GSF2026-USO` sets these per-element parameters ship in
+For the `2026` and `2026-USO` sets these per-element parameters ship in
 `data/<version>/subleading.dat` (columns `Z A norm slope`). The legacy sets
 (`2017`, `2019`, `2025`) omit the file; a missing file — or a zero slope —
 reproduces the historical **constant-ratio** extrapolation bit-identically.

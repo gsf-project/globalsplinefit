@@ -19,8 +19,10 @@ pip install globalsplinefit
 from globalsplinefit import GSFEnergy
 import numpy as np
 
-model = GSFEnergy()          # promoted default: GSF2026 (SIBYLL/EPOS mixture, GMD modulation)
-model_uso = GSFEnergy(version="GSF2026-USO")  # the alternative: same mixture, Usoskin 2017 modulation
+model = GSFEnergy()          # promoted default: 2026 (SIBYLL/EPOS mixture, GMD modulation)
+model_uso = GSFEnergy(version="2026-USO")  # the alternative: same mixture, Usoskin 2017 modulation
+model_uhe = GSFEnergy(version="2026-UHE-S23e")  # SIBYLL-2.3e only, for UHE/air-shower work
+model_epos = GSFEnergy(version="2026-EPOS-LHCR")  # EPOS-LHC-R only (other half of the mixture)
 model_2025 = GSFEnergy(version="2025")   # superseded historical release (not an alternative)
 energy = np.logspace(0, 3, 100)  # 1 GeV to 1 TeV total energy
 

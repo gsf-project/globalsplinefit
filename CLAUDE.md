@@ -9,7 +9,8 @@ Parametric model for cosmic ray flux and composition based on cubic B-spline fit
 - `src/globalsplinefit/model.py` - Core model classes: `GSFEnergy`, `GSFKineticEnergy`, `GSFRigidity`, `GSFEnergyPerNucleon`, `GSFKineticEnergyPerNucleon`. All inherit from `GSFBase`.
 - `src/globalsplinefit/data_management.py` - `Parameters` class loads spline knots, coefficients, covariances, nuclear data, and solar modulation from `data/{version}/` directories.
 - `src/globalsplinefit/pca.py` - `HybridPCA` class for low-rank PCA decomposition of flux covariances.
-- `src/globalsplinefit/data/` - Data files for versions 2017, 2019, 2025. Each version has `parameters.dat`, `covariance.dat`, `knots.dat`, `nuclei.dat`. Shared `solar_modulation.dat` in parent `data/` directory.
+- `src/globalsplinefit/data/` - Data files, one directory per model version (year-only names, no "GSF" prefix). Current sets, regenerated together after every promotion: `2026` (default; mixture + GMD), `2026-USO`, `2026-UHE-S23e`, `2026-EPOS-LHCR`. Historical (static): `2025`, `2019`, `2017`. Each version has `parameters.dat`, `covariance.dat`, `knots.dat`, `nuclei.dat` (current sets add `subleading.dat`, `fit_result.json`, and their own `solar_modulation.dat`). Shared Usoskin `solar_modulation.dat` in the parent `data/` directory (historical fallback). The `MODEL_VERSIONS` registry in `data_management.py` is the allow-list.
+- `webapp/` - GSF Explorer (Pyodide + Preact). The **"Liquid Canvas" UI design is final** (maintainer-approved 2026-07-31): the plot is the content plane; Series/Settings/Export command panes, bottom display dock, dark+light tokens in `style.css`. Extend it — do not restyle or rebuild. `test_ui.py` (50 checks) asserts its invariants and is the acceptance gate for any webapp change.
 
 ## Key Concepts
 

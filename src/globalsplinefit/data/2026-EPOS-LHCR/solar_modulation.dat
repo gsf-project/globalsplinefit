@@ -1,14 +1,9 @@
-#The monthly values of the solar-modulation potential phi (in MV) for the
-#GSF2026 default (Ghelfi-Maurin-Derome) parameter set. Reconstructed from
-#CRDB rest_phi (force-field) using neutron-monitor stations OULU, KERG, NEWK,
-#weekly series averaged to monthly means (the same series the GSF2026 fit used).
-#References:
-#[1] Ghelfi, Maurin, Derome et al., Adv. Space Res. 60 (2017) 833 [Ghelfi:2016pcv];
-#    CRDB rest_phi https://lpsc.in2p3.fr/crdb .
-#[2] Maurin, Melot, Taillet, A&A 569 (2014) A32 (CRDB).
-#Format: Year followed by 12 monthly phi values [MV]. NaN gaps filled by year mean.
+#Monthly solar-modulation potential phi [MV] used to demodulate this fit's LIS.
+#Source: GMD (Ghelfi-Maurin-Derome, globalsplinefit GSF2026 table), <phi>=720.1 MV over 51 yr
+#Written with the parameters so the set is self-describing: globalsplinefit prefers this
+#version-local table over its shared one, so the LIS is re-modulated with the SAME potential.
+#Format: Year followed by 12 monthly phi values [MV]. nan = month not covered.
 #Year   Jan   Feb   Mar   Apr   May   Jun   Jul   Aug   Sep   Oct   Nov   Dec
-#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 1975   658.8   627.0   618.9   604.5   600.8   588.2   595.9   613.1   610.0   614.8   632.0   611.7
 1976   614.8   609.1   607.1   635.5   613.1   601.3   591.1   587.5   586.8   586.1   584.9   588.3
 1977   597.7   592.8   593.3   599.5   592.2   603.8   639.6   634.5   639.3   611.3   588.1   601.3

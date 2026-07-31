@@ -144,13 +144,17 @@ class GSFBase(ABC):
             Optional path to custom data files. If None, uses default
             data files included with the package.
         version
-            Optional model version. Defaults to ``"GSF2026"``, the promoted
+            Optional model version. Defaults to ``"2026"``, the promoted
             default: the mixture covering (an equal-weight combination of the
             Auger FD-2026 SIBYLL-2.3e and EPOS-LHC-R interpretations) with the
-            Ghelfi-Maurin-Derome modulation potential. ``"GSF2026-USO"`` is the
+            Ghelfi-Maurin-Derome modulation potential. ``"2026-USO"`` is the
             one sanctioned alternative -- the same mixture fit with the Usoskin
             2017 potential -- and is how the solar-modulation systematic is
-            gauged. ``"2025"``, ``"2019"`` and ``"2017"`` are superseded
+            gauged. ``"2026-UHE-S23e"`` and ``"2026-EPOS-LHCR"`` are the
+            single-interpretation variants (Auger FD-2026 SIBYLL-2.3e and
+            EPOS-LHC-R, respectively; GMD potential) for applications that
+            need one hadronic model rather than the mixture
+            band. ``"2025"``, ``"2019"`` and ``"2017"`` are superseded
             historical releases, kept only to reproduce older work; they are not
             alternatives to the current fit. See
             :data:`~globalsplinefit.data_management.MODEL_VERSIONS` and
