@@ -35,9 +35,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-plotting = [
-    "matplotlib>=3.5.0",
-]
 dashboard = [
     "plotly>=5.0.0",
 ]
@@ -49,26 +46,24 @@ test = [
     "psutil>=4.0",
 ]
 examples = [
-    "globalsplinefit[plotting]",
+    "matplotlib>=3.5.0",
     "marimo>=0.14",
 ]
 docs = [
-    # examples: the tutorial pages are the exported example notebooks, which
-    # import marimo when executed by mkdocs-jupyter
-    "globalsplinefit[plotting,examples]",
+    # examples: the tutorial pages are `marimo export html-wasm` builds of
+    # the example notebooks, produced by the docs workflow (docs.yml)
+    "globalsplinefit[examples]",
     "mkdocs>=1.5",
     "mkdocs-material>=9.0",
-    "mkdocs-jupyter>=0.24",
     "mkdocstrings[python]>=0.24",
-    "ipykernel>=6.0",
 ]
 dev = [
-    "globalsplinefit[test,docs,plotting,examples]",
+    "globalsplinefit[test,docs,examples]",
     "ruff>=0.1.0",
     "pre-commit>=3.0",
 ]
 all = [
-    "globalsplinefit[plotting,dashboard,test,docs,examples,dev]",
+    "globalsplinefit[dashboard,test,docs,examples,dev]",
 ]
 
 [project.urls]
@@ -89,9 +84,6 @@ globalsplinefit = ["data/**/*.dat", "data/**/*.json"]
 src = ["src", "tests"]
 line-length = 88
 target-version = "py310"
-# examples/*.ipynb are generated from the marimo sources (examples/*.py)
-# by the pre-commit export hook — lint the sources, not the exports.
-extend-exclude = ["examples/*.ipynb"]
 
 [tool.ruff.lint]
 select = [

@@ -297,6 +297,11 @@ def make_figure(
         if nser:
             ax.legend(ncol=2 if nser > 4 else 1, handlelength=1.9,
                       labelspacing=0.35, columnspacing=1.3)
+        # TEMPORARY pre-publication marker (mirrors PRELIMINARY in chart.js).
+        # Delete at the GSF 2026 release.
+        ax.text(0.5, 0.5, "PRELIMINARY", transform=ax.transAxes,
+                ha="center", va="center", rotation=30, fontsize=34,
+                fontweight="bold", color="gray", alpha=0.18, zorder=100)
         fig.tight_layout(pad=0.4)
     return fig
 

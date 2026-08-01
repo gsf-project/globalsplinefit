@@ -248,7 +248,7 @@ flux_2009 = gsf.flux(energy, "p", time_interval=(200901, 201001))  # end EXCLUSI
 flux_default = gsf.flux(energy, "p")
 ```
 
-See the [Solar Modulation tutorial](examples/solar_modulation.ipynb) for detailed examples.
+See the [Solar Modulation tutorial](../gallery/solar_modulation/) for detailed examples.
 
 ## Geomagnetic Rigidity Cutoff
 
@@ -260,7 +260,7 @@ Apply a geomagnetic cutoff to suppress low-rigidity cosmic rays:
 flux_cut = gsf.flux(energy, "p", rigidity_cutoff=20.0)
 ```
 
-See the [Rigidity Cutoff tutorial](examples/rigidity_cutoff.ipynb) for more details.
+See the [Rigidity Cutoff tutorial](../gallery/rigidity_cutoff/) for more details.
 
 ## Performance Considerations
 
@@ -315,19 +315,7 @@ print(f"Particle groups: {gsf.GROUP_NAMES}")
 
 ## Tutorials
 
-See the tutorials for detailed, worked examples:
-
-- [Cosmic Ray Flux](examples/cosmic_ray_flux.ipynb) -- Basic flux calculations
-- [Nucleon Flux](examples/nucleon_flux.ipynb) -- Nucleon flux for simulations
-- [Solar Modulation](examples/solar_modulation.ipynb) -- Solar modulation effects
-- [Rigidity Cutoff](examples/rigidity_cutoff.ipynb) -- Geomagnetic cutoff effects
-- [Model Comparison](examples/model_comparison_2017_vs_2025.ipynb) -- Comparing model versions
-- [Reduced Model](examples/reduced_model.ipynb) -- Flux nuisance parameters + covariance penalty for downstream fits
-- [Hybrid PCA](examples/hybrid_pca.ipynb) -- Reduced representation of the flux covariance
-
-The tutorials are [marimo](https://marimo.io) notebooks: the source of truth is
-the plain-Python `examples/*.py` file in the repository, which you can open
-interactively with `uv run marimo edit examples/<name>.py` or execute top to
-bottom with `uv run python examples/<name>.py`. The rendered pages here are
-built from the committed `.ipynb` exports, which a pre-commit hook keeps in
-sync with the sources.
+See the [tutorial gallery](gallery.md) for detailed, worked examples — the
+notebooks run interactively in the browser, and can be downloaded to
+[run locally](getting_started.md#run-the-tutorials-locally) with marimo or
+Jupyter.

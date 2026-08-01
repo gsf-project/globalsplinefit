@@ -22,7 +22,25 @@ def _(mo):
 
 
 @app.cell
-def _():
+async def _():
+    import sys
+
+    if "pyodide" in sys.modules:
+        # WASM (docs gallery): TEMPORARY until globalsplinefit is on PyPI —
+        # install the wheel published under /wheels/ on the same site the
+        # notebook is served from (also works on staging or local hosts).
+        from urllib.parse import urljoin
+
+        import marimo as _mo
+        import micropip
+
+        await micropip.install(
+            urljoin(
+                str(_mo.notebook_location()) + "/",
+                "../../wheels/globalsplinefit-2.0.0a1-py3-none-any.whl",
+            )
+        )
+
     import matplotlib.pyplot as plt
     import numpy as np
     from matplotlib.colors import Normalize
@@ -30,6 +48,32 @@ def _():
     from globalsplinefit import GSFEnergy, GSFEnergyPerNucleon, GSFRigidity
 
     plt.rcParams["figure.figsize"] = (10, 6)
+
+    # TEMPORARY pre-publication marker: stamp every figure this notebook
+    # shows with a diagonal PRELIMINARY watermark. Delete at the GSF 2026
+    # release (guarded so a cell re-run does not stack wrappers).
+    if not getattr(plt.show, "_gsf_preliminary", False):
+        _orig_show = plt.show
+
+        def _show_with_watermark(*args, **kwargs):
+            plt.gcf().text(
+                0.5,
+                0.5,
+                "PRELIMINARY",
+                ha="center",
+                va="center",
+                rotation=30,
+                fontsize=42,
+                fontweight="bold",
+                color="gray",
+                alpha=0.18,
+                zorder=1000,
+            )
+            return _orig_show(*args, **kwargs)
+
+        _show_with_watermark._gsf_preliminary = True
+        plt.show = _show_with_watermark
+
     return GSFEnergy, GSFEnergyPerNucleon, GSFRigidity, Normalize, np, plt
 
 
@@ -398,11 +442,9 @@ def _(GSFEnergy, energy_exponent, np, plt):
     gsf_exact = GSFEnergy(solar_cycle_average_bins=None)
     energy_subset = np.logspace(0, 1, 500)
 
-
     def _timed(model):
         _t0 = _time.time()
         return model.total_flux(energy_subset), _time.time() - _t0
-
 
     flux_one, t_one = _timed(gsf_one)
     flux_six, t_six = _timed(gsf_six)

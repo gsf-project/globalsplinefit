@@ -1,0 +1,76 @@
+# TEMPORARY staging deploy for the consolidated docs site: builds the full
+# site (docs + WASM tutorial gallery + wheel + Explorer) and publishes it to
+# an unlinked, unindexed subpath of the existing Pages site, WITHOUT touching
+# the live root. Trigger manually from the Actions tab.
+#
+# Preview URL:
+#   https://gsf-project.github.io/globalsplinefit/preview-155caa4b398d/
+#
+# Notes:
+# - This is obscurity, not auth: the path is visible to anyone who browses
+#   the gh-pages branch of this (public) repo. Everything is watermarked
+#   PRELIMINARY, so exposure is acceptable for a short review window.
+# - Cleanup after launch: delete this workflow and remove the
+#   preview-155caa4b398d/ directory from the gh-pages branch.
+name: Docs Preview (staging)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        python-version: "3.12"
+        enable-cache: true
+
+    - name: Install dependencies
+      run: uv sync --extra docs
+
+    - name: Build documentation
+      run: uv run mkdocs build --strict
+
+    - name: Export tutorial notebooks (marimo html-wasm)
+      run: |
+        for nb in examples/*.py; do
+          name="$(basename "$nb" .py)"
+          echo "Exporting $name"
+          uv run marimo export html-wasm "$nb" -o "site/gallery/$name" --mode run --show-code
+        done
+
+    - name: Build wheel for the WASM notebooks
+      run: |
+        uv build --wheel
+        mkdir -p site/wheels
+        cp dist/globalsplinefit-*.whl site/wheels/
+
+    # unlike production (where release.yml owns /explorer/), the preview
+    # bundles the Explorer so the watermark can be reviewed too
+    - name: Assemble Explorer into the preview
+      run: |
+        webapp/update_wheel.sh
+        mkdir -p site/explorer
+        rsync -a webapp/ site/explorer/ \
+          --exclude __pycache__ \
+          --exclude browser_smoke.py --exclude test_ui.py \
+          --exclude update_wheel.sh --exclude serve.py
+        WHL=$(basename webapp/globalsplinefit-*.whl)
+        sed -i "s|globalsplinefit-[^\"]*\.whl|$WHL|" site/explorer/main.js
+
+    - name: Deploy preview to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./site
+        destination_dir: preview-155caa4b398d
+        # keep_files on the branch root is implied by destination_dir: only
+        # this subdirectory is replaced; the live site stays untouched.

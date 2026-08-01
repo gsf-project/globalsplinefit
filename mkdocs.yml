@@ -25,13 +25,16 @@ theme:
     - content.code.copy
     - toc.follow
 
+# gallery cards link to /gallery/<name>/ pages that exist only in the built
+# site (marimo html-wasm exports added by docs.yml after mkdocs build) — the
+# links are relative so the site also works from a staging subpath; don't
+# fail --strict on them. Broken links between .md pages are still caught.
+validation:
+  links:
+    unrecognized_links: ignore
+
 plugins:
   - search
-  - mkdocs-jupyter:
-      include: ["examples/*.ipynb"]
-      execute: true
-      allow_errors: false
-      include_source: false
   - mkdocstrings:
       handlers:
         python:
@@ -71,13 +74,9 @@ nav:
   - Home: index.md
   # in-browser model explorer, deployed to /explorer/ by release.yml
   - Explorer: https://gsf-project.github.io/globalsplinefit/explorer/
+  # tutorial notebooks: marimo html-wasm exports, deployed to /gallery/
+  # by docs.yml alongside this site
+  - Tutorials: gallery.md
+  - Getting Started: getting_started.md
   - User Guide: user_guide.md
-  - Tutorials:
-    - Cosmic Ray Flux: examples/cosmic_ray_flux.ipynb
-    - Nucleon Flux: examples/nucleon_flux.ipynb
-    - Solar Modulation: examples/solar_modulation.ipynb
-    - Rigidity Cutoff: examples/rigidity_cutoff.ipynb
-    - Model Comparison: examples/model_comparison_2017_vs_2025.ipynb
-    - Reduced Model: examples/reduced_model.ipynb
-    - Hybrid PCA: examples/hybrid_pca.ipynb
   - API Reference: api_reference.md

@@ -9,11 +9,30 @@ parameters and use cases.
 
 <div class="grid cards" markdown>
 
+-   :material-chart-bell-curve-cumulative: **GSF Explorer**
+
+    ---
+
+    Explore the model interactively in your browser — fluxes, composition,
+    uncertainties, data export. No installation needed.
+
+    [:octicons-arrow-right-24: Open the Explorer](https://gsf-project.github.io/globalsplinefit/explorer/)
+
+-   :material-notebook-outline: **Tutorials**
+
+    ---
+
+    Interactive notebooks running in your browser — editable, and
+    downloadable to run locally.
+
+    [:octicons-arrow-right-24: Tutorial gallery](gallery.md)
+
 -   :material-book-open-variant: **User Guide**
 
     ---
 
-    Get started and learn about all features.
+    Model classes, versions, particle groups, solar modulation, and
+    uncertainty quantification.
 
     [:octicons-arrow-right-24: User Guide](user_guide.md)
 
@@ -25,15 +44,10 @@ parameters and use cases.
 
     [:octicons-arrow-right-24: API Reference](api_reference.md)
 
--   :material-notebook-outline: **Tutorials**
-
-    ---
-
-    Step-by-step tutorials with plots and explanations.
-
-    [:octicons-arrow-right-24: Tutorials](examples/cosmic_ray_flux.ipynb)
-
 </div>
+
+Using GSF as a dependency in your own code, or running the notebooks and the
+Explorer locally? See [Getting Started](getting_started.md).
 
 ## Citation
 

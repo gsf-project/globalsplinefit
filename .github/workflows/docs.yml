@@ -28,8 +28,33 @@ jobs:
     - name: Build documentation
       run: uv run mkdocs build --strict
 
+    # Tutorial gallery: each example notebook compiled to a self-contained
+    # WASM page at /gallery/<name>/ (linked from docs/gallery.md).
+    - name: Export tutorial notebooks (marimo html-wasm)
+      run: |
+        for nb in examples/*.py; do
+          name="$(basename "$nb" .py)"
+          echo "Exporting $name"
+          # run mode: cells auto-execute on load (edit mode would wait for a
+          # manual "Run all"); UI elements (dropdowns etc.) stay interactive
+          uv run marimo export html-wasm "$nb" -o "site/gallery/$name" --mode run --show-code
+        done
+
+    # TEMPORARY until globalsplinefit is on PyPI: the WASM notebooks
+    # micropip-install the package from /wheels/ on this site (see the
+    # install cell at the top of each examples/*.py).
+    - name: Build wheel for the WASM notebooks
+      run: |
+        uv build --wheel
+        mkdir -p site/wheels
+        cp dist/globalsplinefit-*.whl site/wheels/
+
     - name: Deploy to GitHub Pages
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      # STAGING FREEZE (TEMPORARY): live deploys paused while the
+      # consolidated site is reviewed via docs-preview.yml at
+      # preview-155caa4b398d/. At launch restore the original condition:
+      #   github.ref == 'refs/heads/main' && github.event_name == 'push'
+      if: ${{ false }}
       uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}

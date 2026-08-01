@@ -40,6 +40,11 @@ export const X_DOMAIN = [-1, 11];
 /* line style per model slot (identity of a model = its dash, not a color) */
 export const MODEL_DASH = ["none", "2 3.5", "9 3 2.5 3"];
 
+/* TEMPORARY pre-publication marker: diagonal PRELIMINARY watermark across
+   the plot area (also lands in the SVG export). Set false / delete at the
+   GSF 2026 release. */
+export const PRELIMINARY = true;
+
 const log10 = Math.log10;
 
 /* ---------------------------------------------------------------- format */
@@ -495,6 +500,14 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
           <rect x=${box.x} y=${box.y} width=${box.w} height=${box.h}
                 fill=${theme.accentDim} stroke=${theme.accent}
                 stroke-width="1" stroke-dasharray="4 3"/>`}
+        ${PRELIMINARY && html`
+          <text x=${m.l + pw / 2} y=${m.t + ph / 2}
+                text-anchor="middle" dominant-baseline="middle"
+                transform="rotate(${-Math.atan2(ph, pw) * 180 / Math.PI}
+                           ${m.l + pw / 2} ${m.t + ph / 2})"
+                font-size=${Math.hypot(pw, ph) / 9.5} font-weight="700"
+                letter-spacing="0.08em" fill=${theme.ink} opacity="0.09"
+                pointer-events="none">PRELIMINARY</text>`}
       </g>
 
       <!-- axes: thin frame lines + inward major/minor ticks -->

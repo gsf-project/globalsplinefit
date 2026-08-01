@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Docs consolidated into one Pages site; tutorials now run in the browser.**
+  The landing page links the GSF Explorer (`/explorer/`), the tutorial gallery
+  (`/gallery/<name>/` — `marimo export html-wasm` builds of `examples/*.py`,
+  editable in the browser), the user guide, a new Getting Started page, and
+  the API reference. The committed `.ipynb` exports, the `marimo-export`
+  pre-commit hook, the CI freshness check, and the mkdocs-jupyter plugin are
+  gone — the marimo `.py` files are the only notebook format (convert with
+  `marimo export ipynb` for Jupyter). Until the package is on PyPI, the WASM
+  notebooks install a wheel published under `/wheels/` on the docs site.
+- **Removed `globalsplinefit.plotting` and the `plotting` extra.** The module
+  was user-facing example code with no consumers inside the package; its deck
+  and comparison figures live on as the interactive `examples/model_deck.py`
+  notebook (browser version in the tutorial gallery). matplotlib moved into
+  the `examples` extra.
 - **Model versions are now named by bare year — the `GSF` prefix is gone.**
   `GSF2026` → `2026` and `GSF2026-USO` → `2026-USO` (data directories,
   `version=` strings, `DEFAULT_VERSION`, docs, webapp). The historical sets

@@ -67,12 +67,3 @@ jobs:
           echo "Running $nb"
           uv run python "$nb"
         done
-
-    # The committed .ipynb exports must be in sync with the marimo sources
-    # (the pre-commit hook regenerates them; catch a forgotten export here).
-    - name: Check .ipynb exports are up to date
-      run: |
-        for nb in examples/*.py; do
-          uv run marimo export ipynb "$nb" -o "${nb%.py}.ipynb" --force
-        done
-        git diff --exit-code -- 'examples/*.ipynb'
