@@ -357,15 +357,8 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
     }
   };
 
-  const onMove = (e) => {
-    if (drag) {
-      const p = rel(e);
-      setDrag({ ...drag, x1: p.x, y1: p.y });
-      return;
-    }
-    if (!hoverEnabled) return;
-    const p = rel(e);
-    const i = toIdx(p.x);
+  const reportHover = (xpx) => {
+    const i = toIdx(xpx);
     setHover(i);
     onHoverInfo?.({
       i, x: built.x[i],
@@ -376,10 +369,80 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
       pxX: px[i],
     });
   };
+
+  /* touch: two fingers pinch-zoom about the midpoint and follow it (same
+     transform as the trackpad path, applied incrementally per frame); one
+     finger follows the active mode like the mouse; a tap shows the hover
+     readout; a double tap goes home (dblclick is unreliable on iOS once
+     touch-action is none). */
+  const touchPts = useRef(new Map());
+  const pinchPrev = useRef(null);
+  const pinchCur = useRef(null);
+  const pinchRaf = useRef(0);
+  const lastTap = useRef(null);
+  const midOf = () => {
+    const [a, b] = [...touchPts.current.values()];
+    return { d: Math.max(Math.hypot(a.x - b.x, a.y - b.y), 1),
+             x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  };
+  const flushPinch = () => {
+    pinchRaf.current = 0;
+    const prev = pinchPrev.current, cur = pinchCur.current;
+    if (!prev || !cur) return;
+    let x0 = lgx0, x1 = lgx1, lo = ylo, hi = yhi;
+    const f = Math.max(0.2, Math.min(5, prev.d / cur.d));
+    const lgc = x0 + ((cur.x - m.l) / pw) * (x1 - x0);
+    x0 = lgc - (lgc - x0) * f;
+    x1 = lgc + (x1 - lgc) * f;
+    const yc = lo + ((m.t + ph - cur.y) / ph) * (hi - lo);
+    lo = yc - (yc - lo) * f;
+    hi = yc + (hi - yc) * f;
+    let ddec = ((prev.x - cur.x) / pw) * (x1 - x0);
+    ddec = Math.max(X_DOMAIN[0] - x0, Math.min(X_DOMAIN[1] - x1, ddec));
+    x0 += ddec; x1 += ddec;
+    const dy = ((cur.y - prev.y) / ph) * (hi - lo);
+    lo += dy; hi += dy;
+    x0 = Math.max(X_DOMAIN[0], x0);
+    x1 = Math.min(X_DOMAIN[1], x1);
+    pinchPrev.current = cur;
+    if (x1 - x0 < 0.3) return;
+    onWindow?.({ dmin: +x0.toFixed(3), dmax: +x1.toFixed(3),
+                 yRange: view.ylog ? [10 ** lo, 10 ** hi] : [lo, hi] });
+  };
+  const endPinch = () => { pinchPrev.current = null; pinchCur.current = null; };
+
+  const onMove = (e) => {
+    if (e.pointerType === "touch" && touchPts.current.has(e.pointerId)) {
+      touchPts.current.set(e.pointerId, rel(e));
+      if (pinchPrev.current && touchPts.current.size >= 2) {
+        pinchCur.current = midOf();
+        if (!pinchRaf.current)
+          pinchRaf.current = requestAnimationFrame(flushPinch);
+        return;
+      }
+    }
+    if (drag) {
+      const p = rel(e);
+      setDrag({ ...drag, x1: p.x, y1: p.y });
+      return;
+    }
+    if (!hoverEnabled || e.pointerType === "touch") return;
+    reportHover(rel(e).x);
+  };
   const clearHover = () => { setHover(null); onHoverInfo?.(null); };
   const onDown = (e) => {
     e.currentTarget.setPointerCapture(e.pointerId);
     const p = rel(e);
+    if (e.pointerType === "touch") {
+      touchPts.current.set(e.pointerId, p);
+      if (touchPts.current.size === 2) {
+        pinchPrev.current = midOf();   // second finger: drag becomes pinch
+        pinchCur.current = null;
+        setDrag(null);
+        return;
+      }
+      if (touchPts.current.size > 2) return;
+    }
     setHover(null); onHoverInfo?.(null);
     /* start zone decides the gesture: x-axis strip -> x only, y-axis strip
        -> y only, canvas -> both (trackpad gestures always move both) */
@@ -388,9 +451,37 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
       : p.x < m.l && p.y >= m.t && p.y <= m.t + ph ? "y" : null;
     setDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y, axis });
   };
-  const onUp = () => {
+  const onUp = (e) => {
+    if (e.pointerType === "touch") {
+      touchPts.current.delete(e.pointerId);
+      if (pinchPrev.current) {
+        if (touchPts.current.size < 2) endPinch();
+        setDrag(null);
+        return;
+      }
+      if (drag && Math.hypot(drag.x1 - drag.x0, drag.y1 - drag.y0) < 8) {
+        const now = performance.now();
+        const t = lastTap.current;
+        if (t && now - t.t < 320 &&
+            Math.hypot(drag.x0 - t.x, drag.y0 - t.y) < 28) {
+          lastTap.current = null;
+          setDrag(null);
+          onHome?.();
+          return;
+        }
+        lastTap.current = { t: now, x: drag.x0, y: drag.y0 };
+        if (hoverEnabled) reportHover(drag.x0);
+        setDrag(null);
+        return;
+      }
+    }
     if (drag && (drag.x0 !== drag.x1 || drag.y0 !== drag.y1))
       commitWindow(drag);
+    setDrag(null);
+  };
+  const onCancel = (e) => {
+    touchPts.current.delete(e.pointerId);
+    if (touchPts.current.size < 2) endPinch();
     setDrag(null);
   };
 
@@ -454,6 +545,7 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
          class="chart mode-${mode}"
          onpointermove=${onMove} onpointerleave=${clearHover}
          onpointerdown=${onDown} onpointerup=${onUp}
+         onpointercancel=${onCancel}
          onwheel=${onWheel} ondblclick=${() => onHome?.()}>
       <defs>
         <clipPath id="plot"><rect x=${m.l} y=${m.t} width=${pw} height=${ph}/></clipPath>

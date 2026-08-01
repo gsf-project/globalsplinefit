@@ -400,10 +400,15 @@ svg.chart .axistitle {
   left: 218px;
   width: min(360px, calc(100vw - 36px)) !important;
 }
-.series-popover,
-.settings-popover,
-.export-popover {
+/* two classes: must outrank `.overlay-surface.rail { max-height: none }`
+   or the panes get NO height cap and clip past short (iPad) viewports */
+.overlay-surface.series-popover,
+.overlay-surface.settings-popover,
+.overlay-surface.export-popover {
   max-height: calc(100vh - 122px);
+  /* iPad Safari: 100vh overshoots the VISIBLE viewport (browser chrome),
+     leaving the pane bottom unreachable; dvh tracks the real height */
+  max-height: calc(100dvh - 122px);
   overflow: hidden !important;
 }
 .overlay-surface.commandpane {
