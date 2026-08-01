@@ -78,5 +78,6 @@ nav:
     - Solar Modulation: examples/solar_modulation.ipynb
     - Rigidity Cutoff: examples/rigidity_cutoff.ipynb
     - Model Comparison: examples/model_comparison_2017_vs_2025.ipynb
-    - Hybrid PCA: examples/HybridPCA.ipynb
+    - Reduced Model: examples/reduced_model.ipynb
+    - Hybrid PCA: examples/hybrid_pca.ipynb
   - API Reference: api_reference.md

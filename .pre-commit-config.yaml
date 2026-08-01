@@ -2,6 +2,19 @@
 # See https://pre-commit.com/hooks.html for more hooks
 
 repos:
+-   repo: local
+    hooks:
+    # The marimo notebooks in examples/*.py are the source of truth; the
+    # committed .ipynb exports next to them feed mkdocs-jupyter and GitHub
+    # rendering. Regenerate + stage the export whenever a source changes
+    # (the first commit attempt fails with "files were modified"; just
+    # commit again). CI re-checks the exports are in sync (test.yml).
+    -   id: marimo-export
+        name: marimo -> ipynb (examples)
+        language: system
+        files: ^examples/.*\.py$
+        entry: bash -c 'for f in "$@"; do uv run marimo export ipynb --force "$f" -o "${f%.py}.ipynb" && git add "${f%.py}.ipynb"; done' --
+
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
@@ -35,5 +48,7 @@ ci:
     autoupdate_branch: ''
     autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
     autoupdate_schedule: weekly
-    skip: []
+    # marimo-export needs uv + the local env; CI checks export freshness
+    # in test.yml instead.
+    skip: [marimo-export]
     submodules: false

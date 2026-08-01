@@ -77,6 +77,14 @@ The main interface to GlobalSplineFit functionality.
     options:
       show_bases: true
 
+## Reduced representation
+
+::: globalsplinefit.reduced.ReducedGSF
+    options:
+      show_bases: true
+
+::: globalsplinefit.reduced.optimize_pivots
+
 ## Constants
 
 ### GROUP_NAMES

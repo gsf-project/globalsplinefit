@@ -48,8 +48,14 @@ test = [
     "pytest-benchmark>=4.0",
     "psutil>=4.0",
 ]
-docs = [
+examples = [
     "globalsplinefit[plotting]",
+    "marimo>=0.14",
+]
+docs = [
+    # examples: the tutorial pages are the exported example notebooks, which
+    # import marimo when executed by mkdocs-jupyter
+    "globalsplinefit[plotting,examples]",
     "mkdocs>=1.5",
     "mkdocs-material>=9.0",
     "mkdocs-jupyter>=0.24",
@@ -57,12 +63,12 @@ docs = [
     "ipykernel>=6.0",
 ]
 dev = [
-    "globalsplinefit[test,docs,plotting]",
+    "globalsplinefit[test,docs,plotting,examples]",
     "ruff>=0.1.0",
     "pre-commit>=3.0",
 ]
 all = [
-    "globalsplinefit[plotting,dashboard,test,docs,dev]",
+    "globalsplinefit[plotting,dashboard,test,docs,examples,dev]",
 ]
 
 [project.urls]
@@ -83,6 +89,9 @@ globalsplinefit = ["data/**/*.dat", "data/**/*.json"]
 src = ["src", "tests"]
 line-length = 88
 target-version = "py310"
+# examples/*.ipynb are generated from the marimo sources (examples/*.py)
+# by the pre-commit export hook — lint the sources, not the exports.
+extend-exclude = ["examples/*.ipynb"]
 
 [tool.ruff.lint]
 select = [

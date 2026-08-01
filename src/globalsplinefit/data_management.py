@@ -264,20 +264,37 @@ class Parameters:
         historical releases, kept only so older work can be reproduced. See
         :data:`MODEL_VERSIONS`. If specified, overrides data_path and uses the
         corresponding package data directory.
-    use_approximate_solar_cycle_average : bool, optional
-        When True (default), solar cycle averages are calculated approximately
-        from the average of monthly phi values. When False, averages are
-        calculated explicitly by averaging monthly fluxes over the solar cycle.
+    solar_cycle_average_bins : int or None, optional
+        Number of bins used to period-average the solar modulation. The monthly
+        phi values of the requested interval are histogrammed into this many
+        weighted representatives (each bin's mean phi, weighted by its month
+        count) and the modulated flux is averaged over them -- the fitter's
+        treatment. Default 6, worst-case 0.50% from the full monthly average
+        over E >= 1 GeV (12 bins gives 0.10%). ``None`` averages over every
+        month explicitly; ``1`` evaluates once at the mean phi (the former
+        "approximate" mode, off by 5.2% at 1 GeV because flux is nonlinear in
+        phi). See :class:`~globalsplinefit.model.GSFBase` for the full table.
     """
 
     def __init__(
         self,
         data_path: str | Path | None = None,
         version: str | None = None,
-        use_approximate_solar_cycle_average: bool = True,
+        solar_cycle_average_bins: int | None = 6,
     ):
         """Initialize GSF parameters."""
-        self.use_approximate_solar_cycle_average = use_approximate_solar_cycle_average
+        if solar_cycle_average_bins is not None and (
+            not isinstance(solar_cycle_average_bins, (int, np.integer))
+            or isinstance(solar_cycle_average_bins, bool)
+            or solar_cycle_average_bins < 1
+        ):
+            raise ValueError(
+                "solar_cycle_average_bins must be a positive int or None, got "
+                f"{solar_cycle_average_bins!r}"
+            )
+        self.solar_cycle_average_bins = (
+            None if solar_cycle_average_bins is None else int(solar_cycle_average_bins)
+        )
         self.data_path = self._setup_data_path(data_path, version)
         self._load_all_data()
 

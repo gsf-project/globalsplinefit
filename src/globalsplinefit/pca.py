@@ -755,7 +755,6 @@ class HybridPCA:
         energy: ArrayLike,
         rng: np.random.Generator | None = None,
         residual_noise: bool = True,
-        diagonal_noise: bool | None = None,
         **kwargs,
     ) -> np.ndarray:
         """Draw random flux realizations from the reduced model.
@@ -788,8 +787,6 @@ class HybridPCA:
             that samples match the same-energy covariance returned by the
             uncertainty methods. Default True. Set to False for smooth
             low-rank-only draws.
-        diagonal_noise : bool, optional
-            Deprecated alias for ``residual_noise``.
         **kwargs
             Override kwargs for model methods.
 
@@ -798,8 +795,6 @@ class HybridPCA:
         samples : ndarray, shape (n_samples, rows)
             Absolute flux realizations (stacked over all groups).
         """
-        if diagonal_noise is not None:
-            residual_noise = diagonal_noise
         if rng is None:
             rng = np.random.default_rng()
 

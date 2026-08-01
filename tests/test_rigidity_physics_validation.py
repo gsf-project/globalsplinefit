@@ -112,15 +112,17 @@ class TestGSFRigidityPhysicsValidation:
         interval = (200901, 200912)
         jac_from_method = gsf_rigidity.jacobian(R_grid, "p", time_interval=interval)
 
-        # Re-compute analytically, averaging over the same φ list
+        # Re-compute analytically, averaging over the same φ list and weights
         z, leader, ratio = 1, 1, 1.0
-        phis = gsf_rigidity._phi_list(interval)
+        phis, weights = gsf_rigidity._phi_list(interval)
         jac_manual = 0.0
-        for phi in phis:
+        for phi, w in zip(phis, weights):
             R_is, Λ = gsf_rigidity._rigidity_phi_transform(z, R_grid, phi)
             jac_manual += (
-                ratio * gsf_rigidity._rigidity_flux_jacobian(leader, R_is) * Λ[:, None]
+                w
+                * ratio
+                * gsf_rigidity._rigidity_flux_jacobian(leader, R_is)
+                * Λ[:, None]
             )
-        jac_manual /= len(phis)
 
         np.testing.assert_allclose(jac_manual, jac_from_method, rtol=5e-5)

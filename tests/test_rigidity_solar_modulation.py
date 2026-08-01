@@ -8,7 +8,8 @@ flux, jacobian, and covariance calculations.
 import numpy as np
 import pytest
 
-from globalsplinefit import SOLAR_CYCLE_24_END, SOLAR_CYCLE_24_START
+from globalsplinefit import SOLAR_CYCLE_24_END, SOLAR_CYCLE_24_START, GSFEnergy
+from globalsplinefit.model import _bin_phi
 
 
 class TestGSFRigidityPhiTransform:
@@ -460,18 +461,18 @@ class TestGSFRigidityConsistency:
 
 
 class TestSolarCycleAveraging:
-    """Test approximate vs explicit Solar Cycle 24 averaging."""
+    """Test binned vs fully explicit Solar Cycle 24 averaging."""
 
-    def test_approximate_vs_explicit_averaging_agreement(self, gsf_rigidity):
-        """Test that approximate averaging is within 5% of explicit at 1.5 GV."""
+    def test_single_bin_vs_explicit_averaging_agreement(self, gsf_rigidity):
+        """One bin (modulate-the-mean) stays within 5% of explicit at 1.5 GV."""
         rigidity = np.array([1.5])  # 1.5 GV test point
 
-        # Test with approximate averaging (default)
-        gsf_rigidity.params.use_approximate_solar_cycle_average = True
+        # Single bin: evaluate once at the mean phi (the old "approximate" mode)
+        gsf_rigidity.params.solar_cycle_average_bins = 1
         flux_approx = gsf_rigidity.flux(rigidity, "p")
 
-        # Test with explicit averaging
-        gsf_rigidity.params.use_approximate_solar_cycle_average = False
+        # Full explicit monthly average
+        gsf_rigidity.params.solar_cycle_average_bins = None
         flux_explicit = gsf_rigidity.flux(rigidity, "p")
 
         # Calculate relative difference
@@ -479,12 +480,27 @@ class TestSolarCycleAveraging:
 
         # Should be within 5%
         assert rel_diff[0] < 0.05, (
-            f"Approximate averaging differs by {rel_diff[0] * 100:.2f}% from explicit "
+            f"Single-bin averaging differs by {rel_diff[0] * 100:.2f}% from explicit "
             f"(flux_approx={flux_approx[0]:.3e}, flux_explicit={flux_explicit[0]:.3e})"
         )
 
         # Reset to default
-        gsf_rigidity.params.use_approximate_solar_cycle_average = True
+        gsf_rigidity.params.solar_cycle_average_bins = 6
+
+    def test_default_bins_track_explicit_closely(self, gsf_rigidity):
+        """The 6-bin default must sit far closer to explicit than a single bin."""
+        rigidity = np.array([1.5])
+        try:
+            gsf_rigidity.params.solar_cycle_average_bins = None
+            ref = gsf_rigidity.flux(rigidity, "p")[0]
+            gsf_rigidity.params.solar_cycle_average_bins = 6
+            six = gsf_rigidity.flux(rigidity, "p")[0]
+            gsf_rigidity.params.solar_cycle_average_bins = 1
+            one = gsf_rigidity.flux(rigidity, "p")[0]
+        finally:
+            gsf_rigidity.params.solar_cycle_average_bins = 6
+        assert abs(six / ref - 1) < 0.02
+        assert abs(six / ref - 1) < abs(one / ref - 1)
 
     def test_lis_string_returns_unmodulated_spectrum(self, gsf_rigidity):
         """Test that 'LIS' string returns the Local Interstellar Spectrum."""
@@ -494,9 +510,10 @@ class TestSolarCycleAveraging:
         flux_lis = gsf_rigidity.flux(rigidity, "p", time_interval="LIS")
 
         # Get flux with phi=0 (equivalent to LIS)
-        phis_lis = gsf_rigidity._phi_list("LIS")
+        phis_lis, weights_lis = gsf_rigidity._phi_list("LIS")
         assert len(phis_lis) == 1
         assert phis_lis[0] == 0.0
+        assert weights_lis[0] == 1.0
 
         # Verify flux is positive and finite
         assert np.all(flux_lis > 0)
@@ -514,21 +531,88 @@ class TestSolarCycleAveraging:
         start = SOLAR_CYCLE_24_START[0]
         end = SOLAR_CYCLE_24_END[0]
 
-        # Test that explicit Solar Cycle 24 interval works with explicit averaging
-        gsf_rigidity.params.use_approximate_solar_cycle_average = False
-        flux_explicit_sc24 = gsf_rigidity.flux(
-            rigidity, "p", time_interval=(start, end)
-        )
+        # Naming the SC24 interval explicitly must match the default path, for
+        # every bin count -- the default is now the same code path, not a
+        # separate single-phi shortcut.
+        try:
+            for bins in (1, 6, 12, None):
+                gsf_rigidity.params.solar_cycle_average_bins = bins
+                flux_explicit_sc24 = gsf_rigidity.flux(
+                    rigidity, "p", time_interval=(start, end)
+                )
+                flux_default = gsf_rigidity.flux(rigidity, "p")
+                np.testing.assert_allclose(flux_default, flux_explicit_sc24, rtol=1e-10)
+        finally:
+            gsf_rigidity.params.solar_cycle_average_bins = 6
 
-        # Test that default works with explicit averaging
-        flux_default_explicit = gsf_rigidity.flux(
-            rigidity, "p"
-        )  # Should use SC24 with explicit
 
-        # These should be the same when both use explicit averaging
-        np.testing.assert_allclose(
-            flux_default_explicit, flux_explicit_sc24, rtol=1e-10
-        )
+class TestPhiBinning:
+    """The period-average binning that replaced the fast/exact flag."""
 
-        # Reset to default
-        gsf_rigidity.params.use_approximate_solar_cycle_average = True
+    @staticmethod
+    def _months(n=132, seed=0):
+        return np.random.default_rng(seed).uniform(0.2, 1.2, n)
+
+    @pytest.mark.parametrize("n_bins", [1, 2, 3, 6, 12, 24, 132, 500, None])
+    def test_weighted_mean_is_exact(self, n_bins):
+        """Weights are normalized and the weighted mean phi is preserved exactly.
+
+        This is what keeps the first-order (mean) suppression right at every bin
+        count, so a coarser setting only costs curvature, never a level shift.
+        """
+        months = self._months()
+        phi, w = _bin_phi(months, n_bins)
+        assert w.sum() == pytest.approx(1.0, abs=1e-14)
+        assert np.dot(phi, w) == pytest.approx(months.mean(), abs=1e-12)
+        assert len(phi) == len(w)
+
+    def test_bin_count_bounds(self):
+        months = self._months()
+        assert len(_bin_phi(months, 1)[0]) == 1
+        assert len(_bin_phi(months, 6)[0]) <= 6
+        assert len(_bin_phi(months, None)[0]) == len(months)
+        # asking for more bins than months keeps every month, weight 1/n
+        phi, w = _bin_phi(months[:5], 50)
+        assert len(phi) == 5
+        np.testing.assert_allclose(w, np.full(5, 0.2))
+
+    def test_single_bin_is_the_plain_mean(self):
+        months = self._months()
+        phi, w = _bin_phi(months, 1)
+        assert phi[0] == pytest.approx(months.mean())
+        assert w[0] == 1.0
+
+    def test_empty_interval_rejected(self):
+        with pytest.raises(ValueError, match="no solar modulation potentials"):
+            _bin_phi(np.array([]), 6)
+
+    @pytest.mark.parametrize("bad", [0, -1, 2.5, True, "6"])
+    def test_invalid_bin_count_rejected(self, bad):
+        with pytest.raises(ValueError, match="solar_cycle_average_bins"):
+            GSFEnergy(solar_cycle_average_bins=bad)
+
+    def test_single_bin_matches_legacy_mean_phi(self):
+        """n_bins=1 reproduces the retired approximate path exactly."""
+        model = GSFEnergy(solar_cycle_average_bins=1)
+        phi, _ = model._phi_list(None)
+        assert phi[0] == model.params.get_solar_cycle_24_phi_average()
+
+    def test_retired_flag_is_gone(self):
+        """The old boolean is not silently accepted as an unknown kwarg."""
+        with pytest.raises(TypeError, match="use_approximate_solar_cycle_average"):
+            GSFEnergy(use_approximate_solar_cycle_average=True)
+
+    def test_more_bins_converge_monotonically(self):
+        """Error against the full average shrinks as bins are added."""
+        E = np.array([1.0, 2.0, 5.0])
+        ref = GSFEnergy(solar_cycle_average_bins=None).flux(E, "proton")
+        errs = [
+            np.max(
+                np.abs(
+                    GSFEnergy(solar_cycle_average_bins=n).flux(E, "proton") / ref - 1
+                )
+            )
+            for n in (1, 3, 6, 12)
+        ]
+        assert errs == sorted(errs, reverse=True), errs
+        assert errs[-1] < 0.005  # 12 bins within 0.5%

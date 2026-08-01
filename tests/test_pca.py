@@ -355,16 +355,27 @@ class TestSampling:
         assert np.max(np.abs(normalized_difference)) < 0.04
 
     def test_smooth_sampling_is_explicit_opt_out(self, pca_nucleon):
-        """residual_noise=False retains the former smooth-only behavior."""
+        """residual_noise=False drops the per-energy residual term."""
         E = np.logspace(2, 5, 8)
         seed = 1234
         smooth = pca_nucleon.sample(
             20, E, rng=np.random.default_rng(seed), residual_noise=False
         )
-        legacy_alias = pca_nucleon.sample(
-            20, E, rng=np.random.default_rng(seed), diagonal_noise=False
+        full = pca_nucleon.sample(
+            20, E, rng=np.random.default_rng(seed), residual_noise=True
         )
-        np.testing.assert_array_equal(smooth, legacy_alias)
+        # same low-rank draw, so any difference is the residual noise alone
+        assert not np.array_equal(smooth, full)
+        assert smooth.shape == full.shape
+        assert np.std(full - smooth) > 0
+
+    def test_retired_diagonal_noise_alias_is_gone(self, pca_nucleon):
+        """The old ``diagonal_noise`` spelling is not silently swallowed."""
+        with pytest.raises(TypeError, match="diagonal_noise"):
+            pca_nucleon.sample(
+                2, np.logspace(2, 5, 4), rng=np.random.default_rng(0),
+                diagonal_noise=False,
+            )
 
     @pytest.mark.slow
     def test_sample_statistics(self, pca_nucleon):

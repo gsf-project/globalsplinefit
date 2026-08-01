@@ -14,12 +14,13 @@ Install GlobalSplineFit using pip:
 pip install globalsplinefit
 ```
 
-For development installation:
+For development installation (uses [uv](https://docs.astral.sh/uv/)):
 
 ```bash
-git clone https://github.com/gsf-project/gsf.git
-cd gsf
-pip install -e ".[dev]"
+git clone https://github.com/gsf-project/globalsplinefit.git
+cd globalsplinefit
+uv sync --all-extras
+uv run pytest tests/
 ```
 
 ## Quick Start
@@ -321,4 +322,12 @@ See the tutorials for detailed, worked examples:
 - [Solar Modulation](examples/solar_modulation.ipynb) -- Solar modulation effects
 - [Rigidity Cutoff](examples/rigidity_cutoff.ipynb) -- Geomagnetic cutoff effects
 - [Model Comparison](examples/model_comparison_2017_vs_2025.ipynb) -- Comparing model versions
-- [Hybrid PCA](examples/HybridPCA.ipynb) -- Dimensionality reduction for uncertainties
+- [Reduced Model](examples/reduced_model.ipynb) -- Flux nuisance parameters + covariance penalty for downstream fits
+- [Hybrid PCA](examples/hybrid_pca.ipynb) -- Reduced representation of the flux covariance
+
+The tutorials are [marimo](https://marimo.io) notebooks: the source of truth is
+the plain-Python `examples/*.py` file in the repository, which you can open
+interactively with `uv run marimo edit examples/<name>.py` or execute top to
+bottom with `uv run python examples/<name>.py`. The rendered pages here are
+built from the committed `.ipynb` exports, which a pre-commit hook keeps in
+sync with the sources.

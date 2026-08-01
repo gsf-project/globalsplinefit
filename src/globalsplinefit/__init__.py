@@ -75,6 +75,7 @@ from .model import (
     GSFRigidity,
 )
 from .pca import HybridPCA
+from .reduced import RECOMMENDED_PIVOTS, ReducedGSF, optimize_pivots
 
 __all__ = [
     "GSFEnergy",
@@ -83,6 +84,9 @@ __all__ = [
     "GSFKineticEnergyPerNucleon",
     "GSFRigidity",
     "HybridPCA",
+    "RECOMMENDED_PIVOTS",
+    "ReducedGSF",
+    "optimize_pivots",
     "DEFAULT_VERSION",
     "MODEL_VERSIONS",
     "SOLAR_CYCLE_24_DURATION_YEARS",

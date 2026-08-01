@@ -50,6 +50,48 @@ def _sigmoid(x: np.ndarray) -> np.ndarray:
     return result
 
 
+def _bin_phi(phis: np.ndarray, n_bins: int | None) -> tuple[np.ndarray, np.ndarray]:
+    """Reduce monthly phi values to weighted representatives for averaging.
+
+    Mirrors the fitter's period average
+    (``gsffit.data.solarmod.window_phi_samples`` in gsf-fitter-2): histogram the
+    monthly potentials into ``n_bins`` bins and keep each populated bin's **mean**
+    phi — not its center — weighted by the number of months in it.  The weighted
+    mean of the representatives then equals the true monthly mean exactly, so the
+    first-order (mean) suppression is preserved and only the curvature of
+    flux(phi) is approximated.
+
+    Because the flux is nonlinear in phi, averaging the modulated flux over these
+    bins ("mean of modulated") is not the same as modulating at the mean phi
+    ("modulate the mean"); the bin count sets how much of that curvature is kept.
+
+    Parameters
+    ----------
+    phis
+        Monthly potentials in GV.
+    n_bins
+        Number of bins.  ``None`` keeps every month (the full explicit average).
+        ``1`` collapses to the plain period mean, i.e. modulate-the-mean.  Bins
+        that end up empty are dropped, so fewer than ``n_bins`` values may be
+        returned.
+
+    Returns
+    -------
+        ``(phi, weights)`` with ``weights`` normalized to sum to 1.
+    """
+    phis = np.atleast_1d(np.asarray(phis, dtype=float))
+    if phis.size == 0:
+        raise ValueError("no solar modulation potentials in the requested interval")
+    if n_bins is None or phis.size <= n_bins:
+        return phis, np.full(phis.size, 1.0 / phis.size)
+    if n_bins == 1:
+        return np.array([phis.mean()]), np.array([1.0])
+    counts, edges = np.histogram(phis, bins=n_bins)
+    sums, _ = np.histogram(phis, bins=edges, weights=phis)
+    nz = counts > 0
+    return sums[nz] / counts[nz], counts[nz] / counts[nz].sum()
+
+
 # Type alias for array-like inputs
 ArrayLike = np.ndarray | list[float] | float
 """Type alias for inputs that can be scalars, lists, or numpy arrays."""
@@ -131,7 +173,7 @@ class GSFBase(ABC):
         self,
         data_path: str | Path | None = None,
         version: str | None = None,
-        use_approximate_solar_cycle_average: bool = True,
+        solar_cycle_average_bins: int | None = 6,
         default_time_interval: tuple[int, int] | str | None = None,
         default_rigidity_cutoff: float | None = None,
         cutoff_width: float = 1.0,
@@ -160,11 +202,40 @@ class GSFBase(ABC):
             :data:`~globalsplinefit.data_management.MODEL_VERSIONS` and
             :func:`~globalsplinefit.data_management.version_info`. If specified,
             overrides data_path and uses the corresponding package data directory.
-        use_approximate_solar_cycle_average
-            If True (default), solar cycle averages
-            are calculated approximately from average of monthly phi values.
-            If False, averages are calculated explicitly by averaging monthly
-            fluxes over the solar cycle.
+        solar_cycle_average_bins
+            How finely to resolve the solar cycle when period-averaging the
+            flux. The monthly modulation potentials of the requested interval
+            are binned into this many weighted representatives -- each bin's
+            mean phi, weighted by how many months fall in it -- and the
+            *modulated flux* is averaged over them, which is the treatment the
+            fitter uses. Because flux(phi) is nonlinear, this "mean of
+            modulated" differs from modulating at the mean phi.
+
+            The weighted mean phi is exact by construction, so the first-order
+            suppression is always right and only the curvature is approximated.
+            Total-flux error against the full monthly average over Solar Cycle
+            24, worst case over E >= 1 GeV (the error is an entirely
+            low-energy effect: it peaks at the bottom of the model's range and
+            falls below 0.3% above 10 GeV even for 1 bin):
+
+            ============  ===========  ==========
+            bins          max error    at 1 GeV
+            ============  ===========  ==========
+            1             5.2%         5.2%
+            6 (default)   0.50%        0.50%
+            12            0.10%        0.10%
+            None (132)    reference    --
+            ============  ===========  ==========
+
+            ``None`` averages over every month explicitly; ``1`` evaluates once
+            at the mean phi (modulate-the-mean). Just below 1 GeV the curvature
+            steepens sharply and the 1-bin error reaches ~9%, so prefer the
+            default there.
+
+            On cost: the vectorized energy path is dominated by fixed overhead,
+            so 12 bins (the fitter's setting) runs within ~10% of the default 6,
+            while ``None`` is several times slower and the Jacobian path scales
+            more steeply with the bin count.
         default_time_interval
             Default time period specification to use when not explicitly
             provided in method calls:
@@ -181,9 +252,7 @@ class GSFBase(ABC):
             sigmoid transition modeling the geomagnetic penumbra); use 0.0
             for a sharp (Heaviside) cutoff.
         """
-        self.params = Parameters(
-            data_path, version, use_approximate_solar_cycle_average
-        )
+        self.params = Parameters(data_path, version, solar_cycle_average_bins)
 
         # Store default time interval
         self.default_time_interval = default_time_interval
@@ -428,8 +497,10 @@ class GSFBase(ABC):
         """Compute J1 @ C @ J2.T for covariance propagation."""
         return np.linalg.multi_dot((j1, c, j2.T))
 
-    def _phi_list(self, time_interval: tuple[int, int] | str | None) -> np.ndarray:
-        """Get list of solar modulation parameters for time interval.
+    def _phi_list(
+        self, time_interval: tuple[int, int] | str | None
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Solar modulation potentials and their weights for a time interval.
 
         Parameters
         ----------
@@ -441,13 +512,16 @@ class GSFBase(ABC):
             - "LIS": Local Interstellar Spectrum (phi=0, no modulation)
             - tuple[int, int]: (start, end) in YYYYMM format; the end month
             is EXCLUSIVE. Example: (200901, 201001) for Jan-Dec 2009.
-            Monthly phi values of an interval are reduced to at most 12
-            representative values (mean-preserving), matching the fitter's
-            12-bin period average.
+
+        The monthly values of an interval are binned into
+        ``params.solar_cycle_average_bins`` weighted representatives — see
+        :func:`_bin_phi`.  Every interval, including the Solar Cycle 24
+        default, goes through the same reduction.
 
         Returns
         -------
-            Array of solar modulation potential values (in GV) for the time period.
+            ``(phi, weights)`` — potentials in GV and normalized weights
+            (summing to 1) for the period average.
 
         Raises
         ------
@@ -455,15 +529,10 @@ class GSFBase(ABC):
         """
         if time_interval is None:
             # Default: Solar Cycle 24 average (December 2008 to December 2019)
-            if self.params.use_approximate_solar_cycle_average:
-                # Approximate averaging: use a single average phi value
-                phi_avg = self.params.get_solar_cycle_24_phi_average()
-                return np.array([phi_avg])
-            # Explicit averaging: fall through with the SC24 interval
             time_interval = self.params.get_solar_cycle_24_interval()
         elif time_interval == "LIS":
             # Local Interstellar Spectrum: no solar modulation
-            return np.array([0.0])
+            return np.array([0.0]), np.array([1.0])
         elif isinstance(time_interval, str):
             raise ValueError(
                 f"Invalid string time_interval '{time_interval}'. Only 'LIS' is supported."
@@ -475,17 +544,7 @@ class GSFBase(ABC):
         if t_a > t_b:
             raise ValueError("Time interval start must be less than end")
         phis = _collect_phi_values(self.phi, t_a, t_b)
-        # Reduce long monthly lists to 12 representative phi values (equal-count
-        # chunks of the sorted list, chunk means, shifted to preserve the full
-        # monthly mean exactly), mirroring the fitter's 12-bin period average.
-        # Downstream averages weight each phi equally, so this keeps the
-        # period-averaged flux within ~0.1% of the full monthly sum.
-        if len(phis) > 12:
-            chunk_means = np.array(
-                [c.mean() for c in np.array_split(np.sort(phis), 12)]
-            )
-            phis = chunk_means + (np.mean(phis) - chunk_means.mean())
-        return phis
+        return _bin_phi(phis, self.params.solar_cycle_average_bins)
 
     def _rigidity_flux_lis(self, sid, rigidity: ArrayLike) -> np.ndarray:
         """Calculate LIS flux of species ``sid=(Z, A)`` as a function of rigidity."""
@@ -554,7 +613,7 @@ class GSFBase(ABC):
         sid = self._as_sid(sid)
         energy = np.atleast_1d(energy)
         time_interval = self._resolve_time_interval(time_interval)
-        phis = np.array(self._phi_list(time_interval))
+        phis, weights = self._phi_list(time_interval)
 
         # Get vectorized rigidity and factors for all phi values
         # Shape: [n_energy, n_phi]
@@ -566,9 +625,9 @@ class GSFBase(ABC):
         lis_flux_flat = self._rigidity_flux_lis(sid, rig_flat)
         lis_flux = lis_flux_flat.reshape(rigidity.shape)  # [n_energy, n_phi]
 
-        # Apply factors and average over phi dimension
+        # Apply factors and take the weighted period average over phi
         modulated_flux = lis_flux * factor  # [n_energy, n_phi]
-        averaged_flux = np.mean(modulated_flux, axis=1)  # [n_energy]
+        averaged_flux = modulated_flux @ weights  # [n_energy]
 
         return averaged_flux
 
@@ -583,7 +642,7 @@ class GSFBase(ABC):
         energy = np.atleast_1d(energy)
         leading, ratio = self.flux_ratio[sid]
         time_interval = self._resolve_time_interval(time_interval)
-        phis = np.array(self._phi_list(time_interval))
+        phis, weights = self._phi_list(time_interval)
 
         # Get vectorized rigidity and factors
         rigidity, factor = self._rigidity_from_energy_vectorized(sid, energy, phis)
@@ -612,8 +671,10 @@ class GSFBase(ABC):
             factor = factor * tilt
         jac_weighted = jac * factor[:, :, np.newaxis]
 
-        # Average over phi dimension
-        jac_averaged = np.mean(jac_weighted, axis=1)  # [n_energy, n_params]
+        # Weighted period average over the phi dimension
+        jac_averaged = np.tensordot(  # [n_energy, n_params]
+            jac_weighted, weights, axes=([1], [0])
+        )
 
         return ratio * jac_averaged
 
@@ -1345,19 +1406,17 @@ class GSFRigidity(GSFBase):
         zlist, _ = self._resolve_z(target)
         rigidity = np.atleast_1d(rigidity)
 
-        # φ list (length 1 with 0.0 for LIS)
-        phis = self._phi_list(time_interval)
+        # φ list and period-average weights (length 1 with 0.0 for LIS)
+        phis, phi_weights = self._phi_list(time_interval)
 
         flux = np.zeros_like(rigidity, dtype=float)
-        for phi in phis:  # loop version (safe, readable)
+        for phi, w in zip(phis, phi_weights):  # loop version (safe, readable)
             for sid in self._target_sids(zlist):   # charges expand to species (p, D, …)
                 if phi == 0.0:
-                    flux += self._rigidity_flux_lis(sid, rigidity)
+                    flux += w * self._rigidity_flux_lis(sid, rigidity)
                 else:
                     R_is, fac = self._rigidity_phi_transform(sid, rigidity, phi)
-                    flux += self._rigidity_flux_lis(sid, R_is) * fac
-
-        flux /= len(phis)
+                    flux += w * self._rigidity_flux_lis(sid, R_is) * fac
 
         # Apply rigidity cutoff (in rigidity space, cutoff is Z-independent)
         if rigidity_cutoff is not None:
@@ -1383,9 +1442,9 @@ class GSFRigidity(GSFBase):
         zlist, _ = self._resolve_z(target)
         rigidity = np.atleast_1d(rigidity)
 
-        phis = self._phi_list(time_interval)
+        phis, phi_weights = self._phi_list(time_interval)
         jac = 0.0
-        for phi in phis:
+        for phi, w in zip(phis, phi_weights):
             for sid in self._target_sids(zlist):
                 leading, ratio = self.flux_ratio[sid]
                 slope = self.flux_slope[sid]
@@ -1414,8 +1473,8 @@ class GSFRigidity(GSFBase):
                         * self._rigidity_flux_jacobian(leading, R_is)
                         * (fac * _tilt(R_is))[:, None]
                     )
-                jac += contrib
-        jac = np.asarray(jac) / len(phis)
+                jac += w * contrib
+        jac = np.asarray(jac)
 
         # Apply rigidity cutoff (in rigidity space, cutoff is Z-independent)
         if rigidity_cutoff is not None:

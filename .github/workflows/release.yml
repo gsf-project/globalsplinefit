@@ -12,19 +12,18 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
       with:
         python-version: "3.11"
+        enable-cache: true
 
     - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -e .[test]
+      run: uv sync --extra test
 
     - name: Run tests
       run: |
-        pytest tests/ -v
+        uv run pytest tests/ -v
 
   build:
     needs: test
@@ -33,23 +32,16 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
       with:
         python-version: "3.11"
 
-    - name: Install build dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install build twine
-
     - name: Build package
-      run: |
-        python -m build
+      run: uv build
 
     - name: Check package
-      run: |
-        twine check dist/*
+      run: uvx twine check dist/*
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
@@ -99,14 +91,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
       with:
         python-version: "3.12"
 
     - name: Build wheel + assemble site
       run: |
-        pip install --upgrade pip wheel setuptools
         webapp/update_wheel.sh
         mkdir -p _site
         rsync -a webapp/ _site/ \

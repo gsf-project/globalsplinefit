@@ -65,14 +65,14 @@ class TestVectorizedImplementation:
         energy = np.atleast_1d(energy)
 
         result = 0.0
-        phis = model._phi_list(time_interval)
+        phis, weights = model._phi_list(time_interval)
 
-        # This is the key part: explicit loop over phi values
-        for phi in phis:
+        # This is the key part: explicit weighted loop over phi values
+        for phi, w in zip(phis, weights):
             rig, factor = self._reference_rigidity_from_energy(model, z, energy, phi)
-            result += model._rigidity_flux_lis(z, rig) * factor
+            result += w * model._rigidity_flux_lis(z, rig) * factor
 
-        return result / len(phis)
+        return result
 
     def _reference_element_flux_jacobian_explicit(
         self, model, z, energy, time_interval=None
@@ -86,14 +86,16 @@ class TestVectorizedImplementation:
         leading, ratio = model.flux_ratio[z]
 
         jac = 0.0
-        phis = model._phi_list(time_interval)
+        phis, weights = model._phi_list(time_interval)
 
-        # This is the key part: explicit loop over phi values
-        for phi in phis:
+        # This is the key part: explicit weighted loop over phi values
+        for phi, w in zip(phis, weights):
             rig, factor = self._reference_rigidity_from_energy(model, z, energy, phi)
-            jac += model._rigidity_flux_jacobian(leading, rig) * factor[:, np.newaxis]
+            jac += (
+                w * model._rigidity_flux_jacobian(leading, rig) * factor[:, np.newaxis]
+            )
 
-        return ratio * jac / len(phis)
+        return ratio * jac
 
     def test_rigidity_from_energy_vectorized_vs_explicit(self, gsf_energy):
         """Test that vectorized rigidity conversion matches explicit version."""

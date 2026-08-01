@@ -13,11 +13,27 @@ import gsf_explorer as gx
 _models = {}
 
 
-def _model(basis, version):
+def _phi_bins(v):
+    """JSON phi-bin spec -> solar_cycle_average_bins (0/None/"full" -> None)."""
+    if v is None or v == "full" or v == 0:
+        return None
+    return int(v)
+
+
+def _model(basis, version, phi_bins=6):
+    """Cached model for a basis+version, retuned to the requested phi binning.
+
+    The bin count is read per flux call rather than baked in at construction, so
+    one instance per (basis, version) serves every setting -- keeping the wheel's
+    data out of memory N times over and avoiding a model rebuild (seconds, in
+    WASM) when the knob moves.
+    """
     key = (basis, version)
     if key not in _models:
-        _models[key] = gx.make_model(basis, version)
-    return _models[key]
+        _models[key] = gx.make_model(basis, version, phi_bins)
+    model = _models[key]
+    model.params.solar_cycle_average_bins = phi_bins
+    return model
 
 
 def _element_entries(m, basis):  # noqa: ARG001 - basis kept for RPC signature
@@ -62,7 +78,7 @@ def meta(basis, version=None):
 
 def _params(p):
     return dict(
-        model=_model(p["basis"], p["version"]),
+        model=_model(p["basis"], p["version"], _phi_bins(p.get("phiBins", 6))),
         dmin=p["dmin"], dmax=p["dmax"], npts=p["npts"],
         groups=[g for g in gx.GROUPS if g in p["groups"]],
         elements=[z if z == "D" else int(z) for z in p["elements"]],

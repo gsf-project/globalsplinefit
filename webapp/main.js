@@ -266,7 +266,7 @@ function App() {
      10^0–10^11 range so pan/zoom are pure display operations. */
   const [params, setParams] = useState({
     versions: ["2026"], basis: "etot", npts: 480,
-    elements: [], mod: "SC24", cutoff: 0, escale: 1.0,
+    elements: [], mod: "SC24", cutoff: 0, escale: 1.0, phiBins: 6,
   });
   const [view, setView] = useState({
     gamma: 2.7, ylog: true, ratio: false, showTotal: true, showBands: true,
@@ -329,7 +329,7 @@ function App() {
     version, basis: p.basis, dmin: X_DOMAIN[0], dmax: X_DOMAIN[1],
     npts: p.npts, groups: GROUPS,
     elements: withElements ? p.elements : [],
-    mod: p.mod, cutoff: p.cutoff, escale: p.escale,
+    mod: p.mod, cutoff: p.cutoff, escale: p.escale, phiBins: p.phiBins,
   });
   const paramsKey = JSON.stringify(params);
   const latestKey = useRef(null);
@@ -836,6 +836,19 @@ function App() {
                 onSelect=${(v) => setP({ npts: v })}
                 options=${[{ v: 240, label: "240" }, { v: 480, label: "480" },
                            { v: 960, label: "960" }]} /></label>
+            <label class="field"><span>Solar-cycle averaging bins</span>
+              <${Seg} value=${params.phiBins}
+                onSelect=${(v) => setP({ phiBins: v })}
+                options=${[{ v: 1, label: "1" }, { v: 6, label: "6" },
+                           { v: 12, label: "12" }, { v: "full", label: "full" }]} /></label>
+            <p class="hinttext">
+              The period average bins the monthly potential φ and averages the
+              modulated flux over the bins. The mean φ is exact at any setting,
+              so only the curvature of flux(φ) changes: at 1 GeV, 1 bin is off
+              by 5.2% from the full monthly average, 6 by 0.5%, 12 by 0.1% —
+              all below 0.3% above 10 GeV, and irrelevant for LIS. “full”
+              averages all ~130 months and takes seconds per update.
+            </p>
             <//>
           <//>
         </aside>`}

@@ -18,19 +18,18 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+    - name: Set up uv (Python ${{ matrix.python-version }})
+      uses: astral-sh/setup-uv@v6
       with:
         python-version: ${{ matrix.python-version }}
+        enable-cache: true
 
     - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -e .[test]
+      run: uv sync --extra test
 
     - name: Test with pytest
       run: |
-        pytest tests/ -v --cov=globalsplinefit --cov-report=xml --cov-report=term-missing
+        uv run pytest tests/ -v --cov=globalsplinefit --cov-report=xml --cov-report=term-missing
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
@@ -49,19 +48,31 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
       with:
         python-version: "3.12"
+        enable-cache: true
 
     - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -e .[test,plotting]
-        pip install jupyter nbconvert matplotlib
+      run: uv sync --extra examples
 
-    - name: Test example notebooks
+    # The marimo notebooks in examples/ are plain Python files; running one
+    # executes its full cell DAG, which is exactly the smoke test we want.
+    - name: Run example notebooks
+      env:
+        MPLBACKEND: Agg
       run: |
-        cd examples
-        find . -name "*.ipynb" -exec echo "Testing {}" \;
-        find . -name "*.ipynb" -exec jupyter nbconvert --to notebook --execute --ExecutePreprocessor.timeout=300 {} \;
+        for nb in examples/*.py; do
+          echo "Running $nb"
+          uv run python "$nb"
+        done
+
+    # The committed .ipynb exports must be in sync with the marimo sources
+    # (the pre-commit hook regenerates them; catch a forgotten export here).
+    - name: Check .ipynb exports are up to date
+      run: |
+        for nb in examples/*.py; do
+          uv run marimo export ipynb "$nb" -o "${nb%.py}.ipynb" --force
+        done
+        git diff --exit-code -- 'examples/*.ipynb'

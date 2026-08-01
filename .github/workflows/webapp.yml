@@ -26,13 +26,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
+          enable-cache: true
 
       - name: Build the wheel the app loads
         run: |
-          pip install --upgrade pip wheel setuptools
           webapp/update_wheel.sh
           # keep the WHEEL constant in sync with the built version
           WHL=$(basename webapp/globalsplinefit-*.whl)
@@ -40,9 +41,10 @@ jobs:
 
       - name: Install playwright + chromium
         run: |
-          pip install playwright
-          playwright install --with-deps chromium
+          uv sync
+          uv pip install playwright
+          uv run --no-sync playwright install --with-deps chromium
 
       - name: Run full UI test suite
         working-directory: webapp
-        run: python test_ui.py
+        run: uv run --no-sync python test_ui.py

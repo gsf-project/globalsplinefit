@@ -37,8 +37,8 @@ class TestDefaultTimeInterval:
         assert model.default_time_interval is None, (
             "Default time interval should be None for Solar Cycle 24 average"
         )
-        assert model.params.use_approximate_solar_cycle_average is True, (
-            "Default should use approximate solar cycle averaging"
+        assert model.params.solar_cycle_average_bins == 6, (
+            "Default should period-average the solar cycle over 6 phi bins"
         )
 
     def test_custom_default_time_interval_tuple(self, model_class):
