@@ -561,6 +561,71 @@ def main() -> int:
                 assert sheet.bounding_box()["y"] > 100
                 c3.close()
 
+            # -------------------------------------------------------- touch
+            # iPad-class device (short viewport + touch): chart gestures and
+            # pane fit — regression guard for the 2026-08 touch support.
+            c4 = browser.new_context(viewport={"width": 1024, "height": 700},
+                                     has_touch=True, is_mobile=True)
+            p4 = c4.new_page()
+
+            def p4_window():
+                return p4.evaluate(
+                    "() => document.querySelector('header').innerText")
+
+            with check("touch: boots on iPad-size viewport"):
+                p4.goto(URL, timeout=60_000)
+                p4.wait_for_selector("svg.chart path", timeout=300_000)
+                p4.wait_for_timeout(1500)
+
+            tbox = p4.locator("svg.chart").bounding_box() or {}
+            tx = tbox.get("x", 0) + tbox.get("width", 800) * 0.55
+            ty = tbox.get("y", 0) + tbox.get("height", 500) * 0.45
+
+            with check("touch: tap shows hover readout"):
+                p4.touchscreen.tap(tx, ty)
+                p4.wait_for_timeout(600)
+                assert p4.evaluate(
+                    "() => document.body.innerText.includes('all-particle')")
+
+            with check("touch: pinch zooms the x-window"):
+                w0 = p4_window()
+                cdp = c4.new_cdp_session(p4)
+                cdp.send("Input.synthesizePinchGesture",
+                         {"x": tx, "y": ty, "scaleFactor": 2.5,
+                          "relativeSpeed": 400,
+                          "gestureSourceType": "touch"})
+                p4.wait_for_timeout(1000)
+                assert p4_window() != w0, "window unchanged after pinch"
+
+            with check("touch: double-tap homes the view"):
+                w1 = p4_window()
+                p4.touchscreen.tap(tx, ty)
+                p4.wait_for_timeout(120)
+                p4.touchscreen.tap(tx + 3, ty + 2)
+                p4.wait_for_timeout(1000)
+                assert p4_window() != w1, "window unchanged after double-tap"
+
+            with check("touch: panes fit and scroll to the bottom"):
+                for command, selector in (
+                        ("Series", ".series-popover"),
+                        ("Settings", ".settings-popover"),
+                        ("Export", ".export-popover")):
+                    p4.click(f".commandbtn:text-is('{command}')")
+                    p4.wait_for_timeout(300)
+                    state = p4.locator(selector).evaluate("""pane => {
+                        const r = pane.getBoundingClientRect();
+                        const sc = pane.querySelector('.panescroll');
+                        sc.scrollTop = sc.scrollHeight;
+                        return {fits: r.bottom <= innerHeight + 1,
+                                end: sc.scrollTop + sc.clientHeight
+                                     >= sc.scrollHeight - 2};
+                    }""")
+                    assert state["fits"], (command, "pane clipped")
+                    assert state["end"], (command, "cannot reach bottom")
+                    p4.click(f"{selector} .closebtn")
+                    p4.wait_for_timeout(200)
+            c4.close()
+
             # ----------------------------------------------- panel collapse
             with check("panels: every header expands and collapses"):
                 for t in ("Model", "Components", "Abscissa",
