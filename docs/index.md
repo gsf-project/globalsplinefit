@@ -16,7 +16,7 @@ parameters and use cases.
     Explore the model interactively in your browser — fluxes, composition,
     uncertainties, data export. No installation needed.
 
-    [:octicons-arrow-right-24: Open the Explorer](https://gsf-project.github.io/globalsplinefit/explorer/)
+    [:octicons-arrow-right-24: Open the Explorer](explorer.md)
 
 -   :material-notebook-outline: **Tutorials**
 

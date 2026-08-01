@@ -39,13 +39,8 @@ jobs:
     - name: Build documentation
       run: uv run mkdocs build --strict
 
-    - name: Export tutorial notebooks (marimo html-wasm)
-      run: |
-        for nb in examples/*.py; do
-          name="$(basename "$nb" .py)"
-          echo "Exporting $name"
-          uv run marimo export html-wasm "$nb" -o "site/gallery/$name" --mode run --show-code
-        done
+    - name: Build tutorial gallery (marimo html-wasm)
+      run: .github/scripts/build_gallery.sh
 
     - name: Build wheel for the WASM notebooks
       run: |

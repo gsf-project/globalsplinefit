@@ -72,8 +72,9 @@ extra_javascript:
 
 nav:
   - Home: index.md
-  # in-browser model explorer, deployed to /explorer/ by release.yml
-  - Explorer: https://gsf-project.github.io/globalsplinefit/explorer/
+  # explorer.md is a placeholder — the CI build copies the real Explorer app
+  # over /explorer/ after mkdocs runs; a relative page link works on any host
+  - Explorer: explorer.md
   # tutorial notebooks: marimo html-wasm exports, deployed to /gallery/
   # by docs.yml alongside this site
   - Tutorials: gallery.md

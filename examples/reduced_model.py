@@ -68,12 +68,23 @@ async def _():
         import marimo as _mo
         import micropip
 
-        await micropip.install(
-            urljoin(
-                str(_mo.notebook_location()) + "/",
-                "../../wheels/globalsplinefit-2.0.0a1-py3-none-any.whl",
-            )
-        )
+        # notebook_location() resolution depth differs between marimo export
+        # layouts — try site-root /wheels/ from both plausible depths
+        _err = None
+        for _up in ("../../", "../../../"):
+            try:
+                await micropip.install(
+                    urljoin(
+                        str(_mo.notebook_location()) + "/",
+                        _up + "wheels/globalsplinefit-2.0.0a1-py3-none-any.whl",
+                    )
+                )
+                _err = None
+                break
+            except Exception as _e:  # noqa: BLE001 — 404 lands as generic error
+                _err = _e
+        if _err is not None:
+            raise _err
 
     import marimo as mo
     import matplotlib.pyplot as plt

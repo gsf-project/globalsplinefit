@@ -2,7 +2,7 @@
 
 Four ways to use GSF, roughly in order of commitment:
 
-1. **[GSF Explorer](https://gsf-project.github.io/globalsplinefit/explorer/)** —
+1. **[GSF Explorer](explorer.md)** —
    interactive model exploration in the browser, nothing to install.
 2. **[Tutorial gallery](gallery.md)** — notebooks running in the browser,
    editable and downloadable.

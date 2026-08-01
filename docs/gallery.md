@@ -1,13 +1,13 @@
 # Tutorial gallery
 
 The tutorials are [marimo](https://marimo.io) notebooks compiled to
-WebAssembly — they run **entirely in your browser** (first load takes about a
-minute while Python boots and packages install; the plots then appear
-below each cell). Notebooks with controls (model version, parameters) are
-live — change a value and the plots update. To modify the code itself, grab
-the source from `examples/` and
-[run it locally](getting_started.md#run-the-tutorials-locally) with marimo or
-Jupyter.
+WebAssembly — a **full notebook editor running entirely in your browser**.
+They execute on load (allow ~half a minute while Python boots and packages
+install), and every cell is editable: change a value, a model version, or
+the code itself and the affected cells re-run. Nothing to install; to work
+with local files instead,
+[run them locally](getting_started.md#run-the-tutorials-locally) with marimo
+or Jupyter.
 
 <div class="grid cards" markdown>
 

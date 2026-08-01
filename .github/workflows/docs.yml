@@ -28,17 +28,11 @@ jobs:
     - name: Build documentation
       run: uv run mkdocs build --strict
 
-    # Tutorial gallery: each example notebook compiled to a self-contained
-    # WASM page at /gallery/<name>/ (linked from docs/gallery.md).
-    - name: Export tutorial notebooks (marimo html-wasm)
-      run: |
-        for nb in examples/*.py; do
-          name="$(basename "$nb" .py)"
-          echo "Exporting $name"
-          # run mode: cells auto-execute on load (edit mode would wait for a
-          # manual "Run all"); UI elements (dropdowns etc.) stay interactive
-          uv run marimo export html-wasm "$nb" -o "site/gallery/$name" --mode run --show-code
-        done
+    # Tutorial gallery: each example notebook compiled to an editable,
+    # auto-running WASM page at /gallery/<name>/ (linked from
+    # docs/gallery.md); marimo runtime deduped across notebooks.
+    - name: Build tutorial gallery (marimo html-wasm)
+      run: .github/scripts/build_gallery.sh
 
     # TEMPORARY until globalsplinefit is on PyPI: the WASM notebooks
     # micropip-install the package from /wheels/ on this site (see the
@@ -48,6 +42,19 @@ jobs:
         uv build --wheel
         mkdir -p site/wheels
         cp dist/globalsplinefit-*.whl site/wheels/
+
+    # Replace the docs/explorer.md placeholder with the real app, so every
+    # docs deploy ships a current Explorer (release.yml's tag-time deploy to
+    # the same path is now just a harmless extra refresh).
+    - name: Assemble Explorer into the site
+      run: |
+        webapp/update_wheel.sh
+        rsync -a webapp/ site/explorer/ \
+          --exclude __pycache__ \
+          --exclude browser_smoke.py --exclude test_ui.py \
+          --exclude update_wheel.sh --exclude serve.py
+        WHL=$(basename webapp/globalsplinefit-*.whl)
+        sed -i "s|globalsplinefit-[^\"]*\.whl|$WHL|" site/explorer/main.js
 
     - name: Deploy to GitHub Pages
       # STAGING FREEZE (TEMPORARY): live deploys paused while the
