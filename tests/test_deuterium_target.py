@@ -44,18 +44,9 @@ def test_d_flux_positive_and_matches_species_id(cls):
     np.testing.assert_allclose(flux_name, flux_sid)
 
 
-@pytest.mark.parametrize(
-    "cls",
-    [GSFEnergy, GSFRigidity, GSFEnergyPerNucleon, GSFKineticEnergyPerNucleon],
-)
+@pytest.mark.parametrize("cls", ALL_MODEL_CLASSES)
 def test_species_fluxes_sum_to_charge(cls):
-    """p + D species fluxes reproduce the Z=1 charge flux.
-
-    GSFKineticEnergy is exempt: the charge-level evaluation converts kinetic
-    to total energy with the leader (proton) mass for every member — the
-    group-level convention — while a single-species D target uses its own
-    mass, so the terms are evaluated at slightly different total energies.
-    """
+    """p + D species fluxes reproduce the Z=1 charge flux."""
     model = cls()
     np.testing.assert_allclose(
         model.flux(X, 1),
@@ -119,5 +110,11 @@ def test_charge_tuple_semantics_unchanged():
 
 def test_unknown_species_name_lists_valid_names():
     model = GSFEnergy()
-    with pytest.raises(ValueError, match="Unknown group name"):
+    with pytest.raises(ValueError, match="unknown target"):
         model.flux(X, "T")
+
+
+def test_named_proton_excludes_deuterium():
+    model = GSFEnergy()
+    np.testing.assert_allclose(model.flux(X, "p"), model.flux(X, P_SID))
+    assert np.all(model.flux(X, "H") > model.flux(X, "p"))

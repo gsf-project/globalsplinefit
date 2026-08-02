@@ -74,7 +74,6 @@ from .model import (
     GSFKineticEnergyPerNucleon,
     GSFRigidity,
 )
-from .pca import HybridPCA
 from .reduced import RECOMMENDED_PIVOTS, ReducedGSF, optimize_pivots
 
 __all__ = [
@@ -83,7 +82,6 @@ __all__ = [
     "GSFEnergyPerNucleon",
     "GSFKineticEnergyPerNucleon",
     "GSFRigidity",
-    "HybridPCA",
     "RECOMMENDED_PIVOTS",
     "ReducedGSF",
     "optimize_pivots",

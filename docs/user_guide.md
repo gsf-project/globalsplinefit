@@ -102,22 +102,20 @@ flux = gsf_rigidity.flux(rigidity, "p")
 All model classes accept a `version` parameter selecting the fitted parameter set:
 
 ```python
-gsf = GSFEnergy()                        # promoted default: 2026
-gsf_uso = GSFEnergy(version="2026-USO")   # the one sanctioned alternative
-gsf_uhe = GSFEnergy(version="2026-UHE-S23e")  # single-interpretation UHE variant
-gsf_epos = GSFEnergy(version="2026-EPOS-LHCR")  # single-interpretation EPOS variant
-gsf_2025 = GSFEnergy(version="2025")     # superseded historical release
+gsf = GSFEnergy()                           # default 2026 fit
+gsf_uso = GSFEnergy(version="2026-USO")     # Usoskin modulation variant
+gsf_uhe = GSFEnergy(version="2026-UHE-S23e")
+gsf_epos = GSFEnergy(version="2026-EPOS-LHCR")
+gsf_2025 = GSFEnergy(version="2025")        # historical release
 ```
 
-There is **one promoted model** and **three sanctioned variants of it**: the
-same fit under the Usoskin potential (the solar-modulation systematic) and
-the two single-interpretation sets (SIBYLL-2.3e for UHE work, EPOS-LHC-R as
-the other half of the mixture). Everything else in the table is a superseded
-release kept so that older work can be reproduced.
+The 2026 family includes a solar-modulation variant and two fits using a
+single hadronic-interaction interpretation. Older releases remain available
+for reproducibility.
 
 | Version | Status | Covering | Modulation | Description |
 |---------|--------|----------|------------|-------------|
-| `"2026"` | **current -- default** | SIBYLL-2.3e / EPOS-LHC-R mixture | Ghelfi--Maurin--Derome (**baseline**) | **The promoted model.** Use this unless you have a specific reason not to |
+| `"2026"` | **current -- default** | SIBYLL-2.3e / EPOS-LHC-R mixture | Ghelfi--Maurin--Derome (**baseline**) | Default 2026 fit |
 | `"2026-USO"` | current -- alternative | SIBYLL-2.3e / EPOS-LHC-R mixture | Usoskin 2017 (alternative) | The same fit with the other potential; use it to gauge the solar-modulation systematic |
 | `"2026-UHE-S23e"` | current -- UHE variant | Auger FD-2026 SIBYLL-2.3e only | Ghelfi--Maurin--Derome | Single hadronic-interaction interpretation, for UHE/air-shower applications that cannot use a mixture band |
 | `"2026-EPOS-LHCR"` | current -- variant | Auger FD-2026 EPOS-LHC-R only | Ghelfi--Maurin--Derome | The other single-interpretation half of the mixture |
@@ -125,14 +123,8 @@ release kept so that older work can be reproduced.
 | `"2019"` | historical | superseded | Usoskin | Legacy published release |
 | `"2017"` | historical | superseded | Usoskin | Original GSF release (Dembinski et al. 2017) |
 
-The historical sets are **not** alternatives to the current fit: they are earlier
-published releases, retained only for reproducing results that cited them.
-
-After every promotion of a new fit, the four current sets are regenerated
-together from the promoted run and re-shipped; the historical sets are static.
-This seven-directory lineup (`2026`, `2026-USO`, `2026-UHE-S23e`,
-`2026-EPOS-LHCR`, `2025`, `2019`, `2017`) is the package's release-complete
-shipping state.
+The historical sets are earlier published releases retained for reproducing
+results that cited them.
 
 `get_available_versions(include_historical=False)` returns just the current
 sets, and `version_info(version)` reports any version's status, covering and
@@ -180,10 +172,13 @@ All models support these cosmic ray groups:
 
 | Group | Description | Atomic Numbers |
 |-------|-------------|----------------|
-| `"p"` | Proton group | Z = 1 |
-| `"He"` | Helium group | Z = 2 |
-| `"O"` | Oxygen group | Z = 3--9 |
-| `"Fe"` | Iron group | Z = 10--28 |
+| `"H"` | Hydrogen group (p and D when available) | Z = 1 |
+| `"He"` | Helium isotopes | Z = 2 |
+| `"O*"` or `"CNO"` | Light/intermediate group | Z = 3--9 |
+| `"Fe*"` or `"heavy"` | Heavy group | Z = 10--28 |
+
+Use `"p"`, `"O"`, or `"Fe"` for the individual proton, oxygen, or iron
+species rather than the complete group.
 
 ## Sub-leading Elements and High-Energy Extrapolation
 
@@ -266,7 +261,7 @@ See the [Rigidity Cutoff tutorial](../gallery/rigidity_cutoff/) for more details
 
 - **Vectorization**: All methods support vectorized calculations
 - **Energy ranges**: The fit spans ~1 GeV -- 10^11 GeV total energy per nucleus
-- **Caching**: Jacobian matrices are cached for repeated calculations
+- **Caching**: Repeated Jacobians use a byte-bounded in-memory cache
 - **Memory**: Consider chunking for very large arrays (>10^6 points)
 
 ## Data Export

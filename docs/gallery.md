@@ -73,15 +73,6 @@ or Jupyter.
 
     [:octicons-arrow-right-24: Open](reduced_model/)
 
--   **Hybrid PCA**
-
-    ---
-
-    `HybridPCA`: low-rank representation of the flux covariance —
-    validation, components, MC sampling.
-
-    [:octicons-arrow-right-24: Open](hybrid_pca/)
-
 </div>
 
 The notebook sources live in

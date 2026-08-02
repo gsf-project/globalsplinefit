@@ -66,7 +66,7 @@ class TestGSFKineticEnergyPerNucleon:
     def test_all_groups_work(self, model_kinetic):
         """Test that all cosmic ray groups work with kinetic energy per nucleon."""
         kinetic_energy = np.array([10.0])
-        groups = ["p", "He", "O*", "Fe*"]
+        groups = model_kinetic.active_groups
 
         for group in groups:
             flux = model_kinetic.flux(kinetic_energy, group)
@@ -131,7 +131,7 @@ class TestGSFKineticEnergyPerNucleon:
 
         # Calculate sum of individual groups for comparison
         individual_sum = np.zeros_like(kinetic_energy)
-        for group in ["p", "He", "O*", "Fe*"]:
+        for group in model_kinetic.active_groups:
             individual_sum += model_kinetic.flux(kinetic_energy, group)
 
         # Total flux should equal sum of individual groups
@@ -179,7 +179,7 @@ class TestGSFKineticEnergyPerNucleon:
         """Test that energy conversion is consistent across all groups."""
         kinetic_energy = np.array([10.0])
 
-        for group in ["p", "He", "O*", "Fe*"]:
+        for group in model_kinetic.active_groups:
             # Get flux from kinetic model
             flux_kinetic = model_kinetic.flux(kinetic_energy, group)
 
@@ -235,7 +235,7 @@ class TestGSFKineticEnergyPerNucleon:
         """Test that flux values are physically reasonable."""
         kinetic_energy = np.logspace(0, 3, 100)  # 1 GeV/nucleon to 1 TeV/nucleon
 
-        for group in ["p", "He", "O*", "Fe*"]:
+        for group in model_kinetic.active_groups:
             flux = model_kinetic.flux(kinetic_energy, group)
 
             # Flux should decrease with energy (cosmic ray spectrum)
@@ -252,7 +252,7 @@ class TestGSFKineticEnergyPerNucleon:
         # Test energy conversion for different groups
         kinetic_energy = np.array([10.0])
 
-        for group in ["p", "He", "O*", "Fe*"]:
+        for group in model_kinetic.active_groups:
             total_energy = model_kinetic._transform_energy_per_nucleon(
                 kinetic_energy, group
             )

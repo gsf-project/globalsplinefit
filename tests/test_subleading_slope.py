@@ -5,6 +5,7 @@ norm * (R/Rmax)**slope * leader_flux(R). Bundles without subleading.dat
 (2017/2019/2025) must behave exactly as before: ratio recomputed from the
 splines at Rmax, slope 0.
 """
+
 import shutil
 from pathlib import Path
 
@@ -31,7 +32,7 @@ def _bundle_with_subleading(tmp_path, rows):
     with open(dst / "subleading.dat", "w") as f:
         f.write("#Z\tA\tnorm\tslope\n")
         for z, a, norm, slope in rows:
-            f.write("%i\t%.3f\t%.8e\t%.6f\n" % (z, a, norm, slope))
+            f.write(f"{z:d}\t{a:.3f}\t{norm:.8e}\t{slope:.6f}\n")
     return dst
 
 
@@ -49,14 +50,13 @@ def test_stored_norm_and_slope_are_applied(base_model, tmp_path):
     sid = _li_sid(base_model)
     leader_sid, ratio = base_model.flux_ratio[sid]
     slope = -0.30
-    bundle = _bundle_with_subleading(
-        tmp_path, [(sid[0], sid[1], ratio, slope)])
+    bundle = _bundle_with_subleading(tmp_path, [(sid[0], sid[1], ratio, slope)])
     m = GSFRigidity(data_path=bundle, default_time_interval="LIS")
     assert m.flux_slope[sid] == slope
 
     xmax = base_model.kx[sid][-1]
-    R = np.exp(xmax + np.array([0.3, 1.0, 2.0]))    # GV, above Rmax
-    base = base_model.flux(R, LI)                   # = ratio * leader
+    R = np.exp(xmax + np.array([0.3, 1.0, 2.0]))  # GV, above Rmax
+    base = base_model.flux(R, LI)  # = ratio * leader
     tilt = np.exp(slope * (np.log(R) - xmax))
     got = m.flux(R, LI)
     # rtol bounded by the %.8e round-trip of the stored norm
@@ -64,8 +64,7 @@ def test_stored_norm_and_slope_are_applied(base_model, tmp_path):
 
     # below Rmax the species' own spline is untouched
     R_lo = np.exp(xmax - np.array([1.0, 0.3]))
-    np.testing.assert_allclose(m.flux(R_lo, LI), base_model.flux(R_lo, LI),
-                               rtol=1e-12)
+    np.testing.assert_allclose(m.flux(R_lo, LI), base_model.flux(R_lo, LI), rtol=1e-12)
 
 
 def test_continuity_at_xmax_with_stored_values(base_model, tmp_path):
@@ -73,8 +72,7 @@ def test_continuity_at_xmax_with_stored_values(base_model, tmp_path):
     continuous across the matching point for any slope."""
     sid = _li_sid(base_model)
     _, ratio = base_model.flux_ratio[sid]
-    bundle = _bundle_with_subleading(
-        tmp_path, [(sid[0], sid[1], ratio, -0.42)])
+    bundle = _bundle_with_subleading(tmp_path, [(sid[0], sid[1], ratio, -0.42)])
     m = GSFRigidity(data_path=bundle, default_time_interval="LIS")
     xmax = m.kx[sid][-1]
     eps = 1e-9
@@ -94,23 +92,24 @@ def test_zero_slope_file_matches_no_file(base_model, tmp_path):
     bundle = _bundle_with_subleading(tmp_path, rows)
     m = GSFRigidity(data_path=bundle, default_time_interval="LIS")
     R = np.geomspace(1.0, 1e7, 60)
-    for z in (3, 5, 7, 12, 24):     # sub-leadings across both groups
-        np.testing.assert_allclose(m.flux(R, z), base_model.flux(R, z),
-                                   rtol=1e-7, err_msg=f"Z={z}")
+    for z in (3, 5, 7, 12, 24):  # sub-leadings across both groups
+        np.testing.assert_allclose(
+            m.flux(R, z), base_model.flux(R, z), rtol=1e-7, err_msg=f"Z={z}"
+        )
 
 
 def test_tilt_saturates_at_5pv(base_model, tmp_path):
     """Above R_sat = 5e6 GV the extrapolated ratio is constant (the tilt
     exponent saturates at ln(R_sat/Rmax))."""
     from globalsplinefit.model import SUBLEADING_SAT_LNR
+
     sid = _li_sid(base_model)
     _, ratio = base_model.flux_ratio[sid]
     slope = -0.30
-    bundle = _bundle_with_subleading(
-        tmp_path, [(sid[0], sid[1], ratio, slope)])
+    bundle = _bundle_with_subleading(tmp_path, [(sid[0], sid[1], ratio, slope)])
     m = GSFRigidity(data_path=bundle, default_time_interval="LIS")
     xmax = m.kx[sid][-1]
-    R = np.array([5.0e6, 5.0e7])                # at and above saturation, GV
+    R = np.array([5.0e6, 5.0e7])  # at and above saturation, GV
     r = m.flux(R, LI) / base_model.flux(R, LI)  # tilt factor vs constant-ratio
     expect = np.exp(slope * (SUBLEADING_SAT_LNR - xmax))
     np.testing.assert_allclose(r, expect, rtol=1e-7)
@@ -122,12 +121,11 @@ def test_jacobian_carries_the_tilt(base_model, tmp_path):
     sid = _li_sid(base_model)
     _, ratio = base_model.flux_ratio[sid]
     slope = -0.30
-    bundle = _bundle_with_subleading(
-        tmp_path, [(sid[0], sid[1], ratio, slope)])
+    bundle = _bundle_with_subleading(tmp_path, [(sid[0], sid[1], ratio, slope)])
     m = GSFRigidity(data_path=bundle, default_time_interval="LIS")
 
     xmax = base_model.kx[sid][-1]
-    R = np.exp(xmax + np.array([-0.5, 0.5, 1.5]))   # below / above Rmax
+    R = np.exp(xmax + np.array([-0.5, 0.5, 1.5]))  # below / above Rmax
     j_base = base_model.jacobian(R, LI)
     j_new = m.jacobian(R, LI)
     tilt = np.exp(slope * np.clip(np.log(R) - xmax, 0.0, None))

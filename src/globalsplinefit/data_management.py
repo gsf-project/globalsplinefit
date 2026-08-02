@@ -1,6 +1,10 @@
 import json
 import warnings
+from collections.abc import Mapping
+from copy import deepcopy
+from functools import lru_cache
 from pathlib import Path
+from types import MappingProxyType
 
 import numpy as np
 from scipy.interpolate import splev
@@ -16,7 +20,7 @@ SOLAR_CYCLE_24_DURATION_YEARS = 11
 
 
 def _collect_phi_values(
-    phi_dict: dict[int, np.ndarray], start_yyyymm: int, end_yyyymm: int
+    phi_dict: Mapping[int, np.ndarray], start_yyyymm: int, end_yyyymm: int
 ) -> np.ndarray:
     """Collect monthly phi values between start and end (YYYYMM format).
 
@@ -34,25 +38,42 @@ def _collect_phi_values(
     np.ndarray
         Concatenated array of monthly phi values.
     """
-    yr_a, im_a = divmod(start_yyyymm, 100)
-    yr_b, im_b = divmod(end_yyyymm, 100)
-    im_a -= 1  # Convert to 0-indexed months
-    im_b -= 1
 
-    chunks = []
-    if yr_a == yr_b:
-        chunks.append(phi_dict[yr_a][im_a:im_b])
-    else:
-        chunks.append(phi_dict[yr_a][im_a:])
-        for yr in range(yr_a + 1, yr_b):
-            if yr in phi_dict:
-                chunks.append(phi_dict[yr])
-        if yr_b in phi_dict:
-            chunks.append(phi_dict[yr_b][:im_b])
-    return np.concatenate(chunks)
+    def _parse(value: int, name: str) -> tuple[int, int]:
+        if isinstance(value, bool) or not isinstance(value, (int, np.integer)):
+            raise ValueError(f"{name} must be an integer in YYYYMM form")
+        year, month = divmod(int(value), 100)
+        if year < 1 or not 1 <= month <= 12:
+            raise ValueError(f"{name} must be a valid YYYYMM value, got {value!r}")
+        return year, month
+
+    start_year, start_month = _parse(start_yyyymm, "start")
+    end_year, end_month = _parse(end_yyyymm, "end")
+    if start_yyyymm >= end_yyyymm:
+        raise ValueError("time interval start must be earlier than end")
+
+    values = []
+    year, month = start_year, start_month
+    while (year, month) < (end_year, end_month):
+        monthly = phi_dict.get(year)
+        if monthly is None or len(monthly) != 12:
+            raise ValueError(
+                f"solar-modulation data are missing for {year:04d}-{month:02d}"
+            )
+        value = float(monthly[month - 1])
+        if not np.isfinite(value):
+            raise ValueError(
+                f"solar-modulation value is invalid for {year:04d}-{month:02d}"
+            )
+        values.append(value)
+        month += 1
+        if month == 13:
+            year += 1
+            month = 1
+    return np.asarray(values, dtype=float)
 
 
-#: The promoted default model version: a bare ``GSFEnergy()`` resolves to this.
+#: Default model version used by model constructors.
 DEFAULT_VERSION = "2026"
 
 #: Registry of the distributable model versions.
@@ -60,14 +81,11 @@ DEFAULT_VERSION = "2026"
 #: Model names are bare years (plus a variant suffix) -- no "GSF" prefix.
 #:
 #: ``status`` is one of:
-#:   ``"current"``     part of the promoted 2026 fit: the default and its
-#:                     sanctioned variants;
+#:   ``"current"``     the default 2026 fit and its variants;
 #:   ``"historical"``  a previously published GSF release, kept so older work can
-#:                     be reproduced. NOT an alternative to the current fit.
+#:                     be reproduced.
 #:
-#: THE SHIPPING STATE. After every promotion (a new fit becoming the paper
-#: default), the four ``current`` sets are regenerated from the promoted run
-#: and re-shipped together:
+#: The four ``current`` sets are:
 #:
 #:   ``2026``            mixture covering + GMD potential   (the default)
 #:   ``2026-USO``        mixture covering + USO potential   (modulation systematic)
@@ -76,9 +94,7 @@ DEFAULT_VERSION = "2026"
 #:   ``2026-EPOS-LHCR``  single-interpretation Auger FD-2026 EPOS-LHC-R + GMD
 #:                       (the other half of the mixture)
 #:
-#: The ``historical`` sets (``2025``, ``2019``, ``2017``) are static published
-#: releases and are never regenerated. All seven directories must be present
-#: for the package to be release-complete.
+#: The ``historical`` sets (``2025``, ``2019``, ``2017``) are published releases.
 #:
 #: The mixture covering of the two 2026 mixture sets is an equal-weight
 #: parameter-level combination of the Auger FD-2026 SIBYLL-2.3e and EPOS-LHC-R
@@ -95,8 +111,8 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
         "covering": "mixture: equal-weight Auger FD-2026 SIBYLL-2.3e + EPOS-LHC-R",
         "solar_modulation": "GMD (Ghelfi-Maurin-Derome, Ghelfi et al. 2017)",
         "description": (
-            "Promoted default, and the BASELINE on the solar-modulation axis: "
-            "mixture covering with the Ghelfi-Maurin-Derome potential, which the "
+            "Default 2026 mixture fit with the Ghelfi-Maurin-Derome potential, "
+            "which the "
             "data mildly prefer."
         ),
     },
@@ -106,8 +122,8 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
         "covering": "mixture: equal-weight Auger FD-2026 SIBYLL-2.3e + EPOS-LHC-R",
         "solar_modulation": "USO (Usoskin et al. 2017)",
         "description": (
-            "The one sanctioned ALTERNATIVE to the GMD baseline: the same mixture "
-            "fit with the Usoskin 2017 potential, which runs about 65 MV lower "
+            "The same mixture fit with the Usoskin 2017 potential, "
+            "which runs about 65 MV lower "
             "and yields a 10-14% lower interstellar spectrum below 2 GV. Use it "
             "to gauge the solar-modulation systematic."
         ),
@@ -167,18 +183,13 @@ _REQUIRED_FILES = ("knots.dat", "nuclei.dat", "parameters.dat", "covariance.dat"
 def get_available_versions(include_historical: bool = True) -> list[str]:
     """Get the list of available GSF data versions.
 
-    Only versions in the :data:`MODEL_VERSIONS` allow-list are returned, and only
-    when their data files are actually present. A directory under ``data/`` that
-    is not registered is never offered as a version -- it warns instead, so a
-    transient or intermediate fit exported there cannot silently become
-    distributable.
+    Only registered versions whose required data files are present are returned.
 
     Parameters
     ----------
     include_historical
-        When True (default) previously published releases are included alongside
-        the current fit. Pass False for just the current default and its
-        sanctioned alternative.
+        When True (default), include previously published releases. Pass False
+        for the current 2026 family.
 
     Returns
     -------
@@ -252,51 +263,45 @@ class Parameters:
         Path to directory containing GSF data files. If None, uses
         :data:`DEFAULT_VERSION`.
     version : str, optional
-        Model version to use. "2026" (the default) is the promoted fit: the
-        mixture covering -- an equal-weight combination of the Auger FD-2026
-        SIBYLL-2.3e and EPOS-LHC-R interpretations -- with the
-        Ghelfi-Maurin-Derome modulation potential. "2026-USO" is the one
-        sanctioned alternative: the same mixture fit with the Usoskin 2017
-        potential (about 65 MV lower, giving a 10-14% lower interstellar
-        spectrum below 2 GV). "2026-UHE-S23e" and "2026-EPOS-LHCR" are the
-        single-interpretation variants (SIBYLL-2.3e and EPOS-LHC-R,
-        respectively). "2025", "2019" and "2017" are superseded
-        historical releases, kept only so older work can be reproduced. See
-        :data:`MODEL_VERSIONS`. If specified, overrides data_path and uses the
-        corresponding package data directory.
-    solar_cycle_average_bins : int or None, optional
-        Number of bins used to period-average the solar modulation. The monthly
-        phi values of the requested interval are histogrammed into this many
-        weighted representatives (each bin's mean phi, weighted by its month
-        count) and the modulated flux is averaged over them -- the fitter's
-        treatment. Default 6, worst-case 0.50% from the full monthly average
-        over E >= 1 GeV (12 bins gives 0.10%). ``None`` averages over every
-        month explicitly; ``1`` evaluates once at the mean phi (the former
-        "approximate" mode, off by 5.2% at 1 GeV because flux is nonlinear in
-        phi). See :class:`~globalsplinefit.model.GSFBase` for the full table.
+        Registered model version. Defaults to :data:`DEFAULT_VERSION`.
+        See :data:`MODEL_VERSIONS` for provenance and available variants.
     """
+
+    def __setattr__(self, name, value):
+        if getattr(self, "_frozen", False):
+            raise AttributeError("Parameters instances are immutable")
+        object.__setattr__(self, name, value)
 
     def __init__(
         self,
         data_path: str | Path | None = None,
         version: str | None = None,
-        solar_cycle_average_bins: int | None = 6,
     ):
         """Initialize GSF parameters."""
-        if solar_cycle_average_bins is not None and (
-            not isinstance(solar_cycle_average_bins, (int, np.integer))
-            or isinstance(solar_cycle_average_bins, bool)
-            or solar_cycle_average_bins < 1
-        ):
-            raise ValueError(
-                "solar_cycle_average_bins must be a positive int or None, got "
-                f"{solar_cycle_average_bins!r}"
-            )
-        self.solar_cycle_average_bins = (
-            None if solar_cycle_average_bins is None else int(solar_cycle_average_bins)
-        )
         self.data_path = self._setup_data_path(data_path, version)
         self._load_all_data()
+        self._provenance = self._read_provenance()
+        self._validate_loaded_data()
+        self._freeze()
+
+    @classmethod
+    def for_model(
+        cls,
+        data_path: str | Path | None = None,
+        version: str | None = None,
+    ) -> "Parameters":
+        """Return a shared immutable parameter bundle for model instances."""
+        if data_path is not None:
+            return cls(data_path=data_path, version=version)
+        normalized_version = (
+            DEFAULT_VERSION if version is None else str(version).strip()
+        )
+        return cls._cached(normalized_version)
+
+    @staticmethod
+    @lru_cache(maxsize=32)
+    def _cached(version: str) -> "Parameters":
+        return Parameters(version=version)
 
     def _setup_data_path(
         self, data_path: str | Path | None, version: str | None
@@ -306,11 +311,14 @@ class Parameters:
         #: Unlike the constructor argument this is filled in for the default, so
         #: a model built with no arguments still reports what it loaded.
         self.version = None
+        if version is not None and data_path is not None:
+            raise ValueError("pass either version or data_path, not both")
         if version is not None:
             version_str = str(version).strip()
-            if not version_str:
+            if version_str not in MODEL_VERSIONS:
                 raise ValueError(
-                    f"Version '' not found. Available versions: {get_available_versions()}"
+                    f"Version {version_str!r} not found. Available versions: "
+                    f"{get_available_versions()}"
                 )
             data_dir = Path(__file__).parent / "data" / version_str
             if not data_dir.exists():
@@ -338,24 +346,23 @@ class Parameters:
 
     @property
     def provenance(self) -> dict:
-        """What this parameter set actually is, read from its ``fit_result.json``.
+        """Return a copy of the fit provenance metadata."""
+        return deepcopy(self._provenance)
 
-        Returns the recorded fit provenance -- most importantly ``covering`` (the
-        air-shower interpretation, e.g. the SIBYLL/EPOS mixture) and
-        ``solar_modulation_source`` (GMD or USO), the two axes that distinguish
-        the fits. For a registered version the :data:`MODEL_VERSIONS` entry is
-        merged in under ``registry``.
-
-        Returns an empty dict for legacy sets, which predate the metadata file.
-        """
+    def _read_provenance(self) -> dict:
+        """Read and validate ``fit_result.json`` when present."""
         info: dict = {}
         meta_file = self.data_path / "fit_result.json"
         if meta_file.exists():
             try:
-                loaded = json.loads(meta_file.read_text())
-            except (OSError, ValueError):
-                loaded = {}
+                loaded = json.loads(meta_file.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                raise ValueError(f"invalid provenance file: {meta_file}") from exc
+            if not isinstance(loaded, dict):
+                raise ValueError(f"invalid provenance file: {meta_file}")
             meta = loaded.get("metadata", loaded)
+            if not isinstance(meta, dict):
+                raise ValueError(f"invalid provenance metadata: {meta_file}")
             for key in (
                 "covering",
                 "solar_modulation_source",
@@ -376,7 +383,7 @@ class Parameters:
 
     def _load_all_data(self):
         """Load all required GSF data files."""
-        self._load_nuclei_data()      # first: defines the species (Z, A) + groups
+        self._load_nuclei_data()  # first: defines the species (Z, A) + groups
         self._load_knots()
         self._load_parameters()
         self._load_covariance()
@@ -384,58 +391,147 @@ class Parameters:
         self._load_subleading()
         self._calculate_flux_ratios()
 
+    def _validate_loaded_data(self) -> None:
+        """Validate cross-file invariants before a model can use the bundle."""
+        species = set(self.species)
+        if not species:
+            raise ValueError(f"no species found in {self.data_path / 'nuclei.dat'}")
+        knot_species = {key for key in self.kx if isinstance(key, tuple)}
+        parameter_species = {key for key in self.pars if isinstance(key, tuple)}
+        if knot_species != species or parameter_species != species:
+            missing_knots = sorted(species - knot_species)
+            missing_parameters = sorted(species - parameter_species)
+            raise ValueError(
+                "incomplete model bundle: "
+                f"missing knots for {missing_knots}, parameters for {missing_parameters}"
+            )
+        for sid in species:
+            if sid[0] <= 0 or not np.isfinite(sid[1]) or sid[1] <= 0:
+                raise ValueError(f"invalid species identifier {sid!r}")
+            if self.z_ungroup[sid[0]] not in self.leader_sid:
+                raise ValueError(f"species {sid!r} refers to an undefined group leader")
+            knots = self.kx[sid][3:-3]
+            if not np.all(np.isfinite(knots)) or np.any(np.diff(knots) <= 0):
+                raise ValueError(f"knots for species {sid!r} are not finite/increasing")
+            if len(self.pars[sid]) != self.npar[sid] + 4:
+                raise ValueError(f"wrong parameter count for species {sid!r}")
+            if not np.all(np.isfinite(self.pars[sid])):
+                raise ValueError(f"non-finite parameters for species {sid!r}")
+        for (sid1, sid2), block in self.cov.items():
+            if not isinstance(sid1, tuple) or not isinstance(sid2, tuple):
+                continue
+            expected = (self.npar[sid1], self.npar[sid2])
+            if block.shape != expected or not np.all(np.isfinite(block)):
+                raise ValueError(
+                    f"invalid covariance block {(sid1, sid2)!r}: "
+                    f"expected {expected}, got {block.shape}"
+                )
+            reverse = self.cov.get((sid2, sid1))
+            if reverse is None or not np.allclose(
+                block, reverse.T, rtol=1e-12, atol=1e-12
+            ):
+                raise ValueError(f"asymmetric covariance blocks for {sid1!r}, {sid2!r}")
+
+    def _freeze(self) -> None:
+        """Make loaded numerical state safe to share between model instances."""
+        array_maps = (self.kx, self.pars, self.cov, self.phi)
+        for mapping in array_maps:
+            for value in mapping.values():
+                value.setflags(write=False)
+        self.species = tuple(self.species)
+        self._leaders = frozenset(self._leaders)
+        self.z_to_sids = MappingProxyType(
+            {charge: tuple(sids) for charge, sids in self.z_to_sids.items()}
+        )
+        self.z_group = MappingProxyType(
+            {leader: tuple(charges) for leader, charges in self.z_group.items()}
+        )
+        for name in (
+            "kx",
+            "npar",
+            "pars",
+            "offset",
+            "z_to_a",
+            "mass_number",
+            "z_ungroup",
+            "leader_sid",
+            "cov",
+            "phi",
+            "flux_ratio",
+            "flux_slope",
+        ):
+            setattr(self, name, MappingProxyType(dict(getattr(self, name))))
+        object.__setattr__(self, "_frozen", True)
+
     @staticmethod
     def _ncols(path) -> int:
-        """Whitespace-token count of the first data (non-#) line (``:`` -> space).
-        Used to auto-detect the v1 vs v2 .dat column layout."""
+        """Count whitespace-delimited fields in the first data line.
+
+        Used to auto-detect the v1 vs v2 .dat column layout.
+        """
         for line in Path(path).read_text().splitlines():
             if line.strip() and not line.startswith("#"):
                 return len(line.replace(":", " ").split())
         return 0
 
     def _sid_for_z(self, z: int):
-        """The unique species id ``(Z, A)`` at charge ``z`` (v1: one species per
-        charge). Used to normalise v1 files, which key by charge only."""
+        """Return the unique species ID for a charge.
+
+        Version 1 files contain one species per charge and use charge-only keys.
+        """
         return self.z_to_sids[z][0]
 
     def _load_nuclei_data(self):
-        """Load nuclear data from nuclei.dat. Species are identified by ``(Z, A)``
-        so ISOTOPES (e.g. deuteron D at Z=1 alongside p) coexist. The leader of a
-        charge group is the lightest-A species at the leader charge (p for the
-        proton group; the single species otherwise)."""
+        """Load nuclear species and group membership.
+
+        Species use ``(Z, A)`` IDs, allowing isotopes at the same charge. The
+        lightest isotope at a leader charge is the group leader.
+        """
         nuclei_file = self.data_path / "nuclei.dat"
         if not nuclei_file.exists():
             raise FileNotFoundError(f"Nuclei file not found: {nuclei_file}")
 
         data_array = np.atleast_1d(
-            np.loadtxt(nuclei_file, dtype=[("z", int), ("a", float), ("l", int)]))
+            np.loadtxt(nuclei_file, dtype=[("z", int), ("a", float), ("l", int)])
+        )
         rows = [(int(r["z"]), float(r["a"]), int(r["l"])) for r in data_array]
+        species_rows = [(z, a) for z, a, _leader in rows]
+        if len(species_rows) != len(set(species_rows)):
+            raise ValueError(f"duplicate species in {nuclei_file}")
+        if any(z <= 0 or not np.isfinite(a) or round(a) < z for z, a, _ in rows):
+            raise ValueError(f"invalid charge or mass in {nuclei_file}")
 
         self.species = sorted({(z, a) for z, a, _ in rows})  # all species ids
-        self.z_to_a = {(z, a): a for z, a, _ in rows}        # sid -> A (charge
+        self.z_to_a = {(z, a): a for z, a, _ in rows}  # sid -> A (charge
+        self.mass_number = {(z, a): int(round(a)) for z, a, _ in rows}
         #   aliases added by _add_charge_aliases; iterate self.species, not this)
-        self.z_to_sids = {}                                  # charge -> [sids]
+        self.z_to_sids = {}  # charge -> [sids]
         for z, a, _ in rows:
             self.z_to_sids.setdefault(z, []).append((z, a))
-        # leader sid per group charge l: the lightest-A species with z == l
-        self.leader_sid = {}                                 # charge -> leader sid
-        for z, a, l in rows:
-            if z == l and (l not in self.leader_sid or a < self.leader_sid[l][1]):
-                self.leader_sid[l] = (z, a)
-        self._leaders = set(self.leader_sid.values())        # leader sids
+        # Leader sid per group charge: lightest-A species at that charge.
+        self.leader_sid = {}  # charge -> leader sid
+        for z, a, leader in rows:
+            if z == leader and (
+                leader not in self.leader_sid or a < self.leader_sid[leader][1]
+            ):
+                self.leader_sid[leader] = (z, a)
+        self._leaders = set(self.leader_sid.values())  # leader sids
         # Public group structure stays CHARGE-based (one entry per element charge)
         # so charge-indexed callers/tests are unchanged; isotopes are expanded
         # from a charge to its species ids (z_to_sids) inside the flux loops.
-        self.z_group = {}      # int leader charge -> [member element charges]
-        self.z_ungroup = {}    # element charge -> leader charge
-        for z, a, l in rows:
-            if z not in self.z_group.get(l, []):
-                self.z_group.setdefault(l, []).append(z)
-            self.z_ungroup[z] = l
+        self.z_group = {}  # int leader charge -> [member element charges]
+        self.z_ungroup = {}  # element charge -> leader charge
+        for z, _a, leader in rows:
+            if z not in self.z_group.get(leader, []):
+                self.z_group.setdefault(leader, []).append(z)
+            self.z_ungroup[z] = leader
 
     def _load_knots(self):
-        """Load knot data. v2 lines are ``Z A: …``; v1 lines ``Z: …`` (keyed by
-        the unique sid at that charge). Keys are species ids ``(Z, A)``."""
+        """Load spline knots.
+
+        V2 lines are ``Z A: …``; v1 lines ``Z: …`` (keyed by
+        the unique sid at that charge). Keys are species ids ``(Z, A)``.
+        """
         knots_file = self.data_path / "knots.dat"
         if not knots_file.exists():
             raise FileNotFoundError(f"Knots file not found: {knots_file}")
@@ -451,7 +547,7 @@ class Parameters:
                 toks = head.split()
                 z = int(toks[0])
                 sid = (z, float(toks[1])) if len(toks) >= 2 else self._sid_for_z(z)
-                x = np.log([10 ** float(v) for v in k.split()])
+                x = np.asarray([float(v) * np.log(10.0) for v in k.split()])
                 self.npar[sid] = len(x) + 2
                 # splev requires extended knot vector
                 x = np.append((x[0], x[0], x[0]), x)
@@ -467,9 +563,13 @@ class Parameters:
         self.pars = {}
         self.offset = {}
         v2 = self._ncols(params_file) >= 4
-        dt = ([("i", int), ("z", int), ("a", float), ("val", float)] if v2
-              else [("i", int), ("z", int), ("val", float)])
+        dt = (
+            [("i", int), ("z", int), ("a", float), ("val", float)]
+            if v2
+            else [("i", int), ("z", int), ("val", float)]
+        )
         data_array = np.atleast_1d(np.loadtxt(params_file, dtype=dt))
+        seen: dict[tuple[int, float], set[int]] = {}
 
         for r in data_array:
             i, z, val = int(r["i"]), int(r["z"]), float(r["val"])
@@ -478,20 +578,46 @@ class Parameters:
                 # 4 extra zeros at the end are needed by splev
                 self.pars[sid] = np.zeros(self.npar[sid] + 4)
                 self.offset[sid] = i
-            self.pars[sid][i - self.offset[sid]] = val
+                seen[sid] = set()
+            local_index = i - self.offset[sid]
+            if local_index in seen[sid] or not 0 <= local_index < self.npar[sid]:
+                raise ValueError(
+                    f"invalid or duplicate parameter index {i} for {sid!r}"
+                )
+            seen[sid].add(local_index)
+            self.pars[sid][local_index] = val
+
+        for sid in self.species:
+            if seen.get(sid) != set(range(self.npar[sid])):
+                raise ValueError(f"incomplete parameter vector for species {sid!r}")
 
     def _load_covariance(self):
-        """Load covariance. v2: ``i j Z1 A1 Z2 A2 val``; v1: ``i j Z1 Z2 val``.
-        Keyed by species-id pairs ``((Z1,A1), (Z2,A2))``."""
+        """Load the parameter covariance.
+
+        V2 rows contain ``i j Z1 A1 Z2 A2 value``; v1 rows contain
+        ``i j Z1 Z2 value``.
+
+        Keyed by species-id pairs ``((Z1,A1), (Z2,A2))``.
+        """
         cov_file = self.data_path / "covariance.dat"
         if not cov_file.exists():
             raise FileNotFoundError(f"Covariance file not found: {cov_file}")
 
         self.cov = {}
         v2 = self._ncols(cov_file) >= 7
-        dt = ([("i", int), ("j", int), ("z1", int), ("a1", float),
-               ("z2", int), ("a2", float), ("val", float)] if v2
-              else [("i", int), ("j", int), ("z1", int), ("z2", int), ("val", float)])
+        dt = (
+            [
+                ("i", int),
+                ("j", int),
+                ("z1", int),
+                ("a1", float),
+                ("z2", int),
+                ("a2", float),
+                ("val", float),
+            ]
+            if v2
+            else [("i", int), ("j", int), ("z1", int), ("z2", int), ("val", float)]
+        )
         data_array = np.atleast_1d(np.loadtxt(cov_file, dtype=dt))
 
         for r in data_array:
@@ -501,12 +627,23 @@ class Parameters:
                 s2 = (int(r["z2"]), float(r["a2"]))
             else:
                 s1, s2 = self._sid_for_z(int(r["z1"])), self._sid_for_z(int(r["z2"]))
+            if s1 not in self.npar or s2 not in self.npar:
+                raise ValueError(
+                    f"covariance references unknown species {s1!r}, {s2!r}"
+                )
+            local_i = i - self.offset[s1]
+            local_j = j - self.offset[s2]
+            if not 0 <= local_i < self.npar[s1] or not 0 <= local_j < self.npar[s2]:
+                raise ValueError(
+                    f"covariance index {(i, j)!r} is outside the parameter blocks "
+                    f"for {s1!r}, {s2!r}"
+                )
             if (s1, s2) not in self.cov:
                 self.cov[(s1, s2)] = np.zeros((self.npar[s1], self.npar[s2]))
             if (s2, s1) not in self.cov:
                 self.cov[(s2, s1)] = np.zeros((self.npar[s2], self.npar[s1]))
-            self.cov[(s1, s2)][i - self.offset[s1], j - self.offset[s2]] = val
-            self.cov[(s2, s1)][j - self.offset[s2], i - self.offset[s1]] = val
+            self.cov[(s1, s2)][local_i, local_j] = val
+            self.cov[(s2, s1)][local_j, local_i] = val
 
     def _load_solar_modulation(self):
         """Load the monthly solar-modulation potential table (phi, MV).
@@ -549,27 +686,31 @@ class Parameters:
             self.phi[int(row[0])] = months * 1e-3  # MV -> GV
 
     def _load_subleading(self):
-        """Load the OPTIONAL subleading.dat extrapolation table: per sub-leading
-        species ``(Z, A, norm, slope)`` with ratio(R > Rmax) = norm *
-        (R/Rmax)**slope above the species' top knot Rmax. Absent in pre-slope
-        bundles (2017/2019/2025) -> empty table, and the constant-ratio
-        extrapolation is recomputed from the splines exactly as before."""
+        """Load optional subleading-species extrapolation parameters.
+
+        Rows contain ``(Z, A, norm, slope)``. Older bundles omit this file and
+        use a constant ratio computed from the splines at the top knot.
+        """
         self._stored_sub = {}
         sub_file = self.data_path / "subleading.dat"
         if not sub_file.exists():
             return
         dt = [("z", int), ("a", float), ("norm", float), ("slope", float)]
         for r in np.atleast_1d(np.loadtxt(sub_file, dtype=dt)):
-            self._stored_sub[(int(r["z"]), float(r["a"]))] = (
-                float(r["norm"]), float(r["slope"]))
+            sid = (int(r["z"]), float(r["a"]))
+            values = (float(r["norm"]), float(r["slope"]))
+            if sid not in self.species or sid in self._stored_sub:
+                raise ValueError(f"invalid or duplicate species {sid!r} in {sub_file}")
+            if not np.all(np.isfinite(values)) or values[0] < 0:
+                raise ValueError(f"invalid extrapolation values for {sid!r}")
+            self._stored_sub[sid] = values
 
     def _calculate_flux_ratios(self):
-        """Calculate flux ratios (and extrapolation slopes) for subleading
-        species (keyed by species id). When subleading.dat supplied stored
-        (norm, slope) values, those are used verbatim — they are the values the
-        fit itself used; otherwise the ratio is recomputed from the splines at
-        the species' top knot and the slope defaults to 0 (the historical
-        constant-ratio extrapolation)."""
+        """Calculate subleading-species flux ratios and slopes.
+
+        Stored values take precedence. Otherwise the ratio is evaluated at the
+        species' top knot and the slope is zero.
+        """
         self.flux_ratio = {}
         self.flux_slope = {}
 
@@ -584,7 +725,8 @@ class Parameters:
                     ratio = splev(
                         xmax, (self.kx[sid], self.pars[sid], SPLINE_DEGREE)
                     ) / splev(
-                        xmax, (self.kx[leader_sid], self.pars[leader_sid], SPLINE_DEGREE)
+                        xmax,
+                        (self.kx[leader_sid], self.pars[leader_sid], SPLINE_DEGREE),
                     )
                     slope = 0.0
             else:
@@ -594,11 +736,10 @@ class Parameters:
         self._add_charge_aliases()
 
     def _add_charge_aliases(self):
-        """Expose the per-species dicts under a bare integer charge as well, for
-        every charge with a SINGLE species (all charges in a v1 model). Lets
-        charge-indexed access (existing callers/tests) coexist with (Z, A) keys.
-        ``species`` (not ``z_to_a``) is the species iterator, so aliasing z_to_a
-        is safe. Multi-species charges (e.g. Z=1 with p+D) get no int alias."""
+        """Add integer aliases for charges with exactly one species.
+
+        Multi-isotope charges require explicit ``(Z, A)`` keys.
+        """
         for z, sids in self.z_to_sids.items():
             if len(sids) != 1:
                 continue
@@ -608,9 +749,10 @@ class Parameters:
             self.pars[z] = self.pars[s]
             self.offset[z] = self.offset[s]
             self.z_to_a[z] = self.z_to_a[s]
+            self.mass_number[z] = self.mass_number[s]
             self.flux_ratio[z] = self.flux_ratio[s]
             self.flux_slope[z] = self.flux_slope[s]
-        for (s1, s2) in list(self.cov):
+        for s1, s2 in list(self.cov):
             z1, z2 = s1[0], s2[0]
             if len(self.z_to_sids[z1]) == 1 and len(self.z_to_sids[z2]) == 1:
                 self.cov[(z1, z2)] = self.cov[(s1, s2)]
@@ -662,12 +804,6 @@ def list_versions(return_paths: bool = False) -> None | list:
         If return_paths is True, returns list of valid Path objects.
         Otherwise prints table and returns None.
     """
-    try:
-        from tabulate import tabulate
-    except ImportError:
-        print("tabulate package not available. Install with: pip install tabulate")
-        return [] if return_paths else None
-
     # Get the data directory from the package
     current_dir = Path(__file__).parent
     data_dir = current_dir / "data"
@@ -706,9 +842,13 @@ def list_versions(return_paths: bool = False) -> None | list:
     if return_paths:
         return valid_paths
 
-    # Display results as a table
     if results:
-        headers = ["Version", "Status", "Error Reason"]
-        print(tabulate(results, headers=headers, tablefmt="grid"))
+        widths = [
+            max(len(header), *(len(str(row[index])) for row in results))
+            for index, header in enumerate(("Version", "Status", "Error"))
+        ]
+        print(f"{'Version':<{widths[0]}}  {'Status':<{widths[1]}}  Error")
+        for version_name, status, reason in results:
+            print(f"{version_name:<{widths[0]}}  {status:<{widths[1]}}  {reason}")
     else:
         print("No GSF data versions found in the data directory.")

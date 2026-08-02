@@ -71,12 +71,6 @@ The main interface to GlobalSplineFit functionality.
         - get_solar_cycle_24_phi_average
       show_bases: true
 
-## PCA
-
-::: globalsplinefit.pca.HybridPCA
-    options:
-      show_bases: true
-
 ## Reduced representation
 
 ::: globalsplinefit.reduced.ReducedGSF
@@ -91,7 +85,7 @@ The main interface to GlobalSplineFit functionality.
 
 Dictionary mapping group names to atomic numbers.
 
-Maps string group names (`"p"`, `"He"`, `"O*"`, `"Fe*"`, etc.) to their
+Maps string group names (`"H"`, `"He"`, `"O*"`, `"Fe*"`, etc.) to their
 corresponding group leader atomic numbers.
 
 ```python

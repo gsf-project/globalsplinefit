@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   were already year-named.
 - **The shipping state is now documented and enforced by the registry**: after
   every promotion the four `current` sets (`2026`, `2026-USO`,
-  `2026-UHE-S23e`, `2026-EPOS-LHCR`) are regenerated from the promoted run and
+  `2026-UHE-S23e`, `2026-EPOS-LHCR`) are generated from the same fit and
   re-shipped together; `2025`/`2019`/`2017` are static historical releases.
   All seven directories constitute the release-complete package.
 
@@ -53,8 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `DEFAULT_VERSION`, `MODEL_VERSIONS` and `version_info()`: an explicit registry
-  of distributable versions, marking each `current` (the default and its one
-  sanctioned alternative) or `historical` (a superseded release). Only registered
+  of distributable versions, marking each `current` (the default and its
+  variants) or `historical` (an earlier release). Only registered
   directories are offered as versions, so an intermediate fit exported into
   `data/` cannot become distributable by accident -- unregistered directories
   warn instead. `get_available_versions(include_historical=False)` returns just

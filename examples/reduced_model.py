@@ -34,13 +34,6 @@ def _(mo):
     p–n correlations between pivots; between them the deformation is
     interpolated, which is median-unbiased and errs conservative.
 
-    Why not a PCA basis? A truncated eigenbasis is optimal for the *total*
-    variance, but with a feasible number of components it systematically
-    *understates* the uncertainty between the leading modes (a penalty term
-    built from it over-constrains the flux exactly where the model is least
-    known). The `hybrid_pca` notebook covers that construction, which remains
-    the right tool for reproducing the covariance compactly.
-
     Intended fit loop — no setup, the default is the published grid:
 
     ```python
@@ -335,12 +328,12 @@ def _(mo):
     mo.md(r"""
     ## The components
 
-    The reduced model's analog of the PCA mode plot: each panel shows the flux
+    Each panel shows the flux
     deformation $1 \pm \sigma_k H_k(E)$ produced by moving one component by its
     prior width — protons (blue) and neutrons (orange). This is exactly the
     operation a downstream fit performs to build its Jacobian
-    (`red.flux_jacobian(E)` returns it analytically). Unlike PCA eigenmodes,
-    each component is local: a smooth bump confined to the two intervals
+    (`red.flux_jacobian(E)` returns it analytically). Each component is local:
+    a smooth bump confined to the two intervals
     around its own pivot, with small side lobes (the local cubic cardinal
     functions dip to about $-0.12$). The dotted curve in the first panel shows
     the same component with `basis="hat"` — non-negative but kinked; the

@@ -17,14 +17,11 @@ class TestModelEdgeCases:
         assert np.all(flux >= 0), "Flux should be non-negative for zero/low energies"
 
     def test_inf_nan_energy_handling(self, gsf_energy):
-        """Test handling of infinite or NaN energies."""
-        # Test with inf energies - should handle gracefully
-        inf_energies = np.array([np.inf, -np.inf])
-        flux = gsf_energy.flux(inf_energies, "p")
-
-        assert isinstance(flux, np.ndarray)
-        assert len(flux) == len(inf_energies)
-        # The flux might be NaN or zero, but shouldn't crash
+        """Non-finite energies are rejected instead of producing plausible output."""
+        with pytest.raises(ValueError, match="finite"):
+            gsf_energy.flux(np.array([np.inf, -np.inf]), "p")
+        with pytest.raises(ValueError, match="finite"):
+            gsf_energy.flux(np.array([np.nan]), "p")
 
     def test_very_large_array(self, gsf_energy):
         """Test performance with very large energy arrays."""
@@ -85,31 +82,18 @@ class TestModelEdgeCases:
         assert isinstance(flux3, np.ndarray)
 
     def test_rigidity_negative_values(self, gsf_rigidity):
-        """Test rigidity model with negative rigidity values."""
+        """The nuclei model accepts rigidity magnitudes, not signed rigidity."""
         negative_rigidities = np.array([-5, -0.1, 0.0, 0.1, 1.0])
-        flux = gsf_rigidity.flux(negative_rigidities, "p")
-
-        assert isinstance(flux, np.ndarray)
-        assert len(flux) == len(negative_rigidities)
-        # Negative rigidity should typically give zero or very small flux
-        assert np.all(flux >= 0), (
-            "Flux should be non-negative even for negative rigidity"
-        )
+        with pytest.raises(ValueError, match="non-negative"):
+            gsf_rigidity.flux(negative_rigidities, "p")
 
     def test_nucleon_flux_consistency_check(self, gsf_nucleon):
         """Test internal consistency of nucleon flux calculations."""
         test_energies = np.array([10.0, 100.0, 1000.0])
 
-        # For proton group, neutron flux should be ~0.008 of proton flux
-        # Use p_and_n_flux to get separate components
+        # An individual proton has no neutron contribution.
         proton_flux = gsf_nucleon.p_and_n_flux(test_energies, "p")
-        neutron_to_proton_ratio = proton_flux[1] / proton_flux[0]
-        np.testing.assert_allclose(
-            neutron_to_proton_ratio,
-            0.008,
-            rtol=0.1,
-            err_msg="Neutron to proton flux ratio should be ~0.008",
-        )
+        np.testing.assert_array_equal(proton_flux[1], 0.0)
 
         # For helium, should have equal numbers of protons and neutrons
         # Use p_and_n_flux to get separate components
@@ -204,7 +188,7 @@ class TestModelEdgeCases:
 
         # Perform several large calculations
         large_energies = np.logspace(0, 6, 1000)
-        for group in ["p", "He", "O", "Fe"]:
+        for group in gsf_energy.active_groups:
             flux = gsf_energy.flux(large_energies, group)
             del flux
             gc.collect()

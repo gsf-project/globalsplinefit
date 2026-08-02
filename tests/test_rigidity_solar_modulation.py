@@ -188,7 +188,7 @@ class TestGSFRigiditySolarModulation:
     def test_flux_all_groups_with_modulation(self, gsf_rigidity):
         """Test that solar modulation works for all cosmic ray groups."""
         rigidity = np.logspace(0, 2, 15)
-        groups = ["p", "He", "O*", "Fe*"]
+        groups = gsf_rigidity.active_groups
 
         try:
             time_interval = (200901, 200912)
@@ -418,14 +418,10 @@ class TestGSFRigidityConsistency:
         rigidity = np.array([1.0, 10.0])
 
         # Invalid time intervals should raise appropriate errors
-        with pytest.raises(
-            ValueError, match="Time interval start and end cannot be the same"
-        ):
+        with pytest.raises(ValueError, match="start must be earlier than end"):
             gsf_rigidity.flux(rigidity, "p", time_interval=(200901, 200901))
 
-        with pytest.raises(
-            ValueError, match="Time interval start must be less than end"
-        ):
+        with pytest.raises(ValueError, match="start must be earlier than end"):
             gsf_rigidity.flux(rigidity, "p", time_interval=(200912, 200901))
 
     def test_element_and_group_consistency(self, gsf_rigidity):
@@ -468,11 +464,11 @@ class TestSolarCycleAveraging:
         rigidity = np.array([1.5])  # 1.5 GV test point
 
         # Single bin: evaluate once at the mean phi (the old "approximate" mode)
-        gsf_rigidity.params.solar_cycle_average_bins = 1
+        gsf_rigidity.solar_cycle_average_bins = 1
         flux_approx = gsf_rigidity.flux(rigidity, "p")
 
         # Full explicit monthly average
-        gsf_rigidity.params.solar_cycle_average_bins = None
+        gsf_rigidity.solar_cycle_average_bins = None
         flux_explicit = gsf_rigidity.flux(rigidity, "p")
 
         # Calculate relative difference
@@ -485,20 +481,20 @@ class TestSolarCycleAveraging:
         )
 
         # Reset to default
-        gsf_rigidity.params.solar_cycle_average_bins = 6
+        gsf_rigidity.solar_cycle_average_bins = 6
 
     def test_default_bins_track_explicit_closely(self, gsf_rigidity):
         """The 6-bin default must sit far closer to explicit than a single bin."""
         rigidity = np.array([1.5])
         try:
-            gsf_rigidity.params.solar_cycle_average_bins = None
+            gsf_rigidity.solar_cycle_average_bins = None
             ref = gsf_rigidity.flux(rigidity, "p")[0]
-            gsf_rigidity.params.solar_cycle_average_bins = 6
+            gsf_rigidity.solar_cycle_average_bins = 6
             six = gsf_rigidity.flux(rigidity, "p")[0]
-            gsf_rigidity.params.solar_cycle_average_bins = 1
+            gsf_rigidity.solar_cycle_average_bins = 1
             one = gsf_rigidity.flux(rigidity, "p")[0]
         finally:
-            gsf_rigidity.params.solar_cycle_average_bins = 6
+            gsf_rigidity.solar_cycle_average_bins = 6
         assert abs(six / ref - 1) < 0.02
         assert abs(six / ref - 1) < abs(one / ref - 1)
 
@@ -536,14 +532,14 @@ class TestSolarCycleAveraging:
         # separate single-phi shortcut.
         try:
             for bins in (1, 6, 12, None):
-                gsf_rigidity.params.solar_cycle_average_bins = bins
+                gsf_rigidity.solar_cycle_average_bins = bins
                 flux_explicit_sc24 = gsf_rigidity.flux(
                     rigidity, "p", time_interval=(start, end)
                 )
                 flux_default = gsf_rigidity.flux(rigidity, "p")
                 np.testing.assert_allclose(flux_default, flux_explicit_sc24, rtol=1e-10)
         finally:
-            gsf_rigidity.params.solar_cycle_average_bins = 6
+            gsf_rigidity.solar_cycle_average_bins = 6
 
 
 class TestPhiBinning:

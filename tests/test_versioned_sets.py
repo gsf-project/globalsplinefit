@@ -1,6 +1,6 @@
 """Coverage for the shipped parameter sets and the default version.
 
-2026 is the promoted default: the equal-weight SIBYLL-2.3e/EPOS-LHC-R
+2026 is the default equal-weight SIBYLL-2.3e/EPOS-LHC-R
 mixture covering with the Ghelfi-Maurin-Derome modulation potential.
 2026-USO is the same mixture fit with the Usoskin 2017 potential, which
 yields a lower low-rigidity local interstellar spectrum. 2026-UHE-S23e and
@@ -10,6 +10,7 @@ EPOS-LHC-R, both GMD). All 2026 sets are isotope-format sets
 is not defined for the multi-species charges Z=1 (p+D) and Z=2 (3He+4He); the
 name/tuple flux API is used throughout here.
 """
+
 import numpy as np
 import pytest
 
@@ -35,7 +36,7 @@ def test_default_is_gsf2026():
     default = GSFEnergy()
     explicit = GSFEnergy(version="2026")
     E = np.logspace(0, 4, 50)
-    for g in ("p", "He", "O*", "Fe*"):
+    for g in default.active_groups:
         np.testing.assert_allclose(default.flux(E, g), explicit.flux(E, g), rtol=1e-12)
     assert DEFAULT_VERSION == "2026"
 
@@ -101,10 +102,13 @@ def test_current_sets_are_the_mixture_and_declare_provenance():
         assert version_info(version)["covering"] == prov["registry"]["covering"]
 
 
-@pytest.mark.parametrize("version, model, absent", [
-    ("2026-UHE-S23e", "SIBYLL", "EPOS"),
-    ("2026-EPOS-LHCR", "EPOS", "SIBYLL"),
-])
+@pytest.mark.parametrize(
+    "version, model, absent",
+    [
+        ("2026-UHE-S23e", "SIBYLL", "EPOS"),
+        ("2026-EPOS-LHCR", "EPOS", "SIBYLL"),
+    ],
+)
 def test_single_interpretation_variants(version, model, absent):
     """The single-interpretation sets must be pure one-model fits (no mixture)
     under the same GMD potential as the default, and must say so."""
@@ -121,17 +125,18 @@ def test_historical_sets_are_marked_historical():
         assert MODEL_VERSIONS[name]["status"] == "historical"
 
 
-@pytest.mark.parametrize("version",
-                         ["2026", "2026-USO", "2026-UHE-S23e", "2026-EPOS-LHCR"])
+@pytest.mark.parametrize(
+    "version", ["2026", "2026-USO", "2026-UHE-S23e", "2026-EPOS-LHCR"]
+)
 def test_set_loads_and_is_positive(version):
     m = GSFEnergy(version=version)
     E = np.logspace(0, 6, 80)
-    for g in ("p", "He", "O*", "Fe*"):
+    for g in m.active_groups:
         f = m.flux(E, g)
-        assert np.all(np.isfinite(f))          # never NaN/inf, even below threshold
+        assert np.all(np.isfinite(f))  # never NaN/inf, even below threshold
     # above the heaviest group's threshold all four groups are populated
     E_hi = np.logspace(np.log10(30), 6, 60)
-    for g in ("p", "He", "O*", "Fe*"):
+    for g in m.active_groups:
         assert np.all(m.flux(E_hi, g) > 0)
 
 
@@ -139,13 +144,13 @@ def test_usoskin_lowers_low_rigidity_lis():
     """The Usoskin potential runs lower than the GMD default, so its
     demodulated (LIS) flux is lower at low rigidity and converges to the
     default at high rigidity."""
-    gmd = GSFRigidity(version="2026")        # default
+    gmd = GSFRigidity(version="2026")  # default
     uso = GSFRigidity(version="2026-USO")
     R = np.array([1.5, 5.0, 50.0])
     for g in ("p", "He"):
         jg = gmd.flux(R, g, time_interval="LIS")
         ju = uso.flux(R, g, time_interval="LIS")
-        assert ju[0] / jg[0] - 1.0 < -0.05      # >5% lower at 1.5 GV
+        assert ju[0] / jg[0] - 1.0 < -0.05  # >5% lower at 1.5 GV
         assert abs(ju[-1] / jg[-1] - 1.0) < 0.02  # converged by 50 GV
 
 
@@ -175,9 +180,12 @@ def test_toa_agrees_across_phi_sources():
     R = np.array([1.5, 5.0, 20.0])
     epoch = (201105, 201805)  # AMS-02 era
     for g in ("p", "He"):
-        lis_gap = abs(uso.flux(R, g, time_interval="LIS")[0]
-                      / gmd.flux(R, g, time_interval="LIS")[0] - 1.0)
+        lis_gap = abs(
+            uso.flux(R, g, time_interval="LIS")[0]
+            / gmd.flux(R, g, time_interval="LIS")[0]
+            - 1.0
+        )
         toa = uso.flux(R, g, time_interval=epoch) / gmd.flux(R, g, time_interval=epoch)
-        assert lis_gap > 0.08                       # LIS differ markedly at 1.5 GV
-        assert abs(toa[0] - 1.0) < 0.5 * lis_gap    # TOA gap at least halved
-        assert abs(toa[-1] - 1.0) < 0.01            # ~converged by 20 GV
+        assert lis_gap > 0.08  # LIS differ markedly at 1.5 GV
+        assert abs(toa[0] - 1.0) < 0.5 * lis_gap  # TOA gap at least halved
+        assert abs(toa[-1] - 1.0) < 0.01  # ~converged by 20 GV

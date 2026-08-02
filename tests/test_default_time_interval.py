@@ -37,7 +37,7 @@ class TestDefaultTimeInterval:
         assert model.default_time_interval is None, (
             "Default time interval should be None for Solar Cycle 24 average"
         )
-        assert model.params.solar_cycle_average_bins == 6, (
+        assert model.solar_cycle_average_bins == 6, (
             "Default should period-average the solar cycle over 6 phi bins"
         )
 
