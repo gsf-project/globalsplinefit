@@ -105,11 +105,11 @@ def _load_recommended_pivots() -> dict:
     parameter set instead of a per-user optimizer run.
 
     The grids were derived per version with ``optimize_pivots(n_pivots=12,
-    n_grid=300, n_restarts=4, seed=0)`` and polished on round values; the
-    2026 family intentionally shares one grid (theta keeps its meaning when
-    versions are swapped to gauge systematics).  Provenance and measured
-    worst-case coverage factors live in each file's header.  Regenerate when
-    a model version is updated.
+    n_grid=300, n_restarts=4, seed=0)`` and polished on round values — every
+    version ships its own table, so theta components are defined at
+    version-specific energies (they do not line up 1:1 across versions).
+    Provenance and measured worst-case coverage factors live in each file's
+    header.  Regenerate when a model version is updated.
     """
     from pathlib import Path
 

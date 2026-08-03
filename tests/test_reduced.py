@@ -70,14 +70,10 @@ class TestConstruction:
             assert np.all(np.diff(grid) > 0), version
             assert grid[0] == 1.0 and grid[-1] == 1e9, version
 
-    def test_2026_family_shares_one_grid(self):
-        """theta components stay comparable when swapping 2026 variants."""
-        for version in ("2026-USO", "2026-S23e", "2026-EPOS-LHCR"):
-            assert RECOMMENDED_PIVOTS[version] == RECOMMENDED_PIVOTS["2026"]
-
-    def test_historical_grids_are_version_specific(self):
-        for version in ("2017", "2019", "2025"):
-            assert RECOMMENDED_PIVOTS[version] != RECOMMENDED_PIVOTS["2026"]
+    def test_every_version_has_its_own_grid(self):
+        """Each shipped set carries its own optimized pivot table."""
+        grids = list(RECOMMENDED_PIVOTS.values())
+        assert len(grids) == len(set(grids))
 
     def test_shipped_grid_matches_bundle_file(self):
         model = GSFEnergyPerNucleon(version="2019")
@@ -248,15 +244,15 @@ class TestFlux:
 
 
 class TestPublishedGrid:
-    # Measured worst-case coverage factors of each shipped grid (150-point
-    # check grid) plus a small margin. The 2026 family shares the 2026 grid;
-    # the historical sets carry their own optimized tables (the shared grid
-    # gave 2.76 / 2.45 / 1.78 on 2025 / 2019 / 2017).
+    # Measured worst-case coverage factors of each shipped per-version grid
+    # (150-point check grid) plus a small margin. With the 2026 grid applied
+    # everywhere these were 1.28 / 1.53 / 1.38 (USO / S23e / EPOS-LHCR) and
+    # 2.76 / 2.45 / 1.78 (2025 / 2019 / 2017).
     COVERAGE_BOUNDS = {
         "2026": 1.30,
-        "2026-USO": 1.30,
-        "2026-S23e": 1.55,
-        "2026-EPOS-LHCR": 1.40,
+        "2026-USO": 1.27,
+        "2026-S23e": 1.37,
+        "2026-EPOS-LHCR": 1.28,
         "2025": 1.25,
         "2019": 1.56,
         "2017": 1.22,

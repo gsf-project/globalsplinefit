@@ -1,12 +1,9 @@
 # ReducedGSF pivot energies [GeV per nucleon], one per line.
-# Shared published grid of the 2026 family (2026, 2026-USO, 2026-S23e,
-# 2026-EPOS-LHCR): derived once for the 2026 default with
+# Published grid of the 2026 default: derived with
 # optimize_pivots(n_pivots=12, n_grid=300, n_restarts=4, seed=0), polished on
-# round quotable values (verified 2026-07-31, 601-point grid; worst-case
-# coverage factor of the total p/n sigma over 1-1e9 GeV/n: 1.29 for 2026,
-# 1.28 USO, 1.53 S23e, 1.38 EPOS-LHCR). The family shares ONE grid so the
-# theta components keep the same meaning when versions are swapped to gauge
-# systematics. Regenerate on promotion (see reduced.py module docstring).
+# round quotable values (verified 2026-07-31, 601-point grid). Worst-case
+# coverage factor of the total p/n sigma over 1-1e9 GeV/n: 1.29.
+# Regenerate on promotion (see reduced.py module docstring).
 1.0
 4.0
 90.0
