@@ -136,7 +136,7 @@ def _(mo):
 
 @app.cell
 def _(GSFEnergyPerNucleon, ReducedGSF):
-    gsf = GSFEnergyPerNucleon(version="2025")  # 2026 default, Solar Cycle 24 average
+    gsf = GSFEnergyPerNucleon()  # 2026 default, Solar Cycle 24 average
     red = ReducedGSF(gsf)  # published grid for "2026" -> 24 parameters
 
     print(f"pivots [GeV]: {red.pivot_energies}")

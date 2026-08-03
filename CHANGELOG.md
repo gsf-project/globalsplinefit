@@ -91,6 +91,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - mkdocs documentation + tutorial notebooks
 - CI/CD pipeline with GitHub Actions
 
+### Fixed
+
+- **Kinetic-energy conversion uses each species' own rest mass.** Previously
+  every member of a mass group was evaluated with the group leader's rest
+  mass. Kinetic fluxes change by up to 3.9% below 1 TeV and by <0.1% above
+  10 TeV; total-energy results are unaffected.
+- **Nucleon counting separated from isotope mass.** The energy-variable
+  Jacobian keeps the real isotope mass, but proton/neutron numbers are now
+  integer counts. The old float arithmetic assigned a small spurious neutron
+  contribution to protons (e.g. A=1.008 gave hydrogen 0.008 neutrons); total
+  nucleon flux is 0.37-0.69% lower, its uncertainty 0.40-0.76% lower.
+- **GSF Explorer energy-scale factor.** The Explorer's multiplicative
+  energy-scale input (1 = unchanged) was assigned directly to the model's
+  *fractional-shift* `energy_scale` property (0 = unchanged), so every
+  Explorer evaluation ran at doubled energy. The bridge now maps the factor
+  correctly (`energy_scale = factor - 1`).
+
 ### Changed
 
 - **BREAKING**: Replaced functional interface with specialized model classes
