@@ -31,16 +31,14 @@ def grid():
 def test_nucleon_flux_accepts_only_per_nucleon_axes(grid):
     for basis in gx.NUCLEON_BASES:
         result = gx.evaluate(
-            gx.make_model(basis, "2026", 1), basis,
-            quantity="nucleon", **grid
+            gx.make_model(basis, "2026", 1), basis, quantity="nucleon", **grid
         )
         assert result["quantity"] == "nucleon"
         assert result["total"] is not None
 
     with pytest.raises(ValueError, match="energy-per-nucleon"):
         gx.evaluate(
-            gx.make_model("etot", "2026", 1), "etot",
-            quantity="nucleon", **grid
+            gx.make_model("etot", "2026", 1), "etot", quantity="nucleon", **grid
         )
 
 
@@ -55,12 +53,9 @@ def test_nucleus_and_nucleon_flux_are_distinct_on_per_nucleon_axis(grid):
 
 
 @pytest.mark.parametrize("quantity", ["mean_lna", "var_lna"])
-def test_composition_moments_are_dimensionless_with_propagated_errors(
-    quantity, grid
-):
+def test_composition_moments_are_dimensionless_with_propagated_errors(quantity, grid):
     result = gx.evaluate(
-        gx.make_model("etot", "2026", 1), "etot",
-        quantity=quantity, **grid
+        gx.make_model("etot", "2026", 1), "etot", quantity=quantity, **grid
     )
     value, error = result["series"][quantity]
     assert result["total"] is None

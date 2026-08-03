@@ -388,7 +388,35 @@ class Parameters:
         self._load_covariance()
         self._load_solar_modulation()
         self._load_subleading()
+        self._load_reduced_pivots()
         self._calculate_flux_ratios()
+
+    def _load_reduced_pivots(self):
+        """Load the optional per-bundle ``reduced_pivots.dat`` grid.
+
+        One pivot energy (GeV per nucleon) per line; the published table used
+        by an all-default :class:`~globalsplinefit.reduced.ReducedGSF`. Bundles
+        without the file get ``reduced_pivots = None`` and ReducedGSF requires
+        explicit pivots.
+        """
+        self.reduced_pivots = None
+        pivots_file = self.data_path / "reduced_pivots.dat"
+        if not pivots_file.exists():
+            return
+        pivots = np.atleast_1d(np.loadtxt(pivots_file, dtype=float))
+        if (
+            pivots.ndim != 1
+            or len(pivots) < 2
+            or not np.all(np.isfinite(pivots))
+            or np.any(pivots <= 0)
+            or np.any(np.diff(pivots) <= 0)
+        ):
+            raise ValueError(
+                f"invalid pivot table {pivots_file}: need at least two positive, "
+                "finite, strictly increasing energies"
+            )
+        pivots.setflags(write=False)
+        self.reduced_pivots = pivots
 
     def _validate_loaded_data(self) -> None:
         """Validate cross-file invariants before a model can use the bundle."""

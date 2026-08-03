@@ -125,9 +125,7 @@ def test_historical_sets_are_marked_historical():
         assert MODEL_VERSIONS[name]["status"] == "historical"
 
 
-@pytest.mark.parametrize(
-    "version", ["2026", "2026-USO", "2026-S23e", "2026-EPOS-LHCR"]
-)
+@pytest.mark.parametrize("version", ["2026", "2026-USO", "2026-S23e", "2026-EPOS-LHCR"])
 def test_set_loads_and_is_positive(version):
     m = GSFEnergy(version=version)
     E = np.logspace(0, 6, 80)

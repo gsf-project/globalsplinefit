@@ -60,18 +60,60 @@ class TestConstruction:
         reduced = ReducedGSF(model)
         assert np.array_equal(reduced.pivot_energies, RECOMMENDED_PIVOTS["2025"])
 
-    def test_fixed_grid_covers_every_shipped_version(self):
+    def test_every_shipped_version_has_a_pivot_table(self):
         from globalsplinefit.data_management import MODEL_VERSIONS
 
         assert set(RECOMMENDED_PIVOTS) == set(MODEL_VERSIONS)
-        for pivots in RECOMMENDED_PIVOTS.values():
-            assert pivots == RECOMMENDED_PIVOTS["2026"]
+        for version, pivots in RECOMMENDED_PIVOTS.items():
+            grid = np.asarray(pivots)
+            assert len(grid) == 12, version
+            assert np.all(np.diff(grid) > 0), version
+            assert grid[0] == 1.0 and grid[-1] == 1e9, version
 
-    def test_custom_bundle_falls_back_to_standard_grid(self):
-        model = GSFEnergyPerNucleon(version="2025")
-        model.version = None
+    def test_2026_family_shares_one_grid(self):
+        """theta components stay comparable when swapping 2026 variants."""
+        for version in ("2026-USO", "2026-S23e", "2026-EPOS-LHCR"):
+            assert RECOMMENDED_PIVOTS[version] == RECOMMENDED_PIVOTS["2026"]
+
+    def test_historical_grids_are_version_specific(self):
+        for version in ("2017", "2019", "2025"):
+            assert RECOMMENDED_PIVOTS[version] != RECOMMENDED_PIVOTS["2026"]
+
+    def test_shipped_grid_matches_bundle_file(self):
+        model = GSFEnergyPerNucleon(version="2019")
         reduced = ReducedGSF(model)
-        assert np.array_equal(reduced.pivot_energies, RECOMMENDED_PIVOTS["2026"])
+        assert np.array_equal(reduced.pivot_energies, RECOMMENDED_PIVOTS["2019"])
+        assert np.array_equal(model.params.reduced_pivots, reduced.pivot_energies)
+
+    def test_custom_bundle_without_table_raises(self, tmp_path):
+        import shutil
+        from pathlib import Path
+
+        source = Path(GSFEnergyPerNucleon(version="2025").params.data_path)
+        bundle = tmp_path / "bundle"
+        shutil.copytree(source, bundle)
+        (bundle / "reduced_pivots.dat").unlink()
+        model = GSFEnergyPerNucleon(data_path=bundle)
+        assert model.params.reduced_pivots is None
+        with pytest.raises(ValueError, match="reduced_pivots.dat"):
+            ReducedGSF(model)
+        # explicit pivots (as optimize_pivots would supply) still work
+        reduced = ReducedGSF(model, pivot_energies=RECOMMENDED_PIVOTS["2025"])
+        assert reduced.n_params == 24
+
+    def test_custom_bundle_with_table_uses_it(self, tmp_path):
+        import shutil
+        from pathlib import Path
+
+        source = Path(GSFEnergyPerNucleon(version="2025").params.data_path)
+        bundle = tmp_path / "bundle"
+        shutil.copytree(source, bundle)
+        (bundle / "reduced_pivots.dat").write_text(
+            "# custom grid\n1.0\n1e3\n1e6\n1e9\n"
+        )
+        model = GSFEnergyPerNucleon(data_path=bundle)
+        reduced = ReducedGSF(model)
+        assert np.array_equal(reduced.pivot_energies, [1.0, 1e3, 1e6, 1e9])
 
     def test_per_group_layout(self, red_groups):
         assert len(red_groups.species) == 8
@@ -206,13 +248,31 @@ class TestFlux:
 
 
 class TestPublishedGrid:
-    def test_coverage_bound(self, gsf):
-        """The quoted worst-case coverage factor of the published grid."""
+    # Measured worst-case coverage factors of each shipped grid (150-point
+    # check grid) plus a small margin. The 2026 family shares the 2026 grid;
+    # the historical sets carry their own optimized tables (the shared grid
+    # gave 2.76 / 2.45 / 1.78 on 2025 / 2019 / 2017).
+    COVERAGE_BOUNDS = {
+        "2026": 1.30,
+        "2026-USO": 1.30,
+        "2026-S23e": 1.55,
+        "2026-EPOS-LHCR": 1.40,
+        "2025": 1.25,
+        "2019": 1.56,
+        "2017": 1.22,
+    }
+
+    @pytest.mark.parametrize("version", sorted(COVERAGE_BOUNDS))
+    def test_coverage_bound(self, version):
+        """The quoted worst-case coverage factor of each published grid."""
+        model = GSFEnergyPerNucleon(version=version)
         E = np.logspace(0, 9, 150)
-        exact = _exact_total_error(gsf, E)
-        red = ReducedGSF(gsf)
-        dev = np.exp(np.abs(np.log(red.error(E) / exact)).max())
-        assert dev < 1.30  # published grid has a measured maximum of 1.29
+        exact = _exact_total_error(model, E)
+        red = ReducedGSF(model)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ratio = np.log(red.error(E) / exact)
+        dev = np.exp(np.abs(ratio[np.isfinite(ratio)]).max())
+        assert dev < self.COVERAGE_BOUNDS[version]
 
     def test_min_separation_respected(self, gsf):
         pivots, _ = optimize_pivots(

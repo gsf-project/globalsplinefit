@@ -94,36 +94,40 @@ def _build_stacked_system(model, energy_grid, **kwargs):
     return jacobian, covariance
 
 
-# Published pivot grids, one per model version — the reproducible, quotable
-# component definition (theta_k = relative deviation of the total p/n flux
-# at these energies).  ``ReducedGSF()`` with all-default arguments uses the
-# entry for its model's version, so downstream results reference a fixed,
-# citable parameter set instead of a per-user optimizer run.
-#
-# 2026: derived once with ``optimize_pivots(n_pivots=12, n_grid=300,
-# n_restarts=4, seed=0)`` and polished on round, quotable values; worst-case
-# coverage factor 1.29 of the exact total p/n uncertainty over 1-1e9 GeV
-# (verified on an independent 601-point grid, 2026-07-31).  Tuned for the
-# total-p/n species with the (local cubic) spline basis.  Regenerate when a
-# model version is updated.
-_STANDARD_PIVOTS = (
-    1.0,
-    4.0,
-    90.0,
-    9e3,
-    2.5e4,
-    1e5,
-    3e6,
-    6e6,
-    3e7,
-    1e8,
-    3e8,
-    1e9,
-)
-RECOMMENDED_PIVOTS = dict.fromkeys(
-    ("2017", "2019", "2025", "2026", "2026-USO", "2026-S23e", "2026-EPOS-LHCR"),
-    _STANDARD_PIVOTS,
-)
+def _load_recommended_pivots() -> dict:
+    """Read the published per-version pivot grids shipped with the data.
+
+    Each registered model version ships a ``reduced_pivots.dat`` (one energy
+    in GeV per nucleon per line) — the reproducible, quotable component
+    definition (theta_k = relative deviation of the total p/n flux at these
+    energies).  ``ReducedGSF()`` with all-default arguments uses the grid of
+    its model's bundle, so downstream results reference a fixed, citable
+    parameter set instead of a per-user optimizer run.
+
+    The grids were derived per version with ``optimize_pivots(n_pivots=12,
+    n_grid=300, n_restarts=4, seed=0)`` and polished on round values; the
+    2026 family intentionally shares one grid (theta keeps its meaning when
+    versions are swapped to gauge systematics).  Provenance and measured
+    worst-case coverage factors live in each file's header.  Regenerate when
+    a model version is updated.
+    """
+    from pathlib import Path
+
+    from .data_management import MODEL_VERSIONS
+
+    data_dir = Path(__file__).parent / "data"
+    grids = {}
+    for version in MODEL_VERSIONS:
+        pivots_file = data_dir / version / "reduced_pivots.dat"
+        if pivots_file.exists():
+            grids[version] = tuple(np.atleast_1d(np.loadtxt(pivots_file)))
+    return grids
+
+
+#: Published pivot grid per model version, read from the shipped
+#: ``data/<version>/reduced_pivots.dat`` files (see
+#: :func:`_load_recommended_pivots`).
+RECOMMENDED_PIVOTS = _load_recommended_pivots()
 
 _DEFAULT_ENERGY_RANGE = (1.0, 1e9)
 
@@ -228,9 +232,12 @@ class ReducedGSF:
     n_pivots : int, optional
         Number of log-spaced pivot energies per species.  If neither this
         nor ``pivot_energies`` is given (and ``energy_range`` is left at
-        its default), the **published grid** for the model version is used
-        (:data:`RECOMMENDED_PIVOTS`; 12 pivots and a measured worst-case
-        standard-deviation ratio of 1.29 for the 2026 set).
+        its default), the **published grid** shipped with the model bundle
+        (``data/<version>/reduced_pivots.dat``, mirrored in
+        :data:`RECOMMENDED_PIVOTS`; 12 pivots per version, worst-case
+        standard-deviation ratios in each file's header) is used.  A custom
+        bundle without a pivot table raises — derive a grid once with
+        :func:`optimize_pivots` and pass (or ship) it explicitly.
         Passing ``n_pivots`` explicitly requests a log-spaced grid instead.
     energy_range : tuple of float, optional
         ``(E_min, E_max)`` of the pivot grid in GeV per nucleon.
@@ -313,11 +320,21 @@ class ReducedGSF:
 
         if pivot_energies is None:
             if n_pivots is None and energy_range == _DEFAULT_ENERGY_RANGE:
-                # Supported versions use a fixed, citable grid. Custom bundles
-                # use the same stable default unless pivots are supplied.
-                pivot_energies = np.array(
-                    RECOMMENDED_PIVOTS.get(model.version, _STANDARD_PIVOTS)
-                )
+                # The bundle's published grid: shipped as
+                # data/<version>/reduced_pivots.dat and loaded by Parameters.
+                # No silent fallback for bundles without a table — the grid is
+                # part of the citable parameter definition and an on-the-fly
+                # optimizer run would vary from system to system.
+                pivot_energies = model.params.reduced_pivots
+                if pivot_energies is None:
+                    raise ValueError(
+                        "this model bundle ships no reduced_pivots.dat, so there "
+                        "is no published pivot grid. Either derive one once with "
+                        "optimize_pivots(model, n_pivots=12) and pass it via "
+                        "pivot_energies= (ship it as reduced_pivots.dat in the "
+                        "bundle directory to make it the default), or request a "
+                        "log-spaced grid with n_pivots=."
+                    )
             else:
                 if n_pivots is not None and (
                     isinstance(n_pivots, bool)

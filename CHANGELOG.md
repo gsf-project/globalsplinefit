@@ -91,6 +91,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - mkdocs documentation + tutorial notebooks
 - CI/CD pipeline with GitHub Actions
 
+### Added
+
+- **Per-version reduced-pivot tables** ship as
+  `data/<version>/reduced_pivots.dat` (plain text, one energy per line, with
+  provenance and measured coverage in the header). An all-default
+  `ReducedGSF` now always uses its bundle's published grid: the 2026 family
+  shares one grid (theta components stay comparable when swapping variants
+  to gauge systematics), while the historical sets carry their own optimized
+  tables — worst-case coverage improves from 2.76/2.45/1.78 (shared grid) to
+  1.24/1.55/1.21 for 2025/2019/2017. `RECOMMENDED_PIVOTS` is now read from
+  these files. Custom bundles without a table raise with instructions to
+  derive one via `optimize_pivots` (no silent on-the-fly optimization, whose
+  result could vary between systems, and no silently borrowed 2026 grid).
+
 ### Fixed
 
 - **Kinetic-energy conversion uses each species' own rest mass.** Previously
