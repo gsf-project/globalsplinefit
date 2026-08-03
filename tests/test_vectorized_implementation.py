@@ -68,7 +68,7 @@ class TestVectorizedImplementation:
         phis, weights = model._phi_list(time_interval)
 
         # This is the key part: explicit weighted loop over phi values
-        for phi, w in zip(phis, weights):
+        for phi, w in zip(phis, weights, strict=True):
             rig, factor = self._reference_rigidity_from_energy(model, z, energy, phi)
             result += w * model._rigidity_flux_lis(z, rig) * factor
 
@@ -89,7 +89,7 @@ class TestVectorizedImplementation:
         phis, weights = model._phi_list(time_interval)
 
         # This is the key part: explicit weighted loop over phi values
-        for phi, w in zip(phis, weights):
+        for phi, w in zip(phis, weights, strict=True):
             rig, factor = self._reference_rigidity_from_energy(model, z, energy, phi)
             jac += (
                 w * model._rigidity_flux_jacobian(leading, rig) * factor[:, np.newaxis]
@@ -214,7 +214,7 @@ class TestVectorizedImplementation:
             err_msg=f"{name} Jacobian mismatch for time_interval={time_interval}",
         )
 
-    @pytest.mark.parametrize("target", ["p", "He", "O", "Fe"])
+    @pytest.mark.parametrize("target", ["H", "He", "O*", "Fe*"])
     @pytest.mark.parametrize(
         "time_interval",
         [

@@ -10,7 +10,8 @@ Usage:
     python test_ui.py [--fast]     # --fast skips matplotlib exports
 
 Sections: boot · about/citations · model list (add/remove/reorder) ·
-abscissa (all 5, incl. deuterium on rigidity) · components (groups + all element
+plot quantity (nucleus/nucleon/lnA moments) · abscissa constraints (all 5,
+incl. deuterium on rigidity) · components (groups + all element
 chips + deuterium) · display (gamma, scale, bands, overlay hatches,
 opacity) · modulation (SC24/LIS/interval, reversed, edges) · advanced
 (escale, cutoff, npts) · plot navigation (box-zoom, pan, wheel-pinch,
@@ -203,15 +204,12 @@ def main() -> int:
                 assert page.locator(".modelrow").count() == 1
 
             # ---------------------------------------------------- abscissa
-            for basis, label in [("ekin", "Kinetic energy / nucleus"),
-                                 ("rig", "Rigidity"),
-                                 ("en", "Total energy / nucleon"),
-                                 ("ekn", "Kinetic energy / nucleon"),
-                                 ("etot", "Total energy / nucleus")]:
+            for basis in ("ekin", "rig", "en", "ekn", "etot"):
                 with check(f"abscissa: {basis}"):
                     open_panel("Abscissa")
                     page.select_option(
-                        ".panel:has(h2:text-is('Abscissa')) select", basis)
+                        ".panel:has(h2:text-is('Abscissa')) "
+                        "label.field:has-text('Horizontal axis') select", basis)
                     settle(3_000)
                     open_panel("Components")
                     assert not el_chip("D").is_disabled(), \
@@ -224,6 +222,50 @@ def main() -> int:
                         assert "D" in page.text_content("svg.chart")
                         el_chip("D").click()
                         settle(2_000)
+
+            # ----------------------------------------- quantity / axis rules
+            with check("quantity: nucleon flux restricts abscissa"):
+                open_panel("Abscissa")
+                quantity = page.locator(
+                    ".settings-popover label.field:has-text('Plot') select")
+                axis = page.locator(
+                    ".panel:has(h2:text-is('Abscissa')) "
+                    "label.field:has-text('Horizontal axis') select")
+                quantity.select_option("nucleon")
+                settle(5_000)
+                assert axis.input_value() == "en"
+                assert axis.locator("option").evaluate_all(
+                    "opts => opts.map(o => o.value)") == ["en", "ekn"]
+                assert "Nucleon Flux" in header_tag()
+
+            with check("quantity: lnA moments expose every abscissa"):
+                open_panel("Abscissa")
+                quantity = page.locator(
+                    ".settings-popover label.field:has-text('Plot') select")
+                axis = page.locator(
+                    ".panel:has(h2:text-is('Abscissa')) "
+                    "label.field:has-text('Horizontal axis') select")
+                for value, title in (("mean_lna", "⟨ln A⟩"),
+                                     ("var_lna", "σ²(ln A)")):
+                    quantity.select_option(value)
+                    settle(12_000)
+                    assert axis.locator("option").count() == 5
+                    assert title in page.text_content("svg.chart")
+                open_panel("Components")
+                assert "include every nucleus" in page.text_content(
+                    ".panel:has(h2:text-is('Components'))")
+
+            with check("quantity: nucleus flux restores every abscissa"):
+                open_panel("Abscissa")
+                page.locator(
+                    ".settings-popover label.field:has-text('Plot') select"
+                ).select_option("nucleus")
+                settle(5_000)
+                axis = page.locator(
+                    ".panel:has(h2:text-is('Abscissa')) "
+                    "label.field:has-text('Horizontal axis') select")
+                assert axis.locator("option").count() == 5
+                assert "Nucleus Flux" in header_tag()
 
             # -------------------------------------------------- components
             with check("components: toggle all-particle + each group"):
@@ -271,7 +313,7 @@ def main() -> int:
                 settle(600)
 
             with check("display: ratio-to-total view"):
-                page.click(".displaydock .seg button:text-is('Ratio')")
+                page.click(".displaydock .seg button:text-is('Fraction')")
                 settle(800)
                 assert "Φ / Φ(all-particle)" in page.text_content("svg.chart")
                 page.click(".displaydock .seg button:text-is('Flux')")

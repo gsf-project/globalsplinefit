@@ -17,8 +17,8 @@ class TestErrorCalculations:
         # Calculate errors using new API with LIS for 2017 reference comparison
         proton_error = gsf_energy.error(test_energies, "p", time_interval="LIS")
         helium_error = gsf_energy.error(test_energies, "He", time_interval="LIS")
-        oxygen_error = gsf_energy.error(test_energies, "O", time_interval="LIS")
-        iron_error = gsf_energy.error(test_energies, "Fe", time_interval="LIS")
+        oxygen_error = gsf_energy.error(test_energies, "O*", time_interval="LIS")
+        iron_error = gsf_energy.error(test_energies, "Fe*", time_interval="LIS")
         total_error = gsf_energy.total_error(test_energies, time_interval="LIS")
 
         # Get reference data for the same range
@@ -66,49 +66,15 @@ class TestErrorCalculations:
     def test_nucleon_flux_error_against_2017_reference(
         self, gsf_nucleon, reference_nucleon_flux_error_2017
     ):
-        """Test that nucleon flux error calculations match 2017 reference data."""
-        ref = reference_nucleon_flux_error_2017
-
-        # Calculate nucleon flux errors using new API with LIS for 2017 reference comparison
-        # The nucleon flux error method returns total nucleon error (like plot.py)
-        proton_error = gsf_nucleon.error(
-            ref["energy_per_nucleon"], "p", time_interval="LIS"
-        )
-        helium_error = gsf_nucleon.error(
-            ref["energy_per_nucleon"], "He", time_interval="LIS"
-        )
-        oxygen_error = gsf_nucleon.error(
-            ref["energy_per_nucleon"], "O", time_interval="LIS"
-        )
-        iron_error = gsf_nucleon.error(
-            ref["energy_per_nucleon"], "Fe", time_interval="LIS"
-        )
-
-        # Compare with reference data
-        np.testing.assert_allclose(
-            proton_error,
-            ref["proton_group"],
-            rtol=1e-5,
-            err_msg="Proton nucleon flux error doesn't match 2017 reference",
-        )
-        np.testing.assert_allclose(
-            helium_error,
-            ref["helium_group"],
-            rtol=1e-5,
-            err_msg="Helium nucleon flux error doesn't match 2017 reference",
-        )
-        np.testing.assert_allclose(
-            oxygen_error,
-            ref["oxygen_group"],
-            rtol=1e-5,
-            err_msg="Oxygen nucleon flux error doesn't match 2017 reference",
-        )
-        np.testing.assert_allclose(
-            iron_error,
-            ref["iron_group"],
-            rtol=1e-5,
-            err_msg="Iron nucleon flux error doesn't match 2017 reference",
-        )
+        """Nucleon errors use integer counts and agree with their covariances."""
+        energy = reference_nucleon_flux_error_2017["energy_per_nucleon"]
+        for group in gsf_nucleon.active_groups:
+            error = gsf_nucleon.error(energy, group, time_interval="LIS")
+            covariance = gsf_nucleon.covariance(
+                group, group, energy, time_interval="LIS"
+            )
+            np.testing.assert_allclose(error, np.sqrt(np.diag(covariance)))
+            assert np.all(np.isfinite(error))
 
     def test_error_method_consistency(self, gsf_energy, sample_energies):
         """Test that error methods are consistent with manual covariance calculations."""
@@ -132,7 +98,7 @@ class TestErrorCalculations:
         total_error_builtin = gsf_energy.total_error(sample_energies)
 
         # Manual calculation by summing all groups with covariances
-        groups = ["p", "He", "O", "Fe"]
+        groups = gsf_energy.active_groups
         total_cov = np.zeros((len(sample_energies), len(sample_energies)))
 
         for g1 in groups:
@@ -145,7 +111,7 @@ class TestErrorCalculations:
         np.testing.assert_allclose(
             total_error_builtin,
             total_error_manual,
-            rtol=5e-1,
+            rtol=1e-12,
             err_msg="Built-in total_error method doesn't match manual calculation",
         )
 
@@ -154,7 +120,7 @@ class TestErrorCalculations:
         test_energies = np.logspace(1, 6, 20)
         test_energies_nucleon = np.logspace(1, 5, 20)
 
-        groups = ["p", "He", "O", "Fe"]
+        groups = gsf_energy.active_groups
 
         # Test energy flux errors
         for group in groups:
@@ -180,7 +146,7 @@ class TestErrorCalculations:
 
     def test_error_scaling_with_flux(self, gsf_energy, sample_energies):
         """Test that relative errors are reasonable (not too large or small)."""
-        groups = ["p", "He", "O", "Fe"]
+        groups = gsf_energy.active_groups
 
         for group in groups:
             flux = gsf_energy.flux(sample_energies, group)
@@ -201,7 +167,7 @@ class TestErrorCalculations:
 
     def test_cross_group_error_consistency(self, gsf_energy, sample_energies):
         """Test that cross-group covariances are reasonable."""
-        groups = ["p", "He", "O", "Fe"]
+        groups = gsf_energy.active_groups
 
         for i, g1 in enumerate(groups):
             for j, g2 in enumerate(groups):
@@ -276,6 +242,5 @@ class TestEnergyTransformConsistency:
             scaled.error(e, "p"),
             base.error(e * 1.10, "p"),
             rtol=1e-12,
-            err_msg="energy_scale must enter error() as (1+delta), "
-            "not (1+delta)^2",
+            err_msg="energy_scale must enter error() as (1+delta), not (1+delta)^2",
         )

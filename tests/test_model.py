@@ -15,19 +15,20 @@ class TestGSFEnergy:
         assert hasattr(gsf_energy, "phi")
 
         # Check group names mapping
-        assert gsf_energy.GROUP_NAMES["p"] == 1
+        assert gsf_energy.GROUP_NAMES["H"] == 1
         assert gsf_energy.GROUP_NAMES["He"] == 2
-        assert gsf_energy.GROUP_NAMES["O"] == 8
-        assert gsf_energy.GROUP_NAMES["Fe"] == 26
+        assert gsf_energy.GROUP_NAMES["O*"] == 8
+        assert gsf_energy.GROUP_NAMES["Fe*"] == 26
 
     def test_resolve_z_functionality(self, gsf_energy):
         """Test the _resolve_z method with various inputs."""
         # Test string group names
-        assert gsf_energy._resolve_z("p") == (gsf_energy.z_group[1], 1)
-        assert gsf_energy._resolve_z("proton") == (gsf_energy.z_group[1], 1)
-        assert gsf_energy._resolve_z("He") == (gsf_energy.z_group[2], 2)
-        assert gsf_energy._resolve_z("O") == (gsf_energy.z_group[8], 8)
-        assert gsf_energy._resolve_z("Fe") == (gsf_energy.z_group[26], 26)
+        assert gsf_energy._resolve_z("p") == ([(1, 1.008)], 1)
+        assert gsf_energy._resolve_z("proton") == ([(1, 1.008)], 1)
+        assert gsf_energy._resolve_z("H") == (list(gsf_energy.z_group[1]), 1)
+        assert gsf_energy._resolve_z("He") == (list(gsf_energy.z_group[2]), 2)
+        assert gsf_energy._resolve_z("O*") == (list(gsf_energy.z_group[8]), 8)
+        assert gsf_energy._resolve_z("Fe*") == (list(gsf_energy.z_group[26]), 26)
 
         # Test integer inputs (elements)
         assert gsf_energy._resolve_z(6) == ([6], 8)
@@ -40,7 +41,7 @@ class TestGSFEnergy:
         with pytest.raises(ValueError, match="Multiple groups"):
             gsf_energy._resolve_z([1, 2, 6])
 
-        with pytest.raises(ValueError, match="Unknown group name"):
+        with pytest.raises(ValueError, match="unknown target"):
             gsf_energy._resolve_z("unknown")
 
         with pytest.raises(ValueError, match="Target must be string"):
@@ -108,7 +109,7 @@ class TestGSFEnergy:
 
     def test_all_group_fluxes(self, gsf_energy, sample_energies):
         """Test flux calculation for all major groups."""
-        groups = ["p", "He", "O", "Fe"]
+        groups = gsf_energy.active_groups
         fluxes = {}
 
         for group in groups:
@@ -125,7 +126,7 @@ class TestGSFEnergy:
         # Test that fluxes generally decrease with increasing atomic number at same energy
         # (This is a general cosmic ray trend, though not always strict)
         mid_idx = len(sample_energies) // 2
-        assert fluxes["p"][mid_idx] > fluxes["Fe"][mid_idx], (
+        assert fluxes["H"][mid_idx] > fluxes["Fe*"][mid_idx], (
             "Proton flux should be higher than iron"
         )
 
@@ -144,18 +145,13 @@ class TestGSFEnergy:
 
         # Calculate manual sum for comparison
         manual_total = (
-            gsf_energy.flux(sample_energies, "p")
+            gsf_energy.flux(sample_energies, "H")
             + gsf_energy.flux(sample_energies, "He")
-            + gsf_energy.flux(sample_energies, "O")
-            + gsf_energy.flux(sample_energies, "Fe")
+            + gsf_energy.flux(sample_energies, "O*")
+            + gsf_energy.flux(sample_energies, "Fe*")
         )
 
-        # Note: total_flux sums individual elements (1,2,8,26) while manual_total
-        # sums groups which include multiple elements. The difference is expected.
-        # total_flux should be less than manual_total since groups contain multiple elements
-        assert np.all(total <= manual_total), (
-            "Total flux should be <= sum of group fluxes"
-        )
+        np.testing.assert_allclose(total, manual_total)
 
         # The difference should be reasonable (groups include additional elements)
         relative_diff = np.abs(total - manual_total) / manual_total
@@ -163,7 +159,7 @@ class TestGSFEnergy:
 
     def test_error_calculation(self, gsf_energy, sample_energies):
         """Test uncertainty calculation for groups."""
-        groups = ["p", "He", "O", "Fe"]
+        groups = gsf_energy.active_groups
 
         for group in groups:
             error = gsf_energy.error(sample_energies, group)
@@ -241,7 +237,7 @@ class TestGSFRigidity:
 
     def test_all_group_rigidity_fluxes(self, gsf_rigidity, sample_rigidities):
         """Test rigidity flux for all groups."""
-        groups = ["p", "He", "O", "Fe"]
+        groups = gsf_rigidity.active_groups
 
         for group in groups:
             flux = gsf_rigidity.flux(sample_rigidities, group)
@@ -302,17 +298,9 @@ class TestGSFEnergyPerNucleon:
         assert np.any(p_and_n_flux[0] > 0), (
             "Proton nucleon flux should have some positive values"
         )
-        # Proton group should have small but non-zero neutron flux (~0.8% of proton flux)
+        # An individual proton has no neutron contribution.
         assert np.all(p_and_n_flux[1] >= 0), "Neutron flux should be non-negative"
-        # Neutron flux should be about 0.8% of proton flux (where proton flux > 0)
-        nonzero_mask = p_and_n_flux[0] > 0
-        if np.any(nonzero_mask):
-            neutron_to_proton_ratio = (
-                p_and_n_flux[1][nonzero_mask] / p_and_n_flux[0][nonzero_mask]
-            )
-            assert np.allclose(neutron_to_proton_ratio, 0.008, rtol=0.1), (
-                "Neutron to proton flux ratio should be ~0.8%"
-            )
+        np.testing.assert_array_equal(p_and_n_flux[1], 0.0)
 
         # Test that total flux equals sum of p_and_n_flux
         np.testing.assert_allclose(
@@ -360,7 +348,7 @@ class TestGSFEnergyPerNucleon:
         self, gsf_nucleon, sample_energies_per_nucleon
     ):
         """Test that nucleon flux sums are consistent."""
-        groups = ["p", "He", "O", "Fe"]
+        groups = gsf_nucleon.active_groups
         total_protons = np.zeros(len(sample_energies_per_nucleon))
         total_neutrons = np.zeros(len(sample_energies_per_nucleon))
         total_nucleons = np.zeros(len(sample_energies_per_nucleon))
@@ -485,7 +473,7 @@ class TestGSFEnergyPerNucleon:
         )
 
         # Test that total_flux equals sum of individual group fluxes
-        groups = ["p", "He", "O", "Fe"]
+        groups = gsf_nucleon.active_groups
         manual_total_nucleons = np.zeros(len(sample_energies_per_nucleon))
 
         for group in groups:
@@ -635,8 +623,8 @@ class TestNumericalAccuracy:
         # Calculate fluxes using new API with LIS for 2017 reference comparison
         proton_flux = gsf_energy.flux(test_energies, "p", time_interval="LIS")
         helium_flux = gsf_energy.flux(test_energies, "He", time_interval="LIS")
-        oxygen_flux = gsf_energy.flux(test_energies, "O", time_interval="LIS")
-        iron_flux = gsf_energy.flux(test_energies, "Fe", time_interval="LIS")
+        oxygen_flux = gsf_energy.flux(test_energies, "O*", time_interval="LIS")
+        iron_flux = gsf_energy.flux(test_energies, "Fe*", time_interval="LIS")
         total_flux = gsf_energy.total_flux(test_energies, time_interval="LIS")
 
         # Get reference data for the same range
@@ -685,21 +673,21 @@ class TestNumericalAccuracy:
     def test_nucleon_flux_against_2017_reference(
         self, gsf_nucleon, reference_nucleon_flux_2017
     ):
-        """Test that new implementation matches 2017 nucleon flux data."""
+        """Test modern integer-count nucleon flux against legacy scale."""
         ref = reference_nucleon_flux_2017
 
         # Calculate nucleon fluxes using new API with LIS for 2017 reference comparison
         proton_flux = gsf_nucleon.flux(
-            ref["energy_per_nucleon"], "p", time_interval="LIS"
+            ref["energy_per_nucleon"], "H", time_interval="LIS"
         )
         helium_flux = gsf_nucleon.flux(
             ref["energy_per_nucleon"], "He", time_interval="LIS"
         )
         oxygen_flux = gsf_nucleon.flux(
-            ref["energy_per_nucleon"], "O", time_interval="LIS"
+            ref["energy_per_nucleon"], "O*", time_interval="LIS"
         )
         iron_flux = gsf_nucleon.flux(
-            ref["energy_per_nucleon"], "Fe", time_interval="LIS"
+            ref["energy_per_nucleon"], "Fe*", time_interval="LIS"
         )
 
         # Handle negative values as in original plot_new_class.py
@@ -711,35 +699,36 @@ class TestNumericalAccuracy:
         # Calculate total flux
         total_flux = proton_flux + helium_flux + oxygen_flux + iron_flux
 
-        # Compare with reference data (tolerance based on reference data precision ~3-4 digits)
+        # Integer nucleon counts differ slightly from the legacy atomic-weight-as-count
+        # convention, while retaining the published spectral scale and shape.
         np.testing.assert_allclose(
             proton_flux,
             ref["proton_group"],
-            rtol=1e-5,
+            rtol=1e-2,
             err_msg="Proton nucleon flux doesn't match 2017 reference",
         )
         np.testing.assert_allclose(
             helium_flux,
             ref["helium_group"],
-            rtol=1e-5,  # Higher tolerance for helium
+            rtol=1e-2,
             err_msg="Helium nucleon flux doesn't match 2017 reference",
         )
         np.testing.assert_allclose(
             oxygen_flux,
             ref["oxygen_group"],
-            rtol=1e-5,
+            rtol=1e-2,
             err_msg="Oxygen nucleon flux doesn't match 2017 reference",
         )
         np.testing.assert_allclose(
             iron_flux,
             ref["iron_group"],
-            rtol=1e-5,  # Much higher tolerance for iron nucleon flux
+            rtol=2e-2,
             err_msg="Iron nucleon flux doesn't match 2017 reference",
         )
         np.testing.assert_allclose(
             total_flux,
             ref["total"],
-            rtol=1e-5,
+            rtol=1e-2,
             err_msg="Total nucleon flux doesn't match 2017 reference",
         )
 
@@ -902,7 +891,6 @@ class TestSolarModulation:
             reference_solar_modulation_2017["June_1991_max_error"],
             rtol=1e-5,
         ), "Solar maximum flux error does not match reference data"
-
 
     def test_monthly_phi_table_excludes_annual_column(self, gsf_energy):
         """Regression (audit 2026-07-02): the Usoskin source table carries a

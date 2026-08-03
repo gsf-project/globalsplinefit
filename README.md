@@ -19,11 +19,11 @@ pip install globalsplinefit
 from globalsplinefit import GSFEnergy
 import numpy as np
 
-model = GSFEnergy()          # promoted default: 2026 (SIBYLL/EPOS mixture, GMD modulation)
-model_uso = GSFEnergy(version="2026-USO")  # the alternative: same mixture, Usoskin 2017 modulation
-model_uhe = GSFEnergy(version="2026-UHE-S23e")  # SIBYLL-2.3e only, for UHE/air-shower work
+model = GSFEnergy()          # default 2026 fit
+model_uso = GSFEnergy(version="2026-USO")  # Usoskin 2017 modulation
+model_s23e = GSFEnergy(version="2026-S23e")  # SIBYLL-2.3e-only interpretation
 model_epos = GSFEnergy(version="2026-EPOS-LHCR")  # EPOS-LHC-R only (other half of the mixture)
-model_2025 = GSFEnergy(version="2025")   # superseded historical release (not an alternative)
+model_2025 = GSFEnergy(version="2025")   # historical release
 energy = np.logspace(0, 3, 100)  # 1 GeV to 1 TeV total energy
 
 proton_flux = model.flux(energy, "p")
@@ -46,8 +46,8 @@ The tutorials in `examples/` are [marimo](https://marimo.io) notebooks — plain
 Python files you can open interactively or run as scripts:
 
 ```bash
-uv run marimo edit examples/hybrid_pca.py   # interactive
-uv run python examples/hybrid_pca.py        # run top to bottom
+uv run marimo edit examples/reduced_model.py   # interactive
+uv run python examples/reduced_model.py        # run top to bottom
 ```
 
 Need a Jupyter notebook? `uvx marimo export ipynb examples/<name>.py -o <name>.ipynb`.

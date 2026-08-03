@@ -51,10 +51,12 @@ const b64blob = (b64, mime) => {
 };
 
 const ymInt = (s) => parseInt(s.replace("-", ""), 10);
+const exponential = (value, digits) =>
+  Number.isFinite(value) ? value.toExponential(digits) : "—";
 
 /* telegraphic state line shown next to the wordmark:
-   MODEL(s) · modulation · range · abscissa */
-function stateLine(p, unit, win) {
+   MODEL(s) · quantity · modulation · range · abscissa */
+function stateLine(p, unit, win, quantityLabel) {
   const mod = p.mod === "LIS" ? "LIS"
     : Array.isArray(p.mod)
       ? `${String(p.mod[0]).replace(/(\d{4})(\d{2})/, "$1/$2")}–${String(p.mod[1]).replace(/(\d{4})(\d{2})/, "$1/$2")}`
@@ -62,7 +64,7 @@ function stateLine(p, unit, win) {
   const ABBR = { etot: "E / nucleus", ekin: "Eₖ / nucleus", rig: "rigidity",
                  en: "E / nucleon", ekn: "Eₖ / nucleon" };
   const dec = (d) => sup(Math.round(d * 10) / 10);
-  return `${p.versions.join(" vs ")} · ${mod} · ` +
+  return `${p.versions.join(" vs ")} · ${quantityLabel} · ${mod} · ` +
          `10${dec(win[0])}–10${dec(win[1])} ${unit} · ${ABBR[p.basis]}`;
 }
 
@@ -265,8 +267,8 @@ function App() {
   /* model state: requires Python. The grid always covers the full
      10^0–10^11 range so pan/zoom are pure display operations. */
   const [params, setParams] = useState({
-    versions: ["2026"], basis: "etot", npts: 480,
-    elements: [], mod: "SC24", cutoff: 0, escale: 1.0, phiBins: 6,
+    versions: ["2026"], quantity: "nucleus", basis: "etot", npts: 480,
+    elements: [], mod: "SC24", cutoff: 0, escale: 1.0, phiBins: 12,
   });
   const [view, setView] = useState({
     gamma: 2.7, ylog: true, ratio: false, showTotal: true, showBands: true,
@@ -326,7 +328,8 @@ function App() {
      sequentially so rapid input (e.g. scrolling the month picker) never
      queues stale recomputes: only the latest params are evaluated. */
   const evalParams = (version, withElements, p = params) => ({
-    version, basis: p.basis, dmin: X_DOMAIN[0], dmax: X_DOMAIN[1],
+    version, quantity: p.quantity, basis: p.basis,
+    dmin: X_DOMAIN[0], dmax: X_DOMAIN[1],
     npts: p.npts, groups: GROUPS,
     elements: withElements ? p.elements : [],
     mod: p.mod, cutoff: p.cutoff, escale: p.escale, phiBins: p.phiBins,
@@ -441,6 +444,15 @@ function App() {
     vs.splice(to, 0, vs.splice(from, 1)[0]);
     setP({ versions: vs });
   };
+  const setPlotQuantity = (quantity) => {
+    const validBases = meta?.quantities?.[quantity]?.bases ?? Object.keys(BASIS_LABELS);
+    const basis = validBases.includes(params.basis) ? params.basis : validBases[0];
+    setP({ quantity, basis });
+    if (meta?.quantities?.[quantity]?.kind === "composition")
+      setV({ ratio: false, ylog: false, yRange: null });
+    else
+      setV({ yRange: null });
+  };
 
   /* navigation is view-only — no model recompute, the grid is cached */
   const goHome = () => setV({ xWindow: [...X_DOMAIN], yRange: null });
@@ -450,12 +462,15 @@ function App() {
     setV({ xWindow: [w.dmin, w.dmax], yRange: w.yRange });
 
   const basisMeta = meta?.bases[params.basis];
+  const quantityMeta = meta?.quantities?.[params.quantity];
+  const isComposition = quantityMeta?.kind === "composition";
+  const validBases = quantityMeta?.bases ?? Object.keys(BASIS_LABELS);
   const chartView = useMemo(() => (basisMeta ? {
     ...view,
     xTitle: xTitle(basisMeta, params.basis),
-    yTitle: view.ratio ? "Φ / Φ(all-particle)"
-                       : yTitle(basisMeta, params.basis, view.gamma),
-  } : view), [view, basisMeta, params.basis]);
+    yTitle: yTitle(basisMeta, params.basis, view.gamma, params.quantity,
+                   view.ratio),
+  } : view), [view, basisMeta, params.basis, params.quantity]);
   const T = THEMES[theme];
 
   /* exports (primary model) */
@@ -482,7 +497,7 @@ function App() {
                   ylog: view.ylog, widthIn: pr.w, heightIn: pr.h,
                   fmt: exp.fmt, dpi: exp.dpi },
         });
-        download(`gsf_${v.toLowerCase()}_${params.basis}.${exp.fmt}`,
+        download(`gsf_${v.toLowerCase()}_${params.quantity}_${params.basis}.${exp.fmt}`,
                  b64blob(b64, mime));
       }
     } catch (e) { setError(`Export failed: ${e.message}`); }
@@ -496,8 +511,8 @@ function App() {
           params: { ...evalParams(v, i === 0), npts: exp.csvN,
                     dmin: view.xWindow[0], dmax: view.xWindow[1],
                     groups: GROUPS.filter((g) => view.visible[g]) },
-          includeCov: exp.cov });
-        download(`gsf_${v.toLowerCase()}_${params.basis}_${exp.csvN}pt.csv`,
+          includeCov: exp.cov && !isComposition });
+        download(`gsf_${v.toLowerCase()}_${params.quantity}_${params.basis}_${exp.csvN}pt.csv`,
                  new Blob([text], { type: "text/csv" }));
       }
     } catch (e) { setError(`CSV failed: ${e.message}`); }
@@ -511,15 +526,17 @@ function App() {
     for (const mm of models) {
       const tag = models.length > 1 ? `_${mm.version}` : "";
       for (const s of mm.data.series) {
-        head.push(`flux_${s.name.replace("*", "star")}${tag}`);
+        const column = isComposition ? params.quantity
+          : `${params.quantity}_flux_${s.name.replace("*", "star")}`;
+        head.push(`${column}${tag}`);
         cols.push(s.flux);
         if (s.err) {
-          head.push(`err_${s.name.replace("*", "star")}${tag}`);
+          head.push(`err_${column}${tag}`);
           cols.push(s.err);
         }
       }
       if (mm.data.total) {
-        head.push(`flux_total${tag}`);
+        head.push(`${params.quantity}_flux_total${tag}`);
         cols.push(mm.data.total.flux);
         if (mm.data.total.err) {
           head.push(`err_total${tag}`);
@@ -532,9 +549,10 @@ function App() {
         `${basisMeta?.phrase} [${basisMeta?.unit}] · ${models[0].data.modulation}`,
       head.join(","),
       ...models[0].data.x.map((_, i) =>
-        cols.map((c) => c[i].toExponential(6)).join(",")),
+        cols.map((c) => Number.isFinite(c[i]) ? c[i].toExponential(6) : "")
+          .join(",")),
     ];
-    download(`gsf_view_${params.basis}_${params.npts}pt.csv`,
+    download(`gsf_view_${params.quantity}_${params.basis}_${params.npts}pt.csv`,
              new Blob([lines.join("\n") + "\n"], { type: "text/csv" }));
   };
   const doSnapshot = () => {
@@ -630,7 +648,8 @@ function App() {
         <div class="wordmark">
           <span class="name">GSF Explorer</span>
           <span class="tag">${meta
-            ? stateLine(params, basisMeta?.unit ?? "GeV", view.xWindow)
+            ? stateLine(params, basisMeta?.unit ?? "GeV", view.xWindow,
+                        quantityMeta?.label ?? params.quantity)
             : "global spline fit"}</span>
         </div>
         <div class="topright">
@@ -690,24 +709,29 @@ function App() {
 
       <section class="displaydock" aria-label="Display controls">
         <div class="dockcontrol quantity-control">
-          <span class="docklabel">Quantity</span>
-          <${Seg} value=${view.ratio}
-            onSelect=${(v) => setV({ ratio: v, yRange: null })}
-            options=${[{ v: false, label: "Flux" },
-                       { v: true, label: "Ratio" }]} />
+          <span class="docklabel">Normalization</span>
+          ${isComposition
+            ? html`<span class="docknote">Moment</span>`
+            : html`<${Seg} value=${view.ratio}
+                onSelect=${(v) => setV({ ratio: v, yRange: null })}
+                options=${[{ v: false, label: "Flux" },
+                           { v: true, label: "Fraction" }]} />`}
         </div>
-        <div class="dockcontrol gamma-control ${view.ratio ? "disabled" : ""}">
+        <div class="dockcontrol gamma-control ${view.ratio || isComposition ? "disabled" : ""}">
           <${Slider} label="Spectral weight γ" min="0" max="3.2"
             step="0.05" value=${view.gamma}
             onInput=${(v) => setV({ gamma: v, yRange: null })}
             fmt=${(v) => v.toFixed(2)} />
-          ${view.ratio && html`<span class="docknote">Cancels in ratio view</span>`}
+          ${(view.ratio || isComposition) && html`
+            <span class="docknote">${isComposition ? "Not applied to moments" : "Cancels in fraction view"}</span>`}
         </div>
         <div class="dockcontrol scale-control">
-          <span class="docklabel">${view.ratio ? "Ratio" : "Flux"} scale</span>
-          <${Seg} value=${view.ylog}
-            onSelect=${(v) => setV({ ylog: v, yRange: null })}
-            options=${[{ v: true, label: "Log" }, { v: false, label: "Linear" }]} />
+          <span class="docklabel">${isComposition ? "Moment" : view.ratio ? "Fraction" : "Flux"} scale</span>
+          ${isComposition
+            ? html`<span class="docknote">Linear</span>`
+            : html`<${Seg} value=${view.ylog}
+                onSelect=${(v) => setV({ ylog: v, yRange: null })}
+                options=${[{ v: true, label: "Log" }, { v: false, label: "Linear" }]} />`}
         </div>
         <div class="dockcontrol band-control">
           <label class="switchcheck">
@@ -754,11 +778,15 @@ function App() {
               ${modelControls}
             <//>
             <${Panel} title="Components" open=${true}>
+              ${isComposition ? html`
+                <p class="hinttext">Composition moments include every nucleus in the selected model.</p>
+              ` : html`
               <div class="serieslist">
                 <button class="seriesrow ${view.showTotal ? "" : "off"}"
                         aria-pressed=${view.showTotal}
                         onclick=${() => setV({ showTotal: !view.showTotal })}>
-                  <span class="swatch" style="--c:${T.ink}"></span>all-particle
+                  <span class="swatch" style="--c:${T.ink}"></span>${
+                    params.quantity === "nucleon" ? "all-nucleon" : "all-particle"}
                 </button>
                 ${GROUPS.map((g) => html`
                   <button class="seriesrow ${view.visible[g] ? "" : "off"}"
@@ -783,6 +811,7 @@ function App() {
                             onclick=${() => toggleElement(el.z)}>${el.sym}</button>`)}
                 </div>
               </div>
+              `}
             <//>
           <//>
         </aside>`}
@@ -797,10 +826,18 @@ function App() {
           </div>
           <${ScrollBody} label="Settings">
             <${Panel} title="Abscissa" open=${true}>
+            <label class="field"><span>Plot</span>
+              <select aria-label="Plot quantity" value=${params.quantity}
+                      onchange=${(e) => setPlotQuantity(e.target.value)}>
+                ${Object.entries(meta?.quantities ?? {}).map(([key, q]) => html`
+                  <option value=${key}>${q.label}</option>`)}
+              </select></label>
             <label class="field"><span>Horizontal axis</span>
               <select value=${params.basis}
                       onchange=${(e) => setP({ basis: e.target.value })}>
-                ${Object.entries(BASIS_LABELS).map(([k, l]) => html`
+                ${Object.entries(BASIS_LABELS)
+                  .filter(([k]) => validBases.includes(k))
+                  .map(([k, l]) => html`
                   <option value=${k}>${l}</option>`)}
               </select></label>
             <//>
@@ -886,7 +923,7 @@ function App() {
                 <input type="number" min="20" max="300" step="10" value=${exp.csvN}
                        onchange=${(e) => setExp({ ...exp, csvN: +e.target.value })} />
                 <label class="check">
-                  <input type="checkbox" checked=${exp.cov}
+                  <input type="checkbox" checked=${exp.cov} disabled=${isComposition}
                          onchange=${() => setExp({ ...exp, cov: !exp.cov })} />
                   Covariance</label>
                 <button class="action" disabled=${exporting || busy}
@@ -907,7 +944,7 @@ function App() {
         <div class="modalback" onclick=${(e) => e.target.classList.contains("modalback") && setModal(null)}>
           <div class="modal">
             <header>
-              <h3>Model grid — Φ ± σ (raw flux, ${basisMeta?.unit ?? ""} m² s sr)⁻¹${params.versions.length > 1 ? ` — ${params.versions.join(" vs ")}` : ""}</h3>
+              <h3>Model grid — ${quantityMeta?.label} ± σ${isComposition ? "" : ` (raw flux, ${basisMeta?.unit ?? ""} m² s sr)⁻¹`}${params.versions.length > 1 ? ` — ${params.versions.join(" vs ")}` : ""}</h3>
               <button class="action" style="margin-left:auto;margin-right:14px"
                       onclick=${doTableCsv}>Download CSV</button>
               <button onclick=${() => setModal(null)}>✕</button></header>
@@ -919,7 +956,7 @@ function App() {
                     const tag = models.length > 1 ? ` · ${mm.version}` : "";
                     return html`
                       ${mm.data.series.map((s) => html`
-                        <th>Φ(${s.name})${tag}</th><th>σ</th>`)}
+                        <th>${isComposition ? quantityMeta?.label : `Φ(${s.name})`}${tag}</th><th>σ</th>`)}
                       ${mm.data.total && html`<th>Φ(total)${tag}</th><th>σ</th>`}`;
                   })}
                 </tr></thead>
@@ -928,11 +965,11 @@ function App() {
                     <td>${xv.toExponential(3)}</td>
                     ${models.map((mm) => html`
                       ${mm.data.series.map((s) => html`
-                        <td>${s.flux[i].toExponential(3)}</td>
-                        <td>${s.err ? s.err[i].toExponential(2) : "—"}</td>`)}
+                        <td>${exponential(s.flux[i], 3)}</td>
+                        <td>${s.err ? exponential(s.err[i], 2) : "—"}</td>`)}
                       ${mm.data.total && html`
-                        <td>${mm.data.total.flux[i].toExponential(3)}</td>
-                        <td>${mm.data.total.err ? mm.data.total.err[i].toExponential(2) : "—"}</td>`}`)}
+                        <td>${exponential(mm.data.total.flux[i], 3)}</td>
+                        <td>${mm.data.total.err ? exponential(mm.data.total.err[i], 2) : "—"}</td>`}`)}
                   </tr>`)}
                 </tbody>
               </table>

@@ -7,10 +7,16 @@ return JSON strings so no proxy objects cross the JS boundary.
 
 import base64
 import json
+import math
 
 import gsf_explorer as gx
 
 _models = {}
+
+
+def _numbers(values):
+    """Convert an array to strict-JSON numbers, using null for invalid points."""
+    return [float(value) if math.isfinite(value) else None for value in values]
 
 
 def _phi_bins(v):
@@ -20,7 +26,7 @@ def _phi_bins(v):
     return int(v)
 
 
-def _model(basis, version, phi_bins=6):
+def _model(basis, version, phi_bins=12):
     """Cached model for a basis+version, retuned to the requested phi binning.
 
     The bin count is read per flux call rather than baked in at construction, so
@@ -32,7 +38,7 @@ def _model(basis, version, phi_bins=6):
     if key not in _models:
         _models[key] = gx.make_model(basis, version, phi_bins)
     model = _models[key]
-    model.params.solar_cycle_average_bins = phi_bins
+    model.solar_cycle_average_bins = phi_bins
     return model
 
 
@@ -70,6 +76,18 @@ def meta(basis, version=None):
         "notes": gx.VERSION_NOTES,
         "bases": {k: {"unit": b["unit"], "sym": b["sym"], "phrase": b["phrase"]}
                   for k, b in gx.BASES.items()},
+        "quantities": {
+            key: {
+                "label": value["ui_label"],
+                "kind": value["kind"],
+                "bases": (
+                    [basis for basis in gx.BASES if basis in gx.NUCLEON_BASES]
+                    if key == "nucleon"
+                    else list(gx.BASES)
+                ),
+            }
+            for key, value in gx.QUANTITIES.items()
+        },
         "groups": gx.GROUPS,
         "elements": _element_entries(m, basis),
         "phiYears": [y0, y1],
@@ -78,13 +96,15 @@ def meta(basis, version=None):
 
 def _params(p):
     return dict(
-        model=_model(p["basis"], p["version"], _phi_bins(p.get("phiBins", 6))),
+        model=_model(p["basis"], p["version"], _phi_bins(p.get("phiBins", 12))),
+        basis=p["basis"],
         dmin=p["dmin"], dmax=p["dmax"], npts=p["npts"],
         groups=[g for g in gx.GROUPS if g in p["groups"]],
         elements=[z if z == "D" else int(z) for z in p["elements"]],
         time_interval=_ti(p["mod"]),
         rigidity_cutoff=(float(p["cutoff"]) if p.get("cutoff") else None),
         energy_scale=float(p.get("escale", 1.0)),
+        quantity=p.get("quantity", "nucleus"),
     )
 
 
@@ -98,23 +118,26 @@ def evaluate(params_json):
     p = json.loads(params_json)
     _, res = _evaluate(p)
     series = [
-        {"name": name, "flux": list(map(float, f)),
-         "err": (list(map(float, e)) if e is not None else None)}
+        {"name": name, "flux": _numbers(f),
+         "err": (_numbers(e) if e is not None else None)}
         for name, (f, e) in res["series"].items()
     ]
     total = None
     if res["total"] is not None:
         tf, te = res["total"]
-        total = {"flux": list(map(float, tf)),
-                 "err": (list(map(float, te)) if te is not None else None)}
+        total = {"flux": _numbers(tf),
+                 "err": (_numbers(te) if te is not None else None)}
     return json.dumps({
-        "x": list(map(float, res["x"])),
+        "x": _numbers(res["x"]),
         "series": series,
         "total": total,
+        "quantity": p.get("quantity", "nucleus"),
+        "quantityLabel": gx.QUANTITIES[p.get("quantity", "nucleus")]["ui_label"],
         "caption": gx.caption(
             p["version"], p["basis"], p.get("gamma", 0), _ti(p["mod"]),
             [z if z == "D" else int(z) for z in p["elements"]], True,
-            (float(p["cutoff"]) if p.get("cutoff") else None)),
+            (float(p["cutoff"]) if p.get("cutoff") else None),
+            p.get("quantity", "nucleus")),
         "modulation": gx.modulation_phrase(_ti(p["mod"])),
     })
 
@@ -124,7 +147,7 @@ def csv(params_json, include_cov):
     model, res = _evaluate(p)
     return gx.build_csv(model, res, p["basis"], p["version"], _ti(p["mod"]),
                         (float(p["cutoff"]) if p.get("cutoff") else None),
-                        bool(include_cov))
+                        bool(include_cov), p.get("quantity", "nucleus"))
 
 
 def figure(params_json, opts_json):

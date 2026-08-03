@@ -29,13 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   were already year-named.
 - **The shipping state is now documented and enforced by the registry**: after
   every promotion the four `current` sets (`2026`, `2026-USO`,
-  `2026-UHE-S23e`, `2026-EPOS-LHCR`) are regenerated from the promoted run and
+  `2026-S23e`, `2026-EPOS-LHCR`) are generated from the same fit and
   re-shipped together; `2025`/`2019`/`2017` are static historical releases.
   All seven directories constitute the release-complete package.
 
 ### Added
 
-- **`2026-UHE-S23e`** and **`2026-EPOS-LHCR`**: the single-interpretation
+- **`2026-S23e`** and **`2026-EPOS-LHCR`**: the single-interpretation
   Auger FD-2026 SIBYLL-2.3e and EPOS-LHC-R variants of the 2026 fit (GMD
   potential) — the two halves of the mixture, for applications that need one
   definite hadronic-interaction model rather than the mixture band.
@@ -53,8 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `DEFAULT_VERSION`, `MODEL_VERSIONS` and `version_info()`: an explicit registry
-  of distributable versions, marking each `current` (the default and its one
-  sanctioned alternative) or `historical` (a superseded release). Only registered
+  of distributable versions, marking each `current` (the default and its
+  variants) or `historical` (an earlier release). Only registered
   directories are offered as versions, so an intermediate fit exported into
   `data/` cannot become distributable by accident -- unregistered directories
   warn instead. `get_available_versions(include_historical=False)` returns just
@@ -90,6 +90,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Code quality tooling (ruff) and pre-commit hooks
 - mkdocs documentation + tutorial notebooks
 - CI/CD pipeline with GitHub Actions
+
+### Fixed
+
+- **Kinetic-energy conversion uses each species' own rest mass.** Previously
+  every member of a mass group was evaluated with the group leader's rest
+  mass. Kinetic fluxes change by up to 3.9% below 1 TeV and by <0.1% above
+  10 TeV; total-energy results are unaffected.
+- **Nucleon counting separated from isotope mass.** The energy-variable
+  Jacobian keeps the real isotope mass, but proton/neutron numbers are now
+  integer counts. The old float arithmetic assigned a small spurious neutron
+  contribution to protons (e.g. A=1.008 gave hydrogen 0.008 neutrons); total
+  nucleon flux is 0.37-0.69% lower, its uncertainty 0.40-0.76% lower.
+- **GSF Explorer energy-scale factor.** The Explorer's multiplicative
+  energy-scale input (1 = unchanged) was assigned directly to the model's
+  *fractional-shift* `energy_scale` property (0 = unchanged), so every
+  Explorer evaluation ran at doubled energy. The bridge now maps the factor
+  correctly (`energy_scale = factor - 1`).
 
 ### Changed
 

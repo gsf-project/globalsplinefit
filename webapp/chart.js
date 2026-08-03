@@ -188,6 +188,22 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
       const { data, version } = models[mi];
       const tag = models.length > 1 ? version : null;
       const withBand = mi === 0 || view.overlayBands;
+      const isComposition = data.quantity === "mean_lna"
+        || data.quantity === "var_lna";
+      if (isComposition) {
+        const s = data.series[0];
+        rows.push({
+          name: data.quantityLabel, tag, mi, kind: "composition", color: theme.ink,
+          w: s.flux.map((v) => (Number.isFinite(v) ? v : NaN)),
+          lo: withBand && s.err
+            ? s.flux.map((v, i) => Number.isFinite(v) && Number.isFinite(s.err[i])
+              ? v - s.err[i] : NaN) : null,
+          hi: withBand && s.err
+            ? s.flux.map((v, i) => Number.isFinite(v) && Number.isFinite(s.err[i])
+              ? v + s.err[i] : NaN) : null,
+        });
+        continue;
+      }
       /* flux view: y = Φ·xᵞ; ratio view: y = Φᵢ/Φ_total (γ cancels; band
          edges use σᵢ/Φ_total — correlation with the total neglected) */
       const tot = data.total?.flux;
@@ -198,7 +214,8 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
       if (view.showTotal && data.total && !view.ratio) {
         const { flux, err } = data.total;
         rows.push({
-          name: "all-particle", tag, mi, kind: "total", color: theme.ink,
+          name: data.quantity === "nucleon" ? "all-nucleon" : "all-particle",
+          tag, mi, kind: "total", color: theme.ink,
           w: weigh(flux),
           lo: withBand && err ? weigh(flux.map((v, i) => v - err[i])) : null,
           hi: withBand && err ? weigh(flux.map((v, i) => v + err[i])) : null,
@@ -576,9 +593,11 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
                     ? Math.min(view.bandAlpha * 2.5, 0.8) : view.bandAlpha} />`)}
           ${shapes.map((s) => html`
             <path d=${linePath(px, s.py)} fill="none" stroke=${s.color}
-                  stroke-width=${(s.kind === "total" ? (s.mi ? 2 : 2.6)
-                                 : s.kind === "group" ? (s.mi ? 1.6 : 2) : 1.5)
-                                * lineWeight}
+                  stroke-width=${(
+                    s.kind === "total" || s.kind === "composition"
+                      ? (s.mi ? 2 : 2.6)
+                      : s.kind === "group" ? (s.mi ? 1.6 : 2) : 1.5
+                  ) * lineWeight}
                   stroke-dasharray=${s.kind === "element" ? "6 4" : MODEL_DASH[s.mi]}
                   stroke-linejoin="round" stroke-linecap="round"/>`)}
         </g>
@@ -695,7 +714,12 @@ export function xTitle(basisMeta, basisKey) {
   return `${phrase}  ${AXSYMS[basisKey] ?? ""}  [${basisMeta.unit}]`;
 }
 
-export function yTitle(basisMeta, basisKey, gamma) {
+export function yTitle(basisMeta, basisKey, gamma, quantity = "nucleus",
+                       ratio = false) {
+  if (quantity === "mean_lna") return "⟨ln A⟩";
+  if (quantity === "var_lna") return "σ²(ln A)";
+  if (ratio) return quantity === "nucleon"
+    ? "Φ / Φ(all-nucleon)" : "Φ / Φ(all-particle)";
   const u = basisMeta.unit;
   const g = +gamma.toFixed(2);
   if (g === 0) return `Φ  [(${u} m² s sr)⁻¹]`;

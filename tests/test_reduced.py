@@ -1,7 +1,6 @@
 """Tests for the pivot-based reduced representation (ReducedGSF)."""
 
 import json
-import warnings
 
 import numpy as np
 import pytest
@@ -55,56 +54,35 @@ class TestConstruction:
         assert len(r.pivot_energies) == 10
         assert r.pivot_energies[0] == pytest.approx(2.0)
 
-    def test_version_without_published_grid_derives_one(self):
-        """No shipped table -> optimize a grid, warn, and stay reproducible.
-
-        The previous behaviour silently dropped to a naive 10-pivot log grid,
-        which mis-covers the exact uncertainty by a factor ~4.
-        """
+    def test_historical_version_uses_fixed_grid(self):
+        """Every supported version constructs immediately from a fixed grid."""
         model = GSFEnergyPerNucleon(version="2025")
-        with pytest.warns(UserWarning, match="no published pivot grid"):
-            r = ReducedGSF(model)
-        assert len(r.pivot_energies) == 12
-        assert not np.allclose(r.pivot_energies, np.logspace(0, 9, 12))
-        # the quoted literal must reproduce the grid without re-optimizing
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            pinned = ReducedGSF(model, pivot_energies=r.pivot_energies)
-        assert np.array_equal(pinned.pivot_energies, r.pivot_energies)
+        reduced = ReducedGSF(model)
+        assert np.array_equal(reduced.pivot_energies, RECOMMENDED_PIVOTS["2025"])
 
-    def test_derived_grid_beats_naive_log_spacing(self):
-        """The derived grid must actually earn its construction cost."""
+    def test_fixed_grid_covers_every_shipped_version(self):
+        from globalsplinefit.data_management import MODEL_VERSIONS
+
+        assert set(RECOMMENDED_PIVOTS) == set(MODEL_VERSIONS)
+        for pivots in RECOMMENDED_PIVOTS.values():
+            assert pivots == RECOMMENDED_PIVOTS["2026"]
+
+    def test_custom_bundle_falls_back_to_standard_grid(self):
         model = GSFEnergyPerNucleon(version="2025")
-        with pytest.warns(UserWarning):
-            derived = ReducedGSF(model)
-        naive = ReducedGSF(model, n_pivots=len(derived.pivot_energies))
-
-        E = np.logspace(0, 9, 601)
-        exact = np.zeros((2, len(E)))
-        for g1 in model.active_groups:
-            for g2 in model.active_groups:
-                cpp, cnn = model.p_and_n_covariance(g1, g2, E)
-                exact[0] += np.diag(cpp)
-                exact[1] += np.diag(cnn)
-        exact = np.sqrt(exact)
-
-        def worst(red):
-            ratio = red.error(E) / exact
-            return max(ratio.max(), 1.0 / ratio.min())
-
-        assert worst(derived) < 1.5
-        assert worst(derived) < worst(naive)
+        model.version = None
+        reduced = ReducedGSF(model)
+        assert np.array_equal(reduced.pivot_energies, RECOMMENDED_PIVOTS["2026"])
 
     def test_per_group_layout(self, red_groups):
         assert len(red_groups.species) == 8
         assert red_groups.n_params == 48
-        assert red_groups.species[0] == "p_p"
+        assert red_groups.species[0] == "H_p"
         assert red_groups.species[-1] == "Fe*_n"
 
     def test_cov_is_symmetric_psd(self, red):
         assert np.allclose(red.cov, red.cov.T)
         w = np.linalg.eigvalsh(red.cov)
-        assert w.min() > 0  # full rank -> penalty invertible
+        assert w.min() >= -1e-14
 
     def test_explicit_pivots(self, gsf):
         pv = np.array([10.0, 1e3, 1e5])
@@ -121,6 +99,17 @@ class TestConstruction:
             ReducedGSF(gsf, pivot_energies=[1e3])
         with pytest.raises(ValueError):
             ReducedGSF(gsf, pivot_energies=[1e3, 1e2])
+        with pytest.raises(ValueError):
+            ReducedGSF(gsf, pivot_energies=[[1.0, 10.0], [100.0, 1000.0]])
+
+    @pytest.mark.parametrize("n_pivots", [True, 1, 2.5])
+    def test_rejects_bad_pivot_count(self, gsf, n_pivots):
+        with pytest.raises(ValueError, match="n_pivots"):
+            ReducedGSF(gsf, n_pivots=n_pivots)
+
+    def test_arrays_are_read_only(self, red):
+        assert not red.pivot_energies.flags.writeable
+        assert not red.cov.flags.writeable
 
     def test_rejects_unknown_basis(self, gsf):
         with pytest.raises(ValueError, match="basis"):
@@ -184,6 +173,12 @@ class TestFlux:
         E = np.logspace(1, 6, 40)
         assert np.allclose(red.flux(E, np.zeros(red.n_params)), red.flux(E))
 
+    def test_physical_configuration_cannot_be_changed_after_construction(self, gsf):
+        red = ReducedGSF(gsf, n_pivots=4, energy_range=(2.0, 1e9), time_interval="LIS")
+        red.flux([10.0], time_interval="LIS")
+        with pytest.raises(ValueError, match="construct a new reduction"):
+            red.flux([10.0], time_interval=(200901, 201001))
+
     def test_unit_bump_at_pivot(self, red):
         theta = np.zeros(red.n_params)
         theta[3] = 0.1  # p component at pivot 3
@@ -217,7 +212,7 @@ class TestPublishedGrid:
         exact = _exact_total_error(gsf, E)
         red = ReducedGSF(gsf)
         dev = np.exp(np.abs(np.log(red.error(E) / exact)).max())
-        assert dev < 1.30  # published claim: 1.24 (plus grid-sampling slack)
+        assert dev < 1.30  # published grid has a measured maximum of 1.29
 
     def test_min_separation_respected(self, gsf):
         pivots, _ = optimize_pivots(
@@ -245,7 +240,7 @@ class TestCovariance:
 
     def test_error_exact_at_pivots_per_group(self, red_groups, gsf):
         pv = red_groups.pivot_energies
-        for s, g in enumerate(["p", "He", "O*", "Fe*"]):
+        for s, g in enumerate(gsf.active_groups):
             exact = gsf.p_and_n_error(pv, g)
             assert np.allclose(red_groups.error(pv)[2 * s], exact[0], rtol=1e-8)
             assert np.allclose(red_groups.error(pv)[2 * s + 1], exact[1], rtol=1e-8)

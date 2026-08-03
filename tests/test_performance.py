@@ -67,7 +67,7 @@ class TestPerformanceBenchmarks:
     def test_all_groups_performance(self, gsf_energy):
         """Benchmark calculating all groups."""
         energies = np.logspace(0, 4, 500)  # Moderate size
-        groups = ["p", "He", "O", "Fe"]
+        groups = gsf_energy.active_groups
 
         # Run multiple times for measurable results
         times = []
@@ -102,10 +102,10 @@ class TestPerformanceBenchmarks:
         # Method 2: Manual sum
         start_time = time.perf_counter()
         manual_sum = (
-            gsf_energy.flux(energies, "p")
+            gsf_energy.flux(energies, "H")
             + gsf_energy.flux(energies, "He")
-            + gsf_energy.flux(energies, "O")
-            + gsf_energy.flux(energies, "Fe")
+            + gsf_energy.flux(energies, "O*")
+            + gsf_energy.flux(energies, "Fe*")
         )
         method2_time = time.perf_counter() - start_time
 
@@ -322,7 +322,7 @@ class TestPerformanceBenchmarks:
         results = []
         for i in range(10):
             # Alternate between different groups rapidly
-            group = ["p", "He", "O", "Fe"][i % 4]
+            group = gsf_energy.active_groups[i % 4]
             flux = gsf_energy.flux(energies, group)
             results.append((group, flux.copy()))
 

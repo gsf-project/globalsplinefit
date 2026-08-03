@@ -90,12 +90,12 @@ class TestGSFRigidityPhysicsValidation:
         np.testing.assert_allclose(R_is_mod, R_is_ref, rtol=1e-12)
         np.testing.assert_allclose(Λ_mod, Λ_ref, rtol=1e-12)
         ratio = R_is_ref / R
-        assert np.all(np.diff(ratio) < 0)              # shift fades with rigidity
-        assert ratio[0] > 1.0 and Λ_ref[-1] > 0.99     # -> LIS at high rigidity
+        assert np.all(np.diff(ratio) < 0)  # shift fades with rigidity
+        assert ratio[0] > 1.0 and Λ_ref[-1] > 0.99  # -> LIS at high rigidity
 
     def test_flux_modulation_symmetry(self, gsf_rigidity):
         R = np.geomspace(1.0, 100.0, 40)
-        groups = ["p", "He", "O*", "Fe*"]
+        groups = gsf_rigidity.active_groups
         lis = {g: gsf_rigidity.flux(R, g) for g in groups}
         mod = {
             g: gsf_rigidity.flux(R, g, time_interval=(200901, 200912)) for g in groups
@@ -116,7 +116,7 @@ class TestGSFRigidityPhysicsValidation:
         z, leader, ratio = 1, 1, 1.0
         phis, weights = gsf_rigidity._phi_list(interval)
         jac_manual = 0.0
-        for phi, w in zip(phis, weights):
+        for phi, w in zip(phis, weights, strict=True):
             R_is, Λ = gsf_rigidity._rigidity_phi_transform(z, R_grid, phi)
             jac_manual += (
                 w

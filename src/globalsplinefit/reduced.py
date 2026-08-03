@@ -25,18 +25,14 @@ full GSF parameter covariance at the pivots:
 
     C = J_rel(pivots) Cov_param J_rel(pivots)^T
 
-No eigendecomposition and no truncation: at the pivot energies the reduced
+No mode truncation: at the pivot energies the reduced
 variance (and every cross-species/cross-energy correlation between pivots)
 equals the full model's.  Between pivots the deformation is interpolated,
-which is median-unbiased and errs on the conservative side — unlike a
-truncated PCA basis, which systematically understates the variance outside
-the leading modes (see the ``hybrid_pca`` example notebook for that
-comparison; :class:`~globalsplinefit.pca.HybridPCA` remains the right tool
-for *reproducing* the covariance compactly rather than *parametrizing* it).
+which provides a compact nuisance-parameter model for downstream fits.
 
 Intended use in a fit::
 
-    red = ReducedGSF()                       # 2 species x 10 pivots = 20 pars
+    red = ReducedGSF()                       # 2 species x 12 pivots = 24 pars
     flux = red.flux(E, theta)                # vary theta -> observable Jacobian
     chi2_penalty = red.penalty(theta)        # theta^T C^-1 theta
 
@@ -46,9 +42,6 @@ GSF 2026 supplemental material.  The construction follows the approach used
 for the GSF nuisance parameters in daemonflux (Yanez & Fedynitch 2023).
 """
 
-import time
-import warnings
-
 import numpy as np
 
 from .model import (
@@ -56,9 +49,50 @@ from .model import (
     GSFEnergyPerNucleon,
     GSFKineticEnergyPerNucleon,
 )
-from .pca import _GROUPS, _build_stacked_system
 
 _NUCLEON_MODELS = (GSFEnergyPerNucleon, GSFKineticEnergyPerNucleon)
+_GROUPS = ("H", "He", "O*", "Fe*")
+_JACOBIAN_TRIM = slice(1, -3)
+
+
+def _build_stacked_system(model, energy_grid, **kwargs):
+    """Build the block Jacobian and parameter covariance for four mass groups."""
+    jac_blocks = []
+    leader_sids = []
+    for group in _GROUPS:
+        _charges, leader = model._resolve_z(group)
+        leader_sids.append(model._leader_by_charge[leader])
+        jac_p, jac_n = model.p_and_n_jacobian(energy_grid, group, **kwargs)
+        jac_blocks.append(
+            np.vstack([jac_p[:, _JACOBIAN_TRIM], jac_n[:, _JACOBIAN_TRIM]])
+        )
+
+    widths = [block.shape[1] for block in jac_blocks]
+    rows = sum(block.shape[0] for block in jac_blocks)
+    cols = sum(widths)
+    jacobian = np.zeros((rows, cols))
+    row = col = 0
+    for block in jac_blocks:
+        nr, nc = block.shape
+        jacobian[row : row + nr, col : col + nc] = block
+        row += nr
+        col += nc
+
+    covariance = np.zeros((cols, cols))
+    col1 = 0
+    for sid1, width1 in zip(leader_sids, widths, strict=True):
+        col2 = 0
+        for sid2, width2 in zip(leader_sids, widths, strict=True):
+            block = model.cov.get((sid1, sid2))
+            if block is not None:
+                covariance[col1 : col1 + width1, col2 : col2 + width2] = block[
+                    _JACOBIAN_TRIM, _JACOBIAN_TRIM
+                ]
+            col2 += width2
+        col1 += width1
+
+    return jacobian, covariance
+
 
 # Published pivot grids, one per model version — the reproducible, quotable
 # component definition (theta_k = relative deviation of the total p/n flux
@@ -71,60 +105,27 @@ _NUCLEON_MODELS = (GSFEnergyPerNucleon, GSFKineticEnergyPerNucleon)
 # coverage factor 1.29 of the exact total p/n uncertainty over 1-1e9 GeV
 # (verified on an independent 601-point grid, 2026-07-31).  Tuned for the
 # total-p/n species with the (local cubic) spline basis.  Regenerate when a
-# model version is promoted.
-RECOMMENDED_PIVOTS = {
-    "2026": (1.0, 4.0, 90.0, 9e3, 2.5e4, 1e5, 3e6, 6e6, 3e7, 1e8, 3e8, 1e9),
-}
+# model version is updated.
+_STANDARD_PIVOTS = (
+    1.0,
+    4.0,
+    90.0,
+    9e3,
+    2.5e4,
+    1e5,
+    3e6,
+    6e6,
+    3e7,
+    1e8,
+    3e8,
+    1e9,
+)
+RECOMMENDED_PIVOTS = dict.fromkeys(
+    ("2017", "2019", "2025", "2026", "2026-USO", "2026-S23e", "2026-EPOS-LHCR"),
+    _STANDARD_PIVOTS,
+)
 
-# Default pivot range, and the pivot count used when a grid has to be derived
-# on the fly for a model version with no ``RECOMMENDED_PIVOTS`` entry.  Not
-# every published variant gets a shipped table: the optimizer derives an
-# equivalent grid at construction time instead (see ``_derive_pivots``).
 _DEFAULT_ENERGY_RANGE = (1.0, 1e9)
-_AUTO_N_PIVOTS = 12
-
-
-def _pivot_literal(pivots: np.ndarray) -> str:
-    """Copy-pasteable tuple literal for a derived pivot grid."""
-    return "(" + ", ".join(f"{p:.6g}" for p in pivots) + ")"
-
-
-def _derive_pivots(
-    model: GSFEnergyPerNucleon,
-    per_group: bool,
-    basis: str,
-    kwargs: dict,
-) -> np.ndarray:
-    """Optimize a pivot grid for a model version with no published table.
-
-    Deterministic (``optimize_pivots`` defaults, ``seed=0``) but recomputed on
-    every construction, so the emitted warning tells the caller how to pin the
-    result.
-    """
-    t0 = time.perf_counter()
-    pivots, worst = optimize_pivots(
-        model,
-        n_pivots=_AUTO_N_PIVOTS,
-        energy_range=_DEFAULT_ENERGY_RANGE,
-        per_group=per_group,
-        basis=basis,
-        **kwargs,
-    )
-    elapsed = time.perf_counter() - t0
-    published = ", ".join(repr(v) for v in sorted(RECOMMENDED_PIVOTS)) or "none"
-    warnings.warn(
-        f"no published pivot grid for model version {model.version!r} "
-        f"(shipped: {published}); derived one with "
-        f"optimize_pivots(n_pivots={_AUTO_N_PIVOTS}) in {elapsed:.0f}s, "
-        f"worst-case coverage factor {worst:.2f}. The grid is deterministic "
-        "but recomputed on every construction — for repeated or published "
-        "workflows read it off this instance (`red.pivot_energies`) and pass "
-        "it back explicitly:\n"
-        f"    ReducedGSF(model, pivot_energies={_pivot_literal(pivots)})",
-        UserWarning,
-        stacklevel=3,
-    )
-    return pivots
 
 
 def _format_energy(e: float) -> str:
@@ -190,7 +191,7 @@ def _relative_species_system(model, energies: np.ndarray, per_group: bool, **kwa
         Species labels.
     """
     n_e = len(energies)
-    jac, cov_par, _, _, _, _ = _build_stacked_system(model, energies, **kwargs)
+    jac, cov_par = _build_stacked_system(model, energies, **kwargs)
 
     if per_group:
         species = [f"{g}_{q}" for g in _GROUPS for q in ("p", "n")]
@@ -203,7 +204,7 @@ def _relative_species_system(model, energies: np.ndarray, per_group: bool, **kwa
         jp = sum(jac[2 * ig * n_e : (2 * ig + 1) * n_e] for ig in range(4))
         jn = sum(jac[(2 * ig + 1) * n_e : (2 * ig + 2) * n_e] for ig in range(4))
         jac_rows = np.vstack([jp, jn])
-        central = np.concatenate(model.p_and_n_total_flux(energies, **kwargs))
+        central = model.p_and_n_total_flux(energies, **kwargs).ravel()
 
     if np.any(central <= 0.0):
         bad = np.flatnonzero(central <= 0.0)[0]
@@ -222,18 +223,14 @@ class ReducedGSF:
     Parameters
     ----------
     model : GSFEnergyPerNucleon or GSFKineticEnergyPerNucleon, optional
-        Nucleon model to reduce.  Default: ``GSFEnergyPerNucleon()`` (the
-        promoted 2026 set, Solar Cycle 24 average).
+        Nucleon model to reduce. Default: ``GSFEnergyPerNucleon()`` using the
+        2026 set and Solar Cycle 24 average.
     n_pivots : int, optional
         Number of log-spaced pivot energies per species.  If neither this
         nor ``pivot_energies`` is given (and ``energy_range`` is left at
         its default), the **published grid** for the model version is used
-        (:data:`RECOMMENDED_PIVOTS`; 12 pivots for "2026", worst-case
-        coverage factor 1.24) — the reproducible, citable default.  Model
-        versions with no shipped entry get an equivalent grid derived at
-        construction time by :func:`optimize_pivots` (deterministic, ~10 s,
-        with a :exc:`UserWarning` showing the literal to pin for repeated
-        runs) rather than a silent drop to a naive log-spaced grid.
+        (:data:`RECOMMENDED_PIVOTS`; 12 pivots and a measured worst-case
+        standard-deviation ratio of 1.29 for the 2026 set).
         Passing ``n_pivots`` explicitly requests a log-spaced grid instead.
     energy_range : tuple of float, optional
         ``(E_min, E_max)`` of the pivot grid in GeV per nucleon.
@@ -266,7 +263,7 @@ class ReducedGSF:
     pivot_energies : ndarray, shape (N,)
         The pivot grid.
     species : list of str
-        Species row labels: ``["p", "n"]``, or ``["p_p", "p_n", "He_p", ...]``
+        Species row labels: ``["p", "n"]``, or ``["H_p", "H_n", "He_p", ...]``
         (group then p/n) with ``per_group=True``.
     n_params : int
         ``len(species) * N`` — the length of ``theta``.
@@ -284,13 +281,13 @@ class ReducedGSF:
     Examples
     --------
     >>> from globalsplinefit.reduced import ReducedGSF
-    >>> red = ReducedGSF()                    # 20 parameters (2 x 10)
+    >>> red = ReducedGSF()                    # 24 parameters (2 x 12)
     >>> E = np.logspace(1, 6, 50)
     >>> f_central = red.flux(E)               # (2, 50): [p, n], theta = 0
     >>> theta = np.zeros(red.n_params)
     >>> theta[3] = red.sigma[3]               # +1 sigma on one component
     >>> f_varied = red.flux(E, theta)
-    >>> chi2 = red.penalty(theta)             # -> 1.0 if uncorrelated
+    >>> chi2 = red.penalty(theta)             # Gaussian prior contribution
     """
 
     def __init__(
@@ -316,43 +313,82 @@ class ReducedGSF:
 
         if pivot_energies is None:
             if n_pivots is None and energy_range == _DEFAULT_ENERGY_RANGE:
-                if model.version in RECOMMENDED_PIVOTS:
-                    # the published, citable grid for this model version
-                    pivot_energies = np.array(RECOMMENDED_PIVOTS[model.version])
-                else:
-                    # no shipped table for this version — derive an equivalent
-                    # grid now and tell the caller how to pin it
-                    pivot_energies = _derive_pivots(model, per_group, basis, kwargs)
+                # Supported versions use a fixed, citable grid. Custom bundles
+                # use the same stable default unless pivots are supplied.
+                pivot_energies = np.array(
+                    RECOMMENDED_PIVOTS.get(model.version, _STANDARD_PIVOTS)
+                )
             else:
+                if n_pivots is not None and (
+                    isinstance(n_pivots, bool)
+                    or not isinstance(n_pivots, (int, np.integer))
+                    or n_pivots < 2
+                ):
+                    raise ValueError("n_pivots must be an integer >= 2")
+                if (
+                    len(energy_range) != 2
+                    or not np.all(np.isfinite(energy_range))
+                    or energy_range[0] <= 0
+                    or energy_range[0] >= energy_range[1]
+                ):
+                    raise ValueError(
+                        "energy_range must be two positive increasing values"
+                    )
                 pivot_energies = np.logspace(
                     np.log10(energy_range[0]),
                     np.log10(energy_range[1]),
                     n_pivots if n_pivots is not None else 10,
                 )
-        pivot_energies = np.atleast_1d(np.asarray(pivot_energies, dtype=float))
-        if len(pivot_energies) < 2 or np.any(np.diff(pivot_energies) <= 0):
-            raise ValueError("pivot_energies must be >= 2 strictly increasing values")
+        pivot_energies = np.array(pivot_energies, dtype=float, copy=True)
+        if (
+            pivot_energies.ndim != 1
+            or len(pivot_energies) < 2
+            or not np.all(np.isfinite(pivot_energies))
+            or np.any(pivot_energies <= 0)
+            or np.any(np.diff(pivot_energies) <= 0)
+        ):
+            raise ValueError(
+                "pivot_energies must be at least two positive, finite, increasing values"
+            )
 
         self.model = model
         self.per_group = per_group
         self.pivot_energies = pivot_energies
         self.basis_type = basis
         self._log_pivots = np.log(pivot_energies)
-        self._kwargs = kwargs
+        self._kwargs = dict(kwargs)
 
         n_piv = len(pivot_energies)
         jac_rel, cov_par, central, self.species = _relative_species_system(
             model, pivot_energies, per_group, **kwargs
         )
-        self.cov = jac_rel @ cov_par @ jac_rel.T
-        self.cov = 0.5 * (self.cov + self.cov.T)
+        covariance = jac_rel @ cov_par @ jac_rel.T
+        covariance = 0.5 * (covariance + covariance.T)
+        eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+        tolerance = (
+            np.finfo(float).eps
+            * max(covariance.shape)
+            * max(float(np.max(np.abs(eigenvalues))), 1.0)
+        )
+        if np.min(eigenvalues) < -100 * tolerance:
+            raise ValueError("reduced covariance is not positive semidefinite")
+        self.cov = (eigenvectors * np.maximum(eigenvalues, 0.0)) @ eigenvectors.T
         self._central_pivots = central.reshape(len(self.species), n_piv)
-        self._chol = None  # lazy Cholesky of cov for penalty()
+        self._precision = None
+        self._sample_factor = eigenvectors * np.sqrt(np.maximum(eigenvalues, 0.0))
 
         self.n_params = len(self.species) * n_piv
         self.labels = [
             f"{s}_{_format_energy(e)}" for s in self.species for e in pivot_energies
         ]
+        for array in (
+            self.pivot_energies,
+            self._log_pivots,
+            self.cov,
+            self._central_pivots,
+            self._sample_factor,
+        ):
+            array.setflags(write=False)
 
     # ------------------------------------------------------------------
     # Derived views
@@ -367,7 +403,13 @@ class ReducedGSF:
     def correlation(self) -> np.ndarray:
         """Correlation matrix of the components."""
         s = self.sigma
-        return self.cov / np.outer(s, s)
+        denominator = np.outer(s, s)
+        return np.divide(
+            self.cov,
+            denominator,
+            out=np.zeros_like(self.cov),
+            where=denominator > 0,
+        )
 
     # ------------------------------------------------------------------
     # Basis
@@ -388,16 +430,27 @@ class ReducedGSF:
         Outside the pivot range the edge pivot's deformation is held
         constant.
         """
-        log_e = np.log(np.atleast_1d(np.asarray(energy, dtype=float)))
+        energy = self.model._as_1d_values(energy, "energy", positive=True)
+        log_e = np.log(energy)
         return _interp_basis(self._log_pivots, log_e, self.basis_type)
 
     # ------------------------------------------------------------------
     # Model evaluation
     # ------------------------------------------------------------------
 
+    def _effective_kwargs(self, overrides: dict) -> dict:
+        """Keep the physical configuration used to construct the covariance fixed."""
+        for key, value in overrides.items():
+            if key not in self._kwargs or self._kwargs[key] != value:
+                raise ValueError(
+                    f"cannot override {key!r} on an existing ReducedGSF; "
+                    "construct a new reduction for different physical settings"
+                )
+        return self._kwargs
+
     def _central_flux(self, energy: np.ndarray, **kwargs) -> np.ndarray:
         """Central flux per species, shape (S, n_E)."""
-        kw = {**self._kwargs, **kwargs}
+        kw = self._effective_kwargs(kwargs)
         if self.per_group:
             return np.vstack(
                 [self.model.p_and_n_flux(energy, g, **kw) for g in _GROUPS]
@@ -427,13 +480,18 @@ class ReducedGSF:
         flux : ndarray, shape (S, n_E)
             One row per entry of :attr:`species`.
         """
-        energy = np.atleast_1d(np.asarray(energy, dtype=float))
+        energy = self.model._as_1d_values(energy, "energy", positive=True)
         central = self._central_flux(energy, **kwargs)
         if theta is None:
             return central
-        theta = np.asarray(theta, dtype=float).reshape(
-            len(self.species), len(self.pivot_energies)
-        )
+        theta = np.asarray(theta, dtype=float)
+        if (
+            theta.ndim != 1
+            or theta.size != self.n_params
+            or not np.all(np.isfinite(theta))
+        ):
+            raise ValueError(f"theta must be a finite vector of length {self.n_params}")
+        theta = theta.reshape(len(self.species), len(self.pivot_energies))
         H = self.basis(energy)
         return central * (1.0 + theta @ H.T)
 
@@ -446,7 +504,7 @@ class ReducedGSF:
             ``jac[s, i, j] = d flux[s, i] / d theta[j]``.  Species ``s``
             only responds to its own block of components.
         """
-        energy = np.atleast_1d(np.asarray(energy, dtype=float))
+        energy = self.model._as_1d_values(energy, "energy", positive=True)
         central = self._central_flux(energy, **kwargs)
         H = self.basis(energy)
         n_s = len(self.species)
@@ -459,13 +517,13 @@ class ReducedGSF:
     def error(self, energy: ArrayLike, **kwargs) -> np.ndarray:
         """Absolute 1-sigma flux uncertainty of the reduced model.
 
-        Exact at the pivot energies; hat-interpolated in between.
+        Exact at the pivot energies and interpolated with the selected basis.
 
         Returns
         -------
         sigma : ndarray, shape (S, n_E)
         """
-        energy = np.atleast_1d(np.asarray(energy, dtype=float))
+        energy = self.model._as_1d_values(energy, "energy", positive=True)
         central = self._central_flux(energy, **kwargs)
         H = self.basis(energy)
         n_piv = len(self.pivot_energies)
@@ -492,9 +550,11 @@ class ReducedGSF:
         """
         if rng is None:
             rng = np.random.default_rng()
-        w, u = np.linalg.eigh(self.cov)
-        a = u * np.sqrt(np.maximum(w, 0.0))
-        return rng.standard_normal((n_samples, self.n_params)) @ a.T
+        if isinstance(n_samples, bool) or not isinstance(n_samples, (int, np.integer)):
+            raise ValueError("n_samples must be a positive integer")
+        if n_samples < 1:
+            raise ValueError("n_samples must be a positive integer")
+        return rng.standard_normal((n_samples, self.n_params)) @ self._sample_factor.T
 
     def penalty(self, theta: ArrayLike) -> float:
         """Gaussian penalty ``theta^T cov^-1 theta`` for a fit.
@@ -502,10 +562,16 @@ class ReducedGSF:
         Add this to the fit's chi-square to constrain the components to the
         GSF uncertainty.
         """
-        if self._chol is None:
-            self._chol = np.linalg.cholesky(self.cov)
-        z = np.linalg.solve(self._chol, np.asarray(theta, dtype=float))
-        return float(z @ z)
+        theta = np.asarray(theta, dtype=float)
+        if (
+            theta.ndim != 1
+            or theta.size != self.n_params
+            or not np.all(np.isfinite(theta))
+        ):
+            raise ValueError(f"theta must be a finite vector of length {self.n_params}")
+        if self._precision is None:
+            self._precision = np.linalg.pinv(self.cov, hermitian=True)
+        return float(theta @ self._precision @ theta)
 
     # ------------------------------------------------------------------
     # Export
