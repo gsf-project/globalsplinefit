@@ -10,18 +10,26 @@ Pages) suffices. First visit downloads ~25 MB of runtime (cached afterwards).
 
 Two-speed state model:
 
-- **Display state** (spectral weight γ, flux/ratio-to-total quantity,
+- **Display state** (spectral weight γ, flux/fraction normalization,
   log/linear, component visibility, line weight, bands + opacity, hover, x-window and
   y-range — i.e. ALL navigation: box-zoom, pan, trackpad pinch/scroll) is
   applied by `chart.js` in plain JS — instant, no Python. The model grid
   always covers the full 10⁰–10¹¹ range (default 480 pts), so zooming and
   panning slice a cached grid and never recompute.
-- **Model state** (parameter sets, abscissa, elements, solar modulation,
+- **Model state** (parameter sets, plotted quantity, abscissa, elements,
+  solar modulation,
   energy scale, cutoff, grid resolution) round-trips to the Pyodide worker
   (debounced + pumped: one evaluation in flight, always against the latest
   params).
 
-Ratio view shows Φᵢ/Φ_total (the paper's fraction plots); its bands use
+The Settings pane selects nucleus flux, nucleon flux, ⟨ln A⟩, or
+σ²(ln A). Nucleus flux and both composition moments support all five
+abscissae. Nucleon flux is available only versus total or kinetic energy per
+nucleon; selecting it immediately constrains the axis selector to those two
+physical choices. Composition curves are nucleus-weighted and their bands use
+the package covariance propagation.
+
+Fraction view shows Φᵢ/Φ_total (the paper's fraction plots); its bands use
 σᵢ/Φ_total — the correlation with the total is neglected (labeled in the
 UI; proper `fraction_error` is ~10 s in WASM, too slow for a live toggle).
 Figure/CSV exports honor the current window and produce one file per
@@ -79,7 +87,8 @@ python browser_smoke.py      # quick gate: boot + key interactions + exports
 ```
 
 `test_ui.py` exercises every control on the page — model add/remove/drag-
-reorder, all five abscissas (incl. deuterium on rigidity), every component and
+reorder, all four plot quantities and their abscissa constraints, all five
+abscissas (incl. deuterium on rigidity), every component and
 element chip, all display/modulation/advanced inputs, box-zoom/pan/wheel/
 home, hover, all exports, both themes, mobile — and fails on any error
 toast, console error, or missing effect, with a per-control PASS/FAIL
@@ -152,12 +161,13 @@ is the full content plane. Navigation floats at the top, immediate display
 controls sit in the bottom dock, and Series / Settings / Export open
 consistent anchored command panes. Series combines parameter-set overlays with
 component and element visibility (including a one-step element reset); Settings
-contains Abscissa, Solar modulation, and Advanced controls. All three panes
+contains plot quantity + Abscissa, Solar modulation, and Advanced controls.
+All three panes
 reserve a visible scrollbar and become scrollable bottom sheets on mobile.
 Opening them does not change the chart size or trigger evaluation.
 Typography is IBM Plex Sans for UI, wordmark and axis titles, with IBM Plex
 Mono for numerics and the telegraphic state line
-(`MODEL(s) · modulation · range · abscissa`). The top-right legend tightens
+(`MODEL(s) · quantity · modulation · range · abscissa`). The top-right legend tightens
 its spacing as the plot narrows, auto-collapses on compact canvases, and can
 always be toggled with pointer or keyboard. Group colors are the paper's hues
 re-stepped **per surface** and validated for CVD/contrast

@@ -21,7 +21,7 @@ def test_packaged_parameters_are_shared_and_immutable():
     explicit = GSFEnergy(version="2026", solar_cycle_average_bins=1)
 
     assert default.params is explicit.params
-    assert default.solar_cycle_average_bins == 6
+    assert default.solar_cycle_average_bins == 12
     assert explicit.solar_cycle_average_bins == 1
 
     sid = default.species[0]

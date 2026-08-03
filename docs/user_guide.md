@@ -104,7 +104,7 @@ All model classes accept a `version` parameter selecting the fitted parameter se
 ```python
 gsf = GSFEnergy()                           # default 2026 fit
 gsf_uso = GSFEnergy(version="2026-USO")     # Usoskin modulation variant
-gsf_uhe = GSFEnergy(version="2026-UHE-S23e")
+gsf_s23e = GSFEnergy(version="2026-S23e")
 gsf_epos = GSFEnergy(version="2026-EPOS-LHCR")
 gsf_2025 = GSFEnergy(version="2025")        # historical release
 ```
@@ -117,7 +117,7 @@ for reproducibility.
 |---------|--------|----------|------------|-------------|
 | `"2026"` | **current -- default** | SIBYLL-2.3e / EPOS-LHC-R mixture | Ghelfi--Maurin--Derome (**baseline**) | Default 2026 fit |
 | `"2026-USO"` | current -- alternative | SIBYLL-2.3e / EPOS-LHC-R mixture | Usoskin 2017 (alternative) | The same fit with the other potential; use it to gauge the solar-modulation systematic |
-| `"2026-UHE-S23e"` | current -- UHE variant | Auger FD-2026 SIBYLL-2.3e only | Ghelfi--Maurin--Derome | Single hadronic-interaction interpretation, for UHE/air-shower applications that cannot use a mixture band |
+| `"2026-S23e"` | current -- single interpretation | Auger FD-2026 SIBYLL-2.3e only | Ghelfi--Maurin--Derome | Single hadronic-interaction interpretation for applications that cannot use a mixture band |
 | `"2026-EPOS-LHCR"` | current -- variant | Auger FD-2026 EPOS-LHC-R only | Ghelfi--Maurin--Derome | The other single-interpretation half of the mixture |
 | `"2025"` | historical | superseded | Usoskin | Previous published release |
 | `"2019"` | historical | superseded | Usoskin | Legacy published release |
@@ -146,7 +146,7 @@ the two fits, and the covariance carries an additional rank-one between-model
 term. The published band therefore spans both interpretations where they diverge
 and collapses to the ordinary fit covariance where they agree (below
 ~2x10^8 GeV, where the two coincide). The two halves of the mixture are also
-distributed as single-interpretation sets — `2026-UHE-S23e` (SIBYLL-2.3e only)
+distributed as single-interpretation sets — `2026-S23e` (SIBYLL-2.3e only)
 and `2026-EPOS-LHCR` (EPOS-LHC-R only) — for applications that need a definite
 hadronic model; all other intermediate fits are not distributed.
 

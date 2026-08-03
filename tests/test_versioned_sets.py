@@ -3,7 +3,7 @@
 2026 is the default equal-weight SIBYLL-2.3e/EPOS-LHC-R
 mixture covering with the Ghelfi-Maurin-Derome modulation potential.
 2026-USO is the same mixture fit with the Usoskin 2017 potential, which
-yields a lower low-rigidity local interstellar spectrum. 2026-UHE-S23e and
+yields a lower low-rigidity local interstellar spectrum. 2026-S23e and
 2026-EPOS-LHCR are the single-interpretation variants (SIBYLL-2.3e and
 EPOS-LHC-R, both GMD). All 2026 sets are isotope-format sets
 (they carry deuterium and the He-isotope split), so bare integer-charge access
@@ -27,7 +27,7 @@ def test_new_sets_available():
     versions = get_available_versions()
     assert "2026" in versions
     assert "2026-USO" in versions
-    assert "2026-UHE-S23e" in versions
+    assert "2026-S23e" in versions
     assert "2026-EPOS-LHCR" in versions
 
 
@@ -63,7 +63,7 @@ def test_only_registered_versions_are_offered():
     for name in get_available_versions():
         assert name in MODEL_VERSIONS, f"{name} is offered but not registered"
     current = get_available_versions(include_historical=False)
-    assert set(current) == {"2026", "2026-USO", "2026-UHE-S23e", "2026-EPOS-LHCR"}
+    assert set(current) == {"2026", "2026-USO", "2026-S23e", "2026-EPOS-LHCR"}
     for name in current:
         assert MODEL_VERSIONS[name]["status"] == "current"
 
@@ -105,7 +105,7 @@ def test_current_sets_are_the_mixture_and_declare_provenance():
 @pytest.mark.parametrize(
     "version, model, absent",
     [
-        ("2026-UHE-S23e", "SIBYLL", "EPOS"),
+        ("2026-S23e", "SIBYLL", "EPOS"),
         ("2026-EPOS-LHCR", "EPOS", "SIBYLL"),
     ],
 )
@@ -126,7 +126,7 @@ def test_historical_sets_are_marked_historical():
 
 
 @pytest.mark.parametrize(
-    "version", ["2026", "2026-USO", "2026-UHE-S23e", "2026-EPOS-LHCR"]
+    "version", ["2026", "2026-USO", "2026-S23e", "2026-EPOS-LHCR"]
 )
 def test_set_loads_and_is_positive(version):
     m = GSFEnergy(version=version)

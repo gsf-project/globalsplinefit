@@ -154,7 +154,7 @@ class GSFBase(ABC):
         self,
         data_path: str | Path | None = None,
         version: str | None = None,
-        solar_cycle_average_bins: int | None = 6,
+        solar_cycle_average_bins: int | None = 12,
         default_time_interval: tuple[int, int] | str | None = None,
         default_rigidity_cutoff: float | None = None,
         cutoff_width: float = 1.0,
@@ -172,8 +172,8 @@ class GSFBase(ABC):
             :func:`~globalsplinefit.data_management.version_info`. If specified,
             overrides data_path and uses the corresponding package data directory.
         solar_cycle_average_bins
-            Weighted bins used for a solar-period average. The default six-bin
-            approximation is within 0.5% of the full monthly average for
+            Weighted bins used for a solar-period average. The default 12-bin
+            approximation is within 0.1% of the full monthly average for
             E >= 1 GeV. Use ``None`` for every month or ``1`` for the mean
             modulation potential.
         default_time_interval

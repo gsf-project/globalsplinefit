@@ -10,7 +10,8 @@ PYTHON="${PYTHON:-python3}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-rsync -a --exclude .git --exclude __pycache__ --exclude site --exclude .venv \
+rsync -a --exclude .git --exclude __pycache__ --exclude .venv \
+    --exclude build --exclude dist --exclude site --exclude '*.egg-info' \
     --exclude webapp "$SRC/" "$TMP/src/"
 if command -v uv >/dev/null 2>&1; then
     uv build --wheel --out-dir "$TMP/out" "$TMP/src"

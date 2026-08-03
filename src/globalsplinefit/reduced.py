@@ -121,7 +121,7 @@ _STANDARD_PIVOTS = (
     1e9,
 )
 RECOMMENDED_PIVOTS = dict.fromkeys(
-    ("2017", "2019", "2025", "2026", "2026-USO", "2026-UHE-S23e", "2026-EPOS-LHCR"),
+    ("2017", "2019", "2025", "2026", "2026-USO", "2026-S23e", "2026-EPOS-LHCR"),
     _STANDARD_PIVOTS,
 )
 

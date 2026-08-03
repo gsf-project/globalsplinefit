@@ -29,13 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   were already year-named.
 - **The shipping state is now documented and enforced by the registry**: after
   every promotion the four `current` sets (`2026`, `2026-USO`,
-  `2026-UHE-S23e`, `2026-EPOS-LHCR`) are generated from the same fit and
+  `2026-S23e`, `2026-EPOS-LHCR`) are generated from the same fit and
   re-shipped together; `2025`/`2019`/`2017` are static historical releases.
   All seven directories constitute the release-complete package.
 
 ### Added
 
-- **`2026-UHE-S23e`** and **`2026-EPOS-LHCR`**: the single-interpretation
+- **`2026-S23e`** and **`2026-EPOS-LHCR`**: the single-interpretation
   Auger FD-2026 SIBYLL-2.3e and EPOS-LHC-R variants of the 2026 fit (GMD
   potential) — the two halves of the mixture, for applications that need one
   definite hadronic-interaction model rather than the mixture band.

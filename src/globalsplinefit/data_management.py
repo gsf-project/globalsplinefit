@@ -89,8 +89,7 @@ DEFAULT_VERSION = "2026"
 #:
 #:   ``2026``            mixture covering + GMD potential   (the default)
 #:   ``2026-USO``        mixture covering + USO potential   (modulation systematic)
-#:   ``2026-UHE-S23e``   single-interpretation Auger FD-2026 SIBYLL-2.3e + GMD
-#:                       (for UHE/air-shower work that needs one hadronic model)
+#:   ``2026-S23e``       single-interpretation Auger FD-2026 SIBYLL-2.3e + GMD
 #:   ``2026-EPOS-LHCR``  single-interpretation Auger FD-2026 EPOS-LHC-R + GMD
 #:                       (the other half of the mixture)
 #:
@@ -128,15 +127,15 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
             "to gauge the solar-modulation systematic."
         ),
     },
-    "2026-UHE-S23e": {
+    "2026-S23e": {
         "status": "current",
-        "role": "UHE single-interpretation variant",
+        "role": "single-interpretation variant",
         "covering": "Auger FD-2026 SIBYLL-2.3e (single interpretation, no mixture)",
         "solar_modulation": "GMD (Ghelfi-Maurin-Derome, Ghelfi et al. 2017)",
         "description": (
             "The 2026 fit under the SIBYLL-2.3e interpretation of the Auger "
-            "FD-2026 composition alone, for UHE/air-shower applications that "
-            "need a single consistent hadronic-interaction model rather than "
+            "FD-2026 composition alone, for applications that need a single "
+            "consistent hadronic-interaction model rather than "
             "the mixture band. Same GMD potential as the default."
         ),
     },

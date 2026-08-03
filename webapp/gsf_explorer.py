@@ -15,18 +15,34 @@ import re
 import numpy as np
 
 from globalsplinefit import (
+    MODEL_VERSIONS,
     GSFEnergy,
     GSFEnergyPerNucleon,
     GSFKineticEnergy,
     GSFKineticEnergyPerNucleon,
     GSFRigidity,
-    MODEL_VERSIONS,
     version_info,
 )
 
 # ---------------------------------------------------------------- registry
 
 GROUPS = ["p", "He", "O*", "Fe*"]
+NUCLEON_BASES = frozenset({"en", "ekn"})
+
+QUANTITIES = {
+    "nucleus": {"label": "Nucleus flux", "ui_label": "Nucleus Flux", "kind": "flux"},
+    "nucleon": {"label": "Nucleon flux", "ui_label": "Nucleon Flux", "kind": "flux"},
+    "mean_lna": {
+        "label": r"$\langle\ln A\rangle$",
+        "ui_label": "⟨ln A⟩",
+        "kind": "composition",
+    },
+    "var_lna": {
+        "label": r"$\sigma^2(\ln A)$",
+        "ui_label": "σ²(ln A)",
+        "kind": "composition",
+    },
+}
 
 # Paper convention (globalsplinefit.plotting)
 GROUP_COLORS = {
@@ -77,7 +93,7 @@ BASES = {
 VERSION_NOTES = {
     "2026": "default — mixture covering, GMD potential",
     "2026-USO": "Usoskin-2017 potential (modulation systematic)",
-    "2026-UHE-S23e": "SIBYLL-2.3e only (UHE single-interpretation variant)",
+    "2026-S23e": "SIBYLL-2.3e only (single-interpretation variant)",
     "2026-EPOS-LHCR": "EPOS-LHC-R only (single-interpretation variant)",
     "2025": "historical release",
     "2019": "historical release",
@@ -118,14 +134,122 @@ PAPER_RC = {
 }
 
 
-def make_model(basis: str, version: str, phi_bins: int | None = 6):
+def make_model(basis: str, version: str, phi_bins: int | None = 12):
     """Construct the GSF model class for an abscissa basis + parameter set.
 
     ``phi_bins`` sets the solar-cycle period-average resolution (the model's
     ``solar_cycle_average_bins``). Evaluation cost grows with it, so the app
-    keeps the package default of 6 and exposes the knob under Advanced.
+    keeps the package default of 12 and exposes the knob under Advanced.
     """
     return BASES[basis]["cls"](version=version, solar_cycle_average_bins=phi_bins)
+
+
+def validate_quantity_basis(quantity: str, basis: str) -> None:
+    """Reject unknown observables and physically invalid axis combinations."""
+    if quantity not in QUANTITIES:
+        raise ValueError(f"unknown plot quantity {quantity!r}")
+    if basis not in BASES:
+        raise ValueError(f"unknown abscissa {basis!r}")
+    if quantity == "nucleon" and basis not in NUCLEON_BASES:
+        raise ValueError("nucleon flux requires an energy-per-nucleon abscissa")
+
+
+def _nucleus_flux_jacobian(model, x, target, time_interval, rigidity_cutoff):
+    """Nucleus intensity and Jacobian in any supported coordinate.
+
+    The per-nucleon model classes expose *nucleon* intensity: besides the
+    coordinate Jacobian they multiply by the number of nucleons.  For a
+    nucleus-flux or composition plot versus E/A we need only
+    ``dE_nucleus/d(E/A) = A``.  Other coordinates already expose nucleus
+    intensity directly.
+    """
+    if not isinstance(model, (GSFEnergyPerNucleon, GSFKineticEnergyPerNucleon)):
+        kw = dict(time_interval=time_interval, rigidity_cutoff=rigidity_cutoff)
+        return (
+            np.asarray(model.flux(x, target, **kw), float),
+            np.asarray(model.jacobian(x, target, **kw), float),
+        )
+
+    ti = model._resolve_time_interval(time_interval)
+    cutoff = model._resolve_rigidity_cutoff(rigidity_cutoff)
+    zlist, _ = model._resolve_z(target)
+    energy_per_nucleon = model._transform_energy_per_nucleon(x, target)
+    flux = np.zeros_like(energy_per_nucleon, dtype=float)
+    jacobian = 0.0
+    for sid in model._target_sids(zlist):
+        mass_scale = model.z_to_a[sid]
+        energy = energy_per_nucleon * mass_scale
+        mask = model._rigidity_cutoff_mask(sid, energy, cutoff)
+        flux += model._element_flux(sid, energy, ti) * mass_scale * mask
+        jacobian += model._element_flux_jacobian(sid, energy, ti) * (
+            mass_scale * mask
+        )[:, np.newaxis]
+    return flux, np.asarray(jacobian)
+
+
+def _error_from_jacobian(model, target, jacobian) -> np.ndarray:
+    block = model._covariance_block(target, target)
+    if block is None:
+        return np.zeros(jacobian.shape[0])
+    variance = np.einsum("ni,ij,nj->n", jacobian, block, jacobian)
+    return np.sqrt(np.clip(variance, 0.0, None))
+
+
+def _total_from_groups(
+    model, x, time_interval, rigidity_cutoff, with_errors, cache=None
+):
+    """Nucleus all-particle intensity, including cross-group covariance."""
+    flux = np.zeros(len(x))
+    jacobians = {}
+    cache = {} if cache is None else cache
+    for group in GROUPS:
+        if group not in cache:
+            cache[group] = _nucleus_flux_jacobian(
+                model, x, group, time_interval, rigidity_cutoff
+            )
+        group_flux, jac = cache[group]
+        flux += group_flux
+        jacobians[group] = jac
+    if not with_errors:
+        return flux, None
+    variance = np.zeros(len(x))
+    for group1, jac1 in jacobians.items():
+        for group2, jac2 in jacobians.items():
+            block = model._covariance_block(group1, group2)
+            if block is not None:
+                variance += np.einsum("ni,ij,nj->n", jac1, block, jac2)
+    return flux, np.sqrt(np.clip(variance, 0.0, None))
+
+
+def _composition(model, x, quantity, time_interval, rigidity_cutoff, with_errors):
+    """Evaluate a nucleus-weighted ln(A) moment and its propagated error."""
+    fluxes = []
+    jacobians = []
+    leaders = []
+    ln_a = []
+    for sid in model.species:
+        flux, jac = _nucleus_flux_jacobian(
+            model, x, sid, time_interval, rigidity_cutoff
+        )
+        fluxes.append(flux)
+        jacobians.append(jac)
+        leaders.append(model.z_ungroup[sid[0]])
+        ln_a.append(np.log(model.mass_number[sid]))
+    fluxes = np.asarray(fluxes)
+    ln_a = np.asarray(ln_a)[:, np.newaxis]
+    denominator = np.where(fluxes.sum(axis=0) > 0, fluxes.sum(axis=0), np.nan)
+    mean = (fluxes * ln_a).sum(axis=0) / denominator
+    second = (fluxes * ln_a**2).sum(axis=0) / denominator
+    if quantity == "mean_lna":
+        value = mean
+        weights = (ln_a - mean) / denominator
+    else:
+        value = second - mean**2
+        weights = ((ln_a**2 - second) - 2.0 * mean * (ln_a - mean)) / denominator
+    error = (
+        model._derived_error(weights, jacobians, leaders) if with_errors else None
+    )
+    return value, error
 
 
 def phi_year_range(model) -> tuple[int, int]:
@@ -136,6 +260,7 @@ def phi_year_range(model) -> tuple[int, int]:
 
 def evaluate(
     model,
+    basis: str,
     dmin: float,
     dmax: float,
     npts: int,
@@ -146,26 +271,49 @@ def evaluate(
     energy_scale: float = 1.0,
     with_total: bool = True,
     with_errors: bool = True,
+    quantity: str = "nucleus",
 ) -> dict:
-    """Evaluate fluxes (and 1σ errors) on a log grid in the model's basis.
+    """Evaluate the selected flux or composition observable on a log grid.
 
     Returns plain numpy arrays only, so results are cache- and pickle-friendly.
     Zeros (below threshold / LIS at low energy) are kept as zeros; the plotting
     layer masks them.
     """
-    model.energy_scale = float(energy_scale)
+    validate_quantity_basis(quantity, basis)
+    energy_scale = float(energy_scale)
+    if not np.isfinite(energy_scale) or energy_scale <= 0:
+        raise ValueError("energy-scale factor must be finite and positive")
+    # The Explorer exposes a multiplicative factor (1 = unchanged), whereas
+    # the package property stores a fractional shift (0 = unchanged).
+    model.energy_scale = energy_scale - 1.0
     kw = dict(time_interval=time_interval, rigidity_cutoff=rigidity_cutoff)
     x = np.logspace(float(dmin), float(dmax), int(npts))
-    out = {"x": x, "series": {}, "total": None}
+    out = {"x": x, "series": {}, "total": None, "quantity": quantity}
+
+    if QUANTITIES[quantity]["kind"] == "composition":
+        out["series"][quantity] = _composition(
+            model, x, quantity, time_interval, rigidity_cutoff, with_errors
+        )
+        return out
+
+    nucleus_cache = {}
 
     def f_and_e(target):
-        f = np.asarray(model.flux(x, target, **kw), float)
+        if quantity == "nucleus":
+            f, jac = _nucleus_flux_jacobian(
+                model, x, target, time_interval, rigidity_cutoff
+            )
+            nucleus_cache[target] = (f, jac)
+        else:
+            f = np.asarray(model.flux(x, target, **kw), float)
+            jac = None
         e = None
         if with_errors:
-            try:
-                e = np.asarray(model.error(x, target, **kw), float)
-            except Exception:
-                e = np.zeros_like(f)
+            e = (
+                _error_from_jacobian(model, target, jac)
+                if jac is not None
+                else np.asarray(model.error(x, target, **kw), float)
+            )
         return f, e
 
     for g in groups:
@@ -177,22 +325,51 @@ def evaluate(
             continue  # e.g. element He duplicates the He group series
         out["series"][name] = f_and_e(z if z == "D" else int(z))
     if with_total:
-        tf = np.asarray(model.total_flux(x, **kw), float)
-        te = None
-        if with_errors:
-            te = np.asarray(model.total_error(x, **kw), float)
-        out["total"] = (tf, te)
+        if quantity == "nucleus":
+            out["total"] = _total_from_groups(
+                model, x, time_interval, rigidity_cutoff, with_errors,
+                nucleus_cache,
+            )
+        else:
+            tf = np.asarray(model.total_flux(x, **kw), float)
+            te = np.asarray(model.total_error(x, **kw), float) if with_errors else None
+            out["total"] = (tf, te)
     return out
 
 
-def total_covariance(model, x, time_interval, rigidity_cutoff) -> np.ndarray:
-    """Covariance matrix of the all-particle flux on grid ``x``."""
+def total_covariance(
+    model, x, time_interval, rigidity_cutoff, quantity: str = "nucleus"
+) -> np.ndarray:
+    """Covariance matrix of the total nucleus or nucleon flux on grid ``x``."""
+    if quantity not in {"nucleus", "nucleon"}:
+        raise ValueError("total covariance is defined only for flux quantities")
     kw = dict(time_interval=time_interval, rigidity_cutoff=rigidity_cutoff)
     n = len(x)
     cov = np.zeros((n, n))
+    jacobians = (
+        {
+            group: _nucleus_flux_jacobian(
+                model, x, group, time_interval, rigidity_cutoff
+            )[1]
+            for group in GROUPS
+        }
+        if quantity == "nucleus"
+        else None
+    )
     for g1 in GROUPS:
         for g2 in GROUPS:
-            cov += np.asarray(model.covariance(g1, g2, x, **kw), float)
+            if quantity == "nucleon":
+                block = np.asarray(model.covariance(g1, g2, x, **kw), float)
+            else:
+                jac1 = jacobians[g1]
+                jac2 = jacobians[g2]
+                parameter_covariance = model._covariance_block(g1, g2)
+                block = (
+                    model._propagate_cov(jac1, jac2, parameter_covariance)
+                    if parameter_covariance is not None
+                    else np.zeros((n, n))
+                )
+            cov += block
     return cov
 
 
@@ -209,9 +386,15 @@ def _gfmt(v: float) -> str:
     return f"{v:g}"
 
 
-def axis_labels(basis: str, gamma: float) -> tuple[str, str]:
+def axis_labels(
+    basis: str, gamma: float, quantity: str = "nucleus"
+) -> tuple[str, str]:
     b = BASES[basis]
     xlab = f"{b['label']} [{b['unit']}]"
+    if quantity == "mean_lna":
+        return xlab, r"$\langle\ln A\rangle$"
+    if quantity == "var_lna":
+        return xlab, r"$\sigma^2(\ln A)$"
     u = b["unit"]
     if gamma == 0:
         ylab = rf"$\Phi\;[(\mathrm{{{u}}}\,\mathrm{{m^2\,s\,sr}})^{{-1}}]$"
@@ -247,7 +430,20 @@ def make_figure(
     with matplotlib.rc_context(PAPER_RC):
         fig, ax = plt.subplots(figsize=(width_in, height_in), dpi=110)
 
-        if show_total and result["total"] is not None:
+        quantity = result.get("quantity", "nucleus")
+        is_composition = QUANTITIES[quantity]["kind"] == "composition"
+
+        if is_composition:
+            value, error = result["series"][quantity]
+            label = QUANTITIES[quantity]["label"]
+            ax.plot(x, value, color=GROUP_COLORS["all"], lw=1.9, label=label,
+                    zorder=6)
+            if show_bands and error is not None:
+                ax.fill_between(
+                    x, value - error, value + error,
+                    color=GROUP_COLORS["all"], alpha=band_alpha, lw=0, zorder=2)
+
+        if not is_composition and show_total and result["total"] is not None:
             tf, te = result["total"]
             w = _weighted(x, tf, gamma)
             ax.plot(x, w, color=GROUP_COLORS["all"], lw=1.9, label="all-particle",
@@ -258,7 +454,7 @@ def make_figure(
                     color=GROUP_COLORS["all"], alpha=band_alpha, lw=0, zorder=2)
 
         ecolors = iter(ELEMENT_COLORS * 4)
-        for name, (f, e) in result["series"].items():
+        for name, (f, e) in result["series"].items() if not is_composition else ():
             if name in GROUP_COLORS:
                 c, ls, lw, z = GROUP_COLORS[name], "-", 1.5, 5
             else:
@@ -278,8 +474,11 @@ def make_figure(
         solid = [result["total"][0]] if (show_total and result["total"]) else []
         solid += [f for n, (f, _) in result["series"].items()
                   if n in GROUP_COLORS]
-        vals = np.concatenate([_weighted(x, f, gamma) for f in solid]) \
-            if solid else np.array([np.nan])
+        if is_composition:
+            vals = np.asarray(result["series"][quantity][0], float)
+        else:
+            vals = np.concatenate([_weighted(x, f, gamma) for f in solid]) \
+                if solid else np.array([np.nan])
         vals = vals[np.isfinite(vals) & (vals > 0)]
         if ylog:
             ax.set_yscale("log")
@@ -288,12 +487,12 @@ def make_figure(
         elif vals.size:
             ax.set_ylim(0, vals.max() * 1.06)
         ax.set_xlim(x[0], x[-1])
-        xlab, ylab = axis_labels(basis, gamma)
+        xlab, ylab = axis_labels(basis, gamma, quantity)
         ax.set_xlabel(xlab)
         ax.set_ylabel(ylab)
         if grid:
             ax.grid(alpha=0.25, lw=0.5, which="major")
-        nser = len(result["series"]) + (1 if show_total else 0)
+        nser = len(result["series"]) + (1 if show_total and result["total"] else 0)
         if nser:
             ax.legend(ncol=2 if nser > 4 else 1, handlelength=1.9,
                       labelspacing=0.35, columnspacing=1.3)
@@ -335,19 +534,31 @@ def modulation_phrase(ti) -> str:
 
 
 def caption(version: str, basis: str, gamma: float, ti, elements: list[int],
-            show_bands: bool, rigidity_cutoff: float | None) -> str:
+            show_bands: bool, rigidity_cutoff: float | None,
+            quantity: str = "nucleus") -> str:
     b = BASES[basis]
     name = version if version.startswith("GSF") else f"GSF {version}"
     sym = {"etot": "E", "ekin": "E_kin", "rig": "R",
            "en": "E_N", "ekn": "E_kin,N"}[basis]
-    parts = [
-        f"{name}, {modulation_phrase(ti)}.",
-        f"All-particle and mass-group fluxes versus {b['phrase']}"
-        + (f", weighted by {sym}^{_gfmt(gamma)}." if gamma else "."),
-    ]
+    if QUANTITIES[quantity]["kind"] == "composition":
+        observable = (
+            "Mean logarithmic mass <ln A>" if quantity == "mean_lna"
+            else "Logarithmic-mass variance sigma^2(ln A)"
+        )
+        parts = [
+            f"{name}, {modulation_phrase(ti)}.",
+            f"{observable} versus {b['phrase']}.",
+        ]
+    else:
+        flux_name = "All-nucleon" if quantity == "nucleon" else "All-particle"
+        parts = [
+            f"{name}, {modulation_phrase(ti)}.",
+            f"{flux_name} and mass-group fluxes versus {b['phrase']}"
+            + (f", weighted by {sym}^{_gfmt(gamma)}." if gamma else "."),
+        ]
     if show_bands:
         parts.append("Shaded bands: ±1σ model uncertainty from the fit covariance.")
-    if elements:
+    if elements and QUANTITIES[quantity]["kind"] == "flux":
         syms = ", ".join(ELEMENT_SYMBOLS.get(z, str(z)) for z in elements)
         parts.append(f"Dashed: individual elements {syms}.")
     if rigidity_cutoff:
@@ -356,21 +567,29 @@ def caption(version: str, basis: str, gamma: float, ti, elements: list[int],
 
 
 def build_csv(model, result: dict, basis: str, version: str, ti,
-              rigidity_cutoff, include_cov: bool) -> str:
+              rigidity_cutoff, include_cov: bool,
+              quantity: str = "nucleus") -> str:
     """CSV export: provenance header, flux table, optional covariance block."""
     b = BASES[basis]
     x = result["x"]
     cols = ["x"]
     arrs = [x]
+    prefix = {
+        "nucleus": "nucleus_flux",
+        "nucleon": "nucleon_flux",
+        "mean_lna": "mean_lnA",
+        "var_lna": "var_lnA",
+    }[quantity]
     for name, (f, e) in result["series"].items():
-        cols.append(f"flux_{name.replace('*', 'star')}")
+        suffix = "" if quantity in {"mean_lna", "var_lna"} else f"_{name.replace('*', 'star')}"
+        cols.append(f"{prefix}{suffix}")
         arrs.append(f)
         if e is not None:
-            cols.append(f"err_{name.replace('*', 'star')}")
+            cols.append(f"err_{prefix}{suffix}")
             arrs.append(e)
     if result["total"] is not None:
         tf, te = result["total"]
-        cols.append("flux_total")
+        cols.append(f"{prefix}_total")
         arrs.append(tf)
         if te is not None:
             cols.append("err_total")
@@ -379,11 +598,16 @@ def build_csv(model, result: dict, basis: str, version: str, ti,
     lines = [
         f"# Global Spline Fit (GSF) — parameter set {version}",
         f"# abscissa: {b['phrase']} [{b['unit']}], log grid, {len(x)} points",
-        f"# flux unit: ({b['unit']} m^2 s sr)^-1; err = 1 sigma from fit covariance",
+        f"# quantity: {QUANTITIES[quantity]['label']}",
+        (
+            f"# flux unit: ({b['unit']} m^2 s sr)^-1; err = 1 sigma from fit covariance"
+            if QUANTITIES[quantity]["kind"] == "flux"
+            else "# composition values are dimensionless; err = 1 sigma from fit covariance"
+        ),
         f"# solar modulation: {modulation_phrase(ti)}",
     ]
     if ti != "LIS":
-        _bins = model.params.solar_cycle_average_bins
+        _bins = model.solar_cycle_average_bins
         lines.append(
             "# period average: "
             + ("every month, explicitly" if _bins is None else f"{_bins} phi bins")
@@ -395,18 +619,20 @@ def build_csv(model, result: dict, basis: str, version: str, ti,
     mat = np.column_stack(arrs)
     lines += [",".join(f"{v:.6e}" for v in row) for row in mat]
 
-    if include_cov:
-        cov = total_covariance(model, x, ti, rigidity_cutoff)
+    if include_cov and QUANTITIES[quantity]["kind"] == "flux":
+        cov = total_covariance(model, x, ti, rigidity_cutoff, quantity)
         lines.append("#")
-        lines.append(f"# covariance of flux_total on the grid above "
+        lines.append(f"# covariance of {prefix}_total on the grid above "
                      f"({len(x)}x{len(x)}, row-major)")
         lines += [",".join(f"{v:.4e}" for v in row) for row in cov]
     return "\n".join(lines) + "\n"
 
 
 __all__ = [
-    "BASES", "GROUPS", "GROUP_COLORS", "ELEMENT_SYMBOLS", "VERSION_NOTES",
+    "BASES", "QUANTITIES", "NUCLEON_BASES", "GROUPS", "GROUP_COLORS",
+    "ELEMENT_SYMBOLS", "VERSION_NOTES",
     "MODEL_VERSIONS", "version_info", "make_model", "phi_year_range",
-    "evaluate", "total_covariance", "make_figure", "figure_svg",
+    "validate_quantity_basis", "evaluate", "total_covariance", "make_figure",
+    "figure_svg",
     "figure_bytes", "axis_labels", "caption", "modulation_phrase", "build_csv",
 ]

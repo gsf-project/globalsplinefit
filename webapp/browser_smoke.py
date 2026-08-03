@@ -56,6 +56,16 @@ def main() -> int:
             page.click(".commandbtn:text-is('Series')")
             page.click(".elgrid button:has-text('Fe')")
             page.click(".commandbtn:text-is('Settings')")
+            page.select_option(
+                ".settings-popover label.field:has-text('Plot') select",
+                value="nucleon")
+            assert page.locator(
+                ".settings-popover label.field:has-text('Horizontal axis') "
+                "select option"
+            ).count() == 2
+            page.select_option(
+                ".settings-popover label.field:has-text('Plot') select",
+                value="nucleus")
             page.click(".settings-popover .seg button:has-text('LIS')")
             page.click(".aboutbtn")
             page.wait_for_timeout(600)

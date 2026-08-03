@@ -62,6 +62,10 @@ local server is only needed to serve the files:
 python webapp/serve.py          # http://127.0.0.1:8123, default port 8123
 ```
 
+In **Settings → Abscissa**, choose nucleus flux, nucleon flux, ⟨ln A⟩, or
+σ²(ln A). Nucleus flux and the composition moments support all five axes;
+nucleon flux is restricted to total or kinetic energy per nucleon.
+
 If you changed the package source, rebuild the wheel the Explorer loads
 first: `webapp/update_wheel.sh`.
 
