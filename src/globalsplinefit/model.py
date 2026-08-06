@@ -255,6 +255,10 @@ class GSFBase(ABC):
         self._jacobian_cache_bytes = 0
         self._cache_max_bytes = 64 * 1024 * 1024
 
+        # Lazy factorization of the stacked leader-amplitude covariance
+        # used by ``sample`` (see _amplitude_sample_factor).
+        self._sample_factor_cache: tuple[dict, np.ndarray] | None = None
+
     def _as_sid(self, x):
         """Normalize a species ID or unambiguous bare charge.
 
@@ -1158,6 +1162,144 @@ class GSFBase(ABC):
         if block is None:
             return np.zeros((jac1.shape[0], jac2.shape[0]))
         return self._propagate_cov(jac1, jac2, block)
+
+    def _amplitude_sample_factor(self) -> tuple[dict, np.ndarray]:
+        """Factorize the stacked leader-amplitude covariance for ``sample``.
+
+        Returns a dict mapping each group-leader sid to its column slice in
+        the stacked amplitude vector, and a matrix ``F`` with ``F @ F.T``
+        equal to the stacked covariance (eigendecomposition, negative
+        round-off eigenvalues clipped to zero). Cached on the instance.
+        """
+        if self._sample_factor_cache is None:
+            sids = []
+            widths = []
+            for group in self.active_groups:
+                _zlist, leader = self._resolve_z(group)
+                sid = self._leader_by_charge[leader]
+                sids.append(sid)
+                widths.append(self.cov[(sid, sid)].shape[0])
+            edges = np.concatenate([[0], np.cumsum(widths)])
+            stacked = np.zeros((edges[-1], edges[-1]))
+            for i, sid1 in enumerate(sids):
+                for j, sid2 in enumerate(sids):
+                    block = self.cov.get((sid1, sid2))
+                    if block is not None:
+                        stacked[
+                            edges[i] : edges[i + 1], edges[j] : edges[j + 1]
+                        ] = block
+            stacked = 0.5 * (stacked + stacked.T)
+            eigenvalues, eigenvectors = np.linalg.eigh(stacked)
+            factor = eigenvectors * np.sqrt(np.clip(eigenvalues, 0.0, None))
+            slices = {
+                sid: slice(edges[i], edges[i + 1]) for i, sid in enumerate(sids)
+            }
+            self._sample_factor_cache = (slices, factor)
+        return self._sample_factor_cache
+
+    def sample(
+        self,
+        energy_or_rigidity: ArrayLike,
+        target: Target | None = None,
+        n_samples: int = 100,
+        *,
+        time_interval: tuple[int, int] | str | None = None,
+        rigidity_cutoff: float | None = None,
+        rng: np.random.Generator | None = None,
+    ) -> np.ndarray:
+        """Draw random flux realizations from the parameter covariance.
+
+        The flux is linear in the spline amplitudes, so drawing amplitude
+        vectors from the fitted covariance and evaluating the model is the
+        exact model response: each sample is a genuine model realization
+        (a pseudo-experiment), with the full covariance at every energy and
+        all cross-group correlations intact. This is the recommended way to
+        propagate the model uncertainty into ensembles (Monte Carlo error
+        bands, pseudo-experiment studies).
+
+        One shared amplitude draw underlies all targets: calling this
+        method several times with an ``rng`` seeded identically returns
+        views of the *same* pseudo-experiments, so per-group and
+        all-particle samples obtained that way are mutually consistent
+        (the group draws sum to the all-particle draw).
+
+        Parameters
+        ----------
+        energy_or_rigidity
+            Input energy or rigidity values. Units depend on subclass.
+        target
+            Any target accepted by :meth:`flux`, or ``None`` (default) for
+            the all-particle total flux.
+        n_samples : int, optional
+            Number of realizations to draw. Default 100.
+        time_interval
+            Time period specification, as for :meth:`flux`.
+        rigidity_cutoff
+            Geomagnetic rigidity cutoff in GV, as for :meth:`flux`.
+        rng : numpy.random.Generator, optional
+            Source of randomness. Default: a fresh
+            ``numpy.random.default_rng()``.
+
+        Returns
+        -------
+        flux : ndarray, shape (n_samples, n_E)
+            One flux realization per row, same units as :meth:`flux`.
+
+        Notes
+        -----
+        Samples follow the Gaussian parameter covariance of the fit.
+        Individual group fluxes can fluctuate below zero where their
+        relative uncertainty is of order one (the data-free tails); the
+        all-particle flux is protected by the cross-group correlations.
+
+        Examples
+        --------
+        >>> model = GSFEnergy()
+        >>> energy = np.logspace(2, 10, 100)
+        >>> realizations = model.sample(energy, "He", n_samples=200)
+        >>> band = np.percentile(realizations, [16, 84], axis=0)
+        """
+        if (
+            isinstance(n_samples, bool)
+            or not isinstance(n_samples, int | np.integer)
+            or n_samples < 1
+        ):
+            raise ValueError("n_samples must be a positive integer")
+        if rng is None:
+            rng = np.random.default_rng()
+        values = self._as_1d_values(energy_or_rigidity, "energy or rigidity")
+
+        slices, factor = self._amplitude_sample_factor()
+        delta = rng.standard_normal((n_samples, factor.shape[0])) @ factor.T
+
+        if target is None:
+            central = self.total_flux(
+                values,
+                time_interval=time_interval,
+                rigidity_cutoff=rigidity_cutoff,
+            )
+            targets = self.active_groups
+        else:
+            central = self.flux(
+                values,
+                target,
+                time_interval=time_interval,
+                rigidity_cutoff=rigidity_cutoff,
+            )
+            targets = (target,)
+
+        out = np.tile(central, (n_samples, 1))
+        for tgt in targets:
+            _zlist, leader = self._resolve_z(tgt)
+            sid = self._leader_by_charge[leader]
+            jac = self.jacobian(
+                values,
+                tgt,
+                time_interval=time_interval,
+                rigidity_cutoff=rigidity_cutoff,
+            )
+            out += delta[:, slices[sid]] @ jac.T
+        return out
 
 
 class GSFEnergy(GSFBase):
