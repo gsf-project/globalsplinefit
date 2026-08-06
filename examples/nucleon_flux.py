@@ -107,10 +107,12 @@ def _(mo):
 
 @app.cell
 def _(energy_per_nucleon, gsf_nucleon):
-    proton_flux = gsf_nucleon.flux(energy_per_nucleon, "p")
+    # group symbols: bare names ("p", "O", "Fe") would return the single
+    # leading elements, not the groups
+    proton_flux = gsf_nucleon.flux(energy_per_nucleon, "H*")
     helium_flux = gsf_nucleon.flux(energy_per_nucleon, "He")
-    oxygen_flux = gsf_nucleon.flux(energy_per_nucleon, "O")
-    iron_flux = gsf_nucleon.flux(energy_per_nucleon, "Fe")
+    oxygen_flux = gsf_nucleon.flux(energy_per_nucleon, "O*")
+    iron_flux = gsf_nucleon.flux(energy_per_nucleon, "Fe*")
     total_flux = gsf_nucleon.total_flux(energy_per_nucleon)
     return helium_flux, iron_flux, oxygen_flux, proton_flux, total_flux
 
@@ -127,10 +129,10 @@ def _(mo):
 
 @app.cell
 def _(energy_per_nucleon, gsf_nucleon):
-    proton_error = gsf_nucleon.error(energy_per_nucleon, "p")
+    proton_error = gsf_nucleon.error(energy_per_nucleon, "H*")
     helium_error = gsf_nucleon.error(energy_per_nucleon, "He")
-    oxygen_error = gsf_nucleon.error(energy_per_nucleon, "O")
-    iron_error = gsf_nucleon.error(energy_per_nucleon, "Fe")
+    oxygen_error = gsf_nucleon.error(energy_per_nucleon, "O*")
+    iron_error = gsf_nucleon.error(energy_per_nucleon, "Fe*")
     total_error = gsf_nucleon.total_error(energy_per_nucleon)
     return helium_error, iron_error, oxygen_error, proton_error, total_error
 
@@ -172,7 +174,7 @@ def _(
             )
         ),
         fmt="%.10e",
-        header="energy, proton, helium, oxygen group, iron group, total\n"
+        header="energy, hydrogen group, helium, oxygen group, iron group, total\n"
         "[units: energy in GeV per nucleon, flux in 1/(GeV m2 s sr)]",
     )
 
@@ -189,7 +191,7 @@ def _(
             )
         ),
         fmt="%.10e",
-        header="energy, proton, helium, oxygen group, iron group, total\n"
+        header="energy, hydrogen group, helium, oxygen group, iron group, total\n"
         "[units: energy in GeV per nucleon, flux error in 1/(GeV m2 s sr)]",
     )
 
@@ -226,10 +228,10 @@ def _(
     # Plot nucleon flux with error bands
     plt.figure(figsize=(12, 8))
     components = [
-        (proton_flux, proton_error, "r", "Proton", 1),
+        (proton_flux, proton_error, "r", "Hydrogen*", 1),
         (helium_flux, helium_error, "orange", "Helium", 1),
-        (oxygen_flux, oxygen_error, "g", "Oxygen", 1),
-        (iron_flux, iron_error, "b", "Iron", 1),
+        (oxygen_flux, oxygen_error, "g", "Oxygen*", 1),
+        (iron_flux, iron_error, "b", "Iron*", 1),
         (total_flux, total_error, "k", "Total", 2),
     ]
     for flux, error, _color, _label, lw in components:
@@ -287,10 +289,10 @@ def _(
     # Plot nucleon relative uncertainties
     plt.figure(figsize=(12, 8))
     error_components = [
-        (proton_error / np.maximum(proton_flux, 1e-90), "r", "Proton"),
+        (proton_error / np.maximum(proton_flux, 1e-90), "r", "Hydrogen*"),
         (helium_error / np.maximum(helium_flux, 1e-90), "orange", "Helium"),
-        (oxygen_error / np.maximum(oxygen_flux, 1e-90), "g", "Oxygen"),
-        (iron_error / np.maximum(iron_flux, 1e-90), "b", "Iron"),
+        (oxygen_error / np.maximum(oxygen_flux, 1e-90), "g", "Oxygen*"),
+        (iron_error / np.maximum(iron_flux, 1e-90), "b", "Iron*"),
         (total_error / np.maximum(total_flux, 1e-90), "k", "Total"),
     ]
     for rel_error, _color, _label in error_components:

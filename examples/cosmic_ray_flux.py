@@ -16,7 +16,7 @@ def _(mo):
     mo.md(r"""
     # Cosmic Ray Flux by Mass Group
 
-    Compute and plot differential fluxes for the four GSF mass groups (proton, helium, oxygen, iron) as a function of **total energy per nucleus**, with 1-sigma error bands propagated from the parameter covariance.
+    Compute and plot differential fluxes for the four GSF mass groups (H*, He, O*, Fe*) as a function of **total energy per nucleus**, with 1-sigma error bands propagated from the parameter covariance.
     """)
     return
 
@@ -108,10 +108,12 @@ def _(mo):
 @app.cell
 def _(energy, gsf):
     # Calculate fluxes
-    proton_flux = gsf.flux(energy, "p")
+    # group symbols: bare names ("p", "O", "Fe") would return the single
+    # leading elements, not the groups
+    proton_flux = gsf.flux(energy, "H*")
     helium_flux = gsf.flux(energy, "He")
-    oxygen_flux = gsf.flux(energy, "O")
-    iron_flux = gsf.flux(energy, "Fe")
+    oxygen_flux = gsf.flux(energy, "O*")
+    iron_flux = gsf.flux(energy, "Fe*")
     total_flux = gsf.total_flux(energy)
     return helium_flux, iron_flux, oxygen_flux, proton_flux, total_flux
 
@@ -128,10 +130,10 @@ def _(mo):
 
 @app.cell
 def _(energy, gsf):
-    proton_error = gsf.error(energy, "p")
+    proton_error = gsf.error(energy, "H*")
     helium_error = gsf.error(energy, "He")
-    oxygen_error = gsf.error(energy, "O")
-    iron_error = gsf.error(energy, "Fe")
+    oxygen_error = gsf.error(energy, "O*")
+    iron_error = gsf.error(energy, "Fe*")
     total_error = gsf.total_error(energy)
     return helium_error, iron_error, oxygen_error, proton_error, total_error
 
@@ -165,7 +167,7 @@ def _(
     # Plot flux with error bands
     plt.figure()
     components = [
-        (proton_flux, proton_error, "r", "Proton", 1),
+        (proton_flux, proton_error, "r", "Hydrogen*", 1),
         (helium_flux, helium_error, "orange", "Helium", 1),
         (oxygen_flux, oxygen_error, "g", "Oxygen*", 1),
         (iron_flux, iron_error, "b", "Iron*", 1),
@@ -222,7 +224,7 @@ def _(
     plt.figure()
     with np.errstate(divide="ignore", invalid="ignore"):
         error_components = [
-            (proton_error / proton_flux, "r", "Proton"),
+            (proton_error / proton_flux, "r", "Hydrogen*"),
             (helium_error / helium_flux, "orange", "Helium"),
             (oxygen_error / oxygen_flux, "g", "Oxygen*"),
             (iron_error / iron_flux, "b", "Iron*"),
