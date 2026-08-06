@@ -28,7 +28,7 @@ The core package depends only on `numpy` and `scipy`. Quick check:
 import numpy as np
 from globalsplinefit import GSFEnergy
 
-gsf = GSFEnergy()  # default: version "2026"
+gsf = GSFEnergy()  # default: the newest 2026 revision (currently "2026.0")
 print(gsf.flux(np.logspace(3, 5, 3), "p"))
 ```
 

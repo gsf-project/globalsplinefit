@@ -109,16 +109,23 @@ gsf_epos = GSFEnergy(version="2026-EPOS-LHCR")
 gsf_2025 = GSFEnergy(version="2025")        # historical release
 ```
 
-The 2026 family includes a solar-modulation variant and two fits using a
-single hadronic-interaction interpretation. Older releases remain available
-for reproducibility.
+Physical model versions are named `<line>.<revision>[-<variant>]`: `2026.0`
+is the first revision of the 2026 line, `2026.0-USO` its Usoskin-potential
+variant. A data or fit patch to a released line is published as a new
+revision (`2026.1`, ...). An unrevisioned name (`"2026"`, `"2026-USO"`)
+resolves to the newest registered revision of that line and variant — use it
+to follow patches automatically, or pass the revisioned name to pin one
+(`resolve_version("2026")` shows what it currently resolves to). The 2026
+line includes a solar-modulation variant and two fits using a single
+hadronic-interaction interpretation. Older releases predate the revision
+scheme and remain available under their bare names for reproducibility.
 
 | Version | Status | Covering | Modulation | Description |
 |---------|--------|----------|------------|-------------|
-| `"2026"` | **current -- default** | SIBYLL-2.3e / EPOS-LHC-R mixture | Ghelfi--Maurin--Derome (**baseline**) | Default 2026 fit |
-| `"2026-USO"` | current -- alternative | SIBYLL-2.3e / EPOS-LHC-R mixture | Usoskin 2017 (alternative) | The same fit with the other potential; use it to gauge the solar-modulation systematic |
-| `"2026-S23e"` | current -- single interpretation | Auger FD-2026 SIBYLL-2.3e only | Ghelfi--Maurin--Derome | Single hadronic-interaction interpretation for applications that cannot use a mixture band |
-| `"2026-EPOS-LHCR"` | current -- variant | Auger FD-2026 EPOS-LHC-R only | Ghelfi--Maurin--Derome | The other single-interpretation half of the mixture |
+| `"2026.0"` | **current -- default** | SIBYLL-2.3e / EPOS-LHC-R mixture | Ghelfi--Maurin--Derome (**baseline**) | Default 2026 fit |
+| `"2026.0-USO"` | current -- alternative | SIBYLL-2.3e / EPOS-LHC-R mixture | Usoskin 2017 (alternative) | The same fit with the other potential; use it to gauge the solar-modulation systematic |
+| `"2026.0-S23e"` | current -- single interpretation | Auger FD-2026 SIBYLL-2.3e only | Ghelfi--Maurin--Derome | Single hadronic-interaction interpretation for applications that cannot use a mixture band |
+| `"2026.0-EPOS-LHCR"` | current -- variant | Auger FD-2026 EPOS-LHC-R only | Ghelfi--Maurin--Derome | The other single-interpretation half of the mixture |
 | `"2025"` | historical | superseded | Usoskin | Previous published release |
 | `"2019"` | historical | superseded | Usoskin | Legacy published release |
 | `"2017"` | historical | superseded | Usoskin | Original GSF release (Dembinski et al. 2017) |
@@ -131,7 +138,7 @@ sets, and `version_info(version)` reports any version's status, covering and
 modulation potential. A loaded model also carries its own provenance:
 
 ```python
-gsf.version                      # -> "2026", the version actually loaded
+gsf.version                      # -> "2026.0", the revision actually loaded
 gsf.params.provenance["covering"]                  # the air-shower interpretation
 gsf.params.provenance["solar_modulation_source"]   # GMD or USO
 ```

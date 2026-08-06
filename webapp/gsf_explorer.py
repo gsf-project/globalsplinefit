@@ -91,10 +91,10 @@ BASES = {
 }
 
 VERSION_NOTES = {
-    "2026": "default — mixture covering, GMD potential",
-    "2026-USO": "Usoskin-2017 potential (modulation systematic)",
-    "2026-S23e": "SIBYLL-2.3e only (single-interpretation variant)",
-    "2026-EPOS-LHCR": "EPOS-LHC-R only (single-interpretation variant)",
+    "2026.0": "default — mixture covering, GMD potential",
+    "2026.0-USO": "Usoskin-2017 potential (modulation systematic)",
+    "2026.0-S23e": "SIBYLL-2.3e only (single-interpretation variant)",
+    "2026.0-EPOS-LHCR": "EPOS-LHC-R only (single-interpretation variant)",
     "2025": "historical release",
     "2019": "historical release",
     "2017": "historical release (Dembinski et al., ICRC2017)",
@@ -689,8 +689,12 @@ def build_csv(model, result: dict, basis: str, version: str, ti,
             cols.append("err_total")
             arrs.append(te)
 
+    import globalsplinefit
+
     lines = [
-        f"# Global Spline Fit (GSF) — parameter set {version}",
+        f"# Global Spline Fit (GSF) — parameter set {version} "
+        "(physical model version incl. revision)",
+        f"# code: globalsplinefit {globalsplinefit.__version__}",
         f"# abscissa: {b['phrase']} [{b['unit']}], log grid, {len(x)} points",
         f"# quantity: {QUANTITIES[quantity]['label']}",
         (

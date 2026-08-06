@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Revisioned model versions.** Physical model versions are now named
+  `<line>.<revision>[-<variant>]`: the 2026 family ships as `2026.0`,
+  `2026.0-USO`, `2026.0-S23e`, `2026.0-EPOS-LHCR`, and a data or fit patch
+  to a released line is published as a new revision (`2026.1`, ...) next to
+  the old one. Unrevisioned names (`"2026"`, `"2026-USO"`) resolve to the
+  newest registered revision via the new `resolve_version()`; revisioned
+  names pin one. Historical releases (`2025`, `2019`, `2017`) keep their
+  bare names. `version_info()` now includes the resolved `name`, and the
+  package exposes `__version__` (the code release, distinct from the model
+  version). Explorer CSV exports record both: the physical model version
+  including its revision and the `globalsplinefit` code version.
+
 - **`GSFBase.sample()` — pseudo-experiments from the native covariance.**
   Every model class can draw random flux realizations,
   `model.sample(energy, target, n_samples)`, with `target=None` giving the

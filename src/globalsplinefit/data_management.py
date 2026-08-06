@@ -78,7 +78,15 @@ DEFAULT_VERSION = "2026"
 
 #: Registry of the distributable model versions.
 #:
-#: Model names are bare years (plus a variant suffix) -- no "GSF" prefix.
+#: Model names are ``<line>.<revision>`` (plus a variant suffix) -- no "GSF"
+#: prefix: ``2026.0`` is the first revision of the 2026 line, ``2026.0-USO``
+#: its Usoskin-potential variant. A data or fit patch to a released line is
+#: published as a new revision (``2026.1``, ...) next to the old one.
+#: Requesting an unrevisioned name (``"2026"``, ``"2026-USO"``) resolves to
+#: the NEWEST registered revision of that line and variant
+#: (:func:`resolve_version`); pass the revisioned name to pin one.
+#: Historical releases (``2025``, ``2019``, ``2017``) predate the scheme and
+#: keep their bare names.
 #:
 #: ``status`` is one of:
 #:   ``"current"``     the default 2026 fit and its variants;
@@ -87,11 +95,11 @@ DEFAULT_VERSION = "2026"
 #:
 #: The four ``current`` sets are:
 #:
-#:   ``2026``            mixture covering + GMD potential   (the default)
-#:   ``2026-USO``        mixture covering + USO potential   (modulation systematic)
-#:   ``2026-S23e``       single-interpretation Auger FD-2026 SIBYLL-2.3e + GMD
-#:   ``2026-EPOS-LHCR``  single-interpretation Auger FD-2026 EPOS-LHC-R + GMD
-#:                       (the other half of the mixture)
+#:   ``2026.0``            mixture covering + GMD potential   (the default)
+#:   ``2026.0-USO``        mixture covering + USO potential   (modulation systematic)
+#:   ``2026.0-S23e``       single-interpretation Auger FD-2026 SIBYLL-2.3e + GMD
+#:   ``2026.0-EPOS-LHCR``  single-interpretation Auger FD-2026 EPOS-LHC-R + GMD
+#:                         (the other half of the mixture)
 #:
 #: The ``historical`` sets (``2025``, ``2019``, ``2017``) are published releases.
 #:
@@ -104,7 +112,7 @@ DEFAULT_VERSION = "2026"
 #: model versions, so an intermediate or transient fit exported into ``data/``
 #: cannot become distributable by accident.
 MODEL_VERSIONS: dict[str, dict[str, str]] = {
-    "2026": {
+    "2026.0": {
         "status": "current",
         "role": "default",
         "covering": "mixture: equal-weight Auger FD-2026 SIBYLL-2.3e + EPOS-LHC-R",
@@ -115,7 +123,7 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
             "data mildly prefer."
         ),
     },
-    "2026-USO": {
+    "2026.0-USO": {
         "status": "current",
         "role": "alternative",
         "covering": "mixture: equal-weight Auger FD-2026 SIBYLL-2.3e + EPOS-LHC-R",
@@ -127,7 +135,7 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
             "to gauge the solar-modulation systematic."
         ),
     },
-    "2026-S23e": {
+    "2026.0-S23e": {
         "status": "current",
         "role": "single-interpretation variant",
         "covering": "Auger FD-2026 SIBYLL-2.3e (single interpretation, no mixture)",
@@ -139,7 +147,7 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
             "the mixture band. Same GMD potential as the default."
         ),
     },
-    "2026-EPOS-LHCR": {
+    "2026.0-EPOS-LHCR": {
         "status": "current",
         "role": "single-interpretation variant",
         "covering": "Auger FD-2026 EPOS-LHC-R (single interpretation, no mixture)",
@@ -175,6 +183,33 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
         ),
     },
 }
+
+def resolve_version(version: str | None = None) -> str:
+    """Resolve a version request to a registered ``<line>.<revision>`` name.
+
+    An exact registered name (``"2026.0"``, ``"2025"``) is returned as is.
+    An unrevisioned name -- ``"2026"``, ``"2026-USO"`` -- resolves to the
+    NEWEST registered revision of that line and variant, so callers that do
+    not pin a revision follow data patches automatically. ``None`` resolves
+    :data:`DEFAULT_VERSION`.
+    """
+    name = DEFAULT_VERSION if version is None else str(version).strip()
+    if name in MODEL_VERSIONS:
+        return name
+    line, _, variant = name.partition("-")
+    revisions = []
+    for registered in MODEL_VERSIONS:
+        rline, _, rvariant = registered.partition("-")
+        rbase, dot, rev = rline.partition(".")
+        if dot and rbase == line and rvariant == variant and rev.isdigit():
+            revisions.append((int(rev), registered))
+    if revisions:
+        return max(revisions)[1]
+    raise ValueError(
+        f"Version {name!r} not found. Available versions: "
+        f"{get_available_versions()}"
+    )
+
 
 _REQUIRED_FILES = ("knots.dat", "nuclei.dat", "parameters.dat", "covariance.dat")
 
@@ -240,13 +275,8 @@ def version_info(version: str | None = None) -> dict[str, str]:
     dict[str, str]
         The :data:`MODEL_VERSIONS` entry for that version.
     """
-    name = DEFAULT_VERSION if version is None else str(version).strip()
-    if name not in MODEL_VERSIONS:
-        raise ValueError(
-            f"Unknown model version {name!r}. Available versions: "
-            f"{get_available_versions()}"
-        )
-    return dict(MODEL_VERSIONS[name])
+    name = resolve_version(version)
+    return {"name": name, **MODEL_VERSIONS[name]}
 
 
 class Parameters:
@@ -292,10 +322,7 @@ class Parameters:
         """Return a shared immutable parameter bundle for model instances."""
         if data_path is not None:
             return cls(data_path=data_path, version=version)
-        normalized_version = (
-            DEFAULT_VERSION if version is None else str(version).strip()
-        )
-        return cls._cached(normalized_version)
+        return cls._cached(resolve_version(version))
 
     @staticmethod
     @lru_cache(maxsize=32)
@@ -312,25 +339,14 @@ class Parameters:
         self.version = None
         if version is not None and data_path is not None:
             raise ValueError("pass either version or data_path, not both")
-        if version is not None:
-            version_str = str(version).strip()
-            if version_str not in MODEL_VERSIONS:
-                raise ValueError(
-                    f"Version {version_str!r} not found. Available versions: "
-                    f"{get_available_versions()}"
-                )
+        if version is not None or data_path is None:
+            version_str = resolve_version(version)
             data_dir = Path(__file__).parent / "data" / version_str
             if not data_dir.exists():
                 raise ValueError(
                     f"Version '{version_str}' not found. Available versions: {get_available_versions()}"
                 )
             self.version = version_str
-            return data_dir
-        if data_path is None:
-            data_dir = Path(__file__).parent / "data" / DEFAULT_VERSION
-            if not data_dir.exists():
-                raise OSError(f"Default data directory not found: {data_dir}")
-            self.version = DEFAULT_VERSION
             return data_dir
         path = Path(data_path)
         if not path.exists():

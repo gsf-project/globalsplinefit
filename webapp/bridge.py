@@ -76,7 +76,14 @@ def meta(basis, version=None):
     the page adapts to model renames/additions without code changes."""
     versions = list(gx.MODEL_VERSIONS)
     if version not in versions:
-        version = versions[0]
+        # resolve unrevisioned names ("2026" -> newest "2026.<r>"); fall back
+        # to the first registered version for anything else (e.g. after a
+        # package rename), so the page adapts without code changes.
+        try:
+            from globalsplinefit import resolve_version
+            version = resolve_version(version)
+        except Exception:
+            version = versions[0]
     m = _model(basis, version)
     y0, y1 = gx.phi_year_range(m)
     return json.dumps({

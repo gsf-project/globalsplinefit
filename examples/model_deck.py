@@ -94,7 +94,7 @@ async def _():
 
 @app.cell
 def _(MODEL_VERSIONS, mo):
-    version = mo.ui.dropdown(options=list(MODEL_VERSIONS), value="2026", label="model")
+    version = mo.ui.dropdown(options=list(MODEL_VERSIONS), value="2026.0", label="model")
     ref_version = mo.ui.dropdown(
         options=list(MODEL_VERSIONS), value="2025", label="reference (comparison)"
     )

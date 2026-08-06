@@ -18,17 +18,37 @@ from globalsplinefit import GSFEnergy, GSFRigidity
 from globalsplinefit.data_management import (
     DEFAULT_VERSION,
     MODEL_VERSIONS,
+    Parameters,
     get_available_versions,
+    resolve_version,
     version_info,
 )
 
 
 def test_new_sets_available():
     versions = get_available_versions()
-    assert "2026" in versions
-    assert "2026-USO" in versions
-    assert "2026-S23e" in versions
-    assert "2026-EPOS-LHCR" in versions
+    assert "2026.0" in versions
+    assert "2026.0-USO" in versions
+    assert "2026.0-S23e" in versions
+    assert "2026.0-EPOS-LHCR" in versions
+
+
+def test_unrevisioned_names_resolve_to_newest_revision():
+    """"2026" / "2026-USO" float to the newest registered revision; the
+    revisioned name pins one. Unknown names fail loudly."""
+    assert resolve_version("2026") == "2026.0"
+    assert resolve_version("2026-USO") == "2026.0-USO"
+    assert resolve_version("2026.0") == "2026.0"        # exact pin
+    assert resolve_version("2025") == "2025"            # pre-scheme release
+    assert resolve_version(None) == resolve_version(DEFAULT_VERSION)
+    with pytest.raises(ValueError, match="not found"):
+        resolve_version("2026.9")
+    with pytest.raises(ValueError, match="not found"):
+        resolve_version("2031")
+    # alias and revisioned name share one cached parameter bundle
+    assert Parameters.for_model(version="2026") is Parameters.for_model(
+        version="2026.0"
+    )
 
 
 def test_default_is_gsf2026():
@@ -48,8 +68,8 @@ def test_resolved_version_is_reported():
     a default-constructed model reported None and nothing could tell which set
     was in use.
     """
-    assert GSFEnergy().version == "2026"
-    assert GSFEnergy(version="2026-USO").version == "2026-USO"
+    assert GSFEnergy().version == "2026.0"
+    assert GSFEnergy(version="2026-USO").version == "2026.0-USO"
     assert GSFEnergy(version="2017").version == "2017"
 
 
@@ -63,7 +83,9 @@ def test_only_registered_versions_are_offered():
     for name in get_available_versions():
         assert name in MODEL_VERSIONS, f"{name} is offered but not registered"
     current = get_available_versions(include_historical=False)
-    assert set(current) == {"2026", "2026-USO", "2026-S23e", "2026-EPOS-LHCR"}
+    assert set(current) == {
+        "2026.0", "2026.0-USO", "2026.0-S23e", "2026.0-EPOS-LHCR",
+    }
     for name in current:
         assert MODEL_VERSIONS[name]["status"] == "current"
 
@@ -73,7 +95,7 @@ def test_unregistered_data_dir_warns_and_is_not_offered(tmp_path, monkeypatch):
     import globalsplinefit.data_management as dm
 
     fake_data = tmp_path / "data"
-    for name in ("2026", "rogue_variant"):
+    for name in ("2026.0", "rogue_variant"):
         d = fake_data / name
         d.mkdir(parents=True)
         for f in ("knots.dat", "nuclei.dat", "parameters.dat", "covariance.dat"):
@@ -81,7 +103,7 @@ def test_unregistered_data_dir_warns_and_is_not_offered(tmp_path, monkeypatch):
     monkeypatch.setattr(dm, "__file__", str(tmp_path / "data_management.py"))
     with pytest.warns(UserWarning, match="rogue_variant"):
         versions = dm.get_available_versions()
-    assert versions == ["2026"]
+    assert versions == ["2026.0"]
     assert "rogue_variant" not in versions
 
 

@@ -57,6 +57,9 @@ Calculate flux using rigidity:
 >>> proton_flux = rigidity_model.flux(rigidity, "p")
 """
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _dist_version
+
 from .data_management import (
     DEFAULT_VERSION,
     MODEL_VERSIONS,
@@ -65,6 +68,7 @@ from .data_management import (
     SOLAR_CYCLE_24_START,
     get_available_versions,
     list_versions,
+    resolve_version,
     version_info,
 )
 from .model import (
@@ -76,7 +80,15 @@ from .model import (
 )
 from .reduced import RECOMMENDED_PIVOTS, ReducedGSF, optimize_pivots
 
+try:
+    #: Installed code version (the software release, distinct from the
+    #: physical model version of a parameter set, e.g. "2026.0").
+    __version__ = _dist_version("globalsplinefit")
+except PackageNotFoundError:  # running from a source tree without install
+    __version__ = "unknown"
+
 __all__ = [
+    "__version__",
     "GSFEnergy",
     "GSFKineticEnergy",
     "GSFEnergyPerNucleon",
@@ -92,5 +104,6 @@ __all__ = [
     "SOLAR_CYCLE_24_START",
     "get_available_versions",
     "list_versions",
+    "resolve_version",
     "version_info",
 ]

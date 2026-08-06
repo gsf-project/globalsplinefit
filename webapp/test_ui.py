@@ -163,13 +163,13 @@ def main() -> int:
                 assert not page.query_selector(".modal")
 
             # ------------------------------------------------- model list
-            with check("model: add overlay (2026-USO)"):
+            with check("model: add overlay (2026.0-USO)"):
                 open_panel("Model")
                 page.select_option(
-                    "label.field:has-text('Add model') select", "2026-USO")
+                    "label.field:has-text('Add model') select", "2026.0-USO")
                 settle(3_500)
                 assert page.locator(".modelrow").count() == 2
-                assert "2026 vs 2026-USO" in header_tag()
+                assert "2026.0 vs 2026.0-USO" in header_tag()
 
             with check("model: add third (2017), cap reached"):
                 page.select_option(
@@ -182,13 +182,13 @@ def main() -> int:
             with check("model: drag-reorder promotes new primary"):
                 page.drag_and_drop(".modelrow >> nth=1", ".modelrow >> nth=0")
                 settle(4_000)
-                assert header_tag().startswith("2026-USO")
+                assert header_tag().startswith("2026.0-USO")
                 page.drag_and_drop(".modelrow >> nth=1", ".modelrow >> nth=0")
                 settle(4_000)
-                assert header_tag().startswith("2026 ")
+                assert header_tag().startswith("2026.0 ")
 
             with check("model: legend shows model line styles"):
-                assert "2026-USO" in page.text_content("svg.chart")
+                assert "2026.0-USO" in page.text_content("svg.chart")
                 toggle = page.locator(".legend-toggle")
                 assert toggle.get_attribute("aria-expanded") == "true"
                 toggle.click()
@@ -404,7 +404,7 @@ def main() -> int:
             with check("display: overlay hatch bands (needs 2nd model)"):
                 open_panel("Model")
                 page.select_option(
-                    "label.field:has-text('Add model') select", "2026-USO")
+                    "label.field:has-text('Add model') select", "2026.0-USO")
                 settle(3_500)
                 page.locator(
                     ".band-control .switchcheck:has-text('Compared')").click()
@@ -574,7 +574,7 @@ def main() -> int:
             with check("export: CSV per model (2 active -> 2 files)"):
                 open_panel("Model")
                 page.select_option(
-                    "label.field:has-text('Add model') select", "2026-USO")
+                    "label.field:has-text('Add model') select", "2026.0-USO")
                 settle(4_500)
                 open_panel("Export")
                 with page.expect_download(timeout=90_000) as dl:

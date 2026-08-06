@@ -121,7 +121,7 @@ def _(mo):
     ## The published parameter set
 
     With all-default arguments, `ReducedGSF` uses the frozen pivot grid
-    registered for its model version (`RECOMMENDED_PIVOTS["2026"]`): twelve
+    registered for its model version (`RECOMMENDED_PIVOTS["2026.0"]`): twelve
     round, quotable energies per species — 1, 4, 90 GeV, 9, 25, 100 TeV,
     3, 6, 30, 100, 300 PeV, 1 EeV — derived once with `optimize_pivots` and
     polished to round values. Every component has a citable name
@@ -137,7 +137,7 @@ def _(mo):
 @app.cell
 def _(GSFEnergyPerNucleon, ReducedGSF):
     gsf = GSFEnergyPerNucleon()  # 2026 default, Solar Cycle 24 average
-    red = ReducedGSF(gsf)  # published grid for "2026" -> 24 parameters
+    red = ReducedGSF(gsf)  # published grid for "2026.0" -> 24 parameters
 
     print(f"pivots [GeV]: {red.pivot_energies}")
     print(f"n_params:     {red.n_params}")
