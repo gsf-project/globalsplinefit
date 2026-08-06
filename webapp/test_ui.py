@@ -12,8 +12,9 @@ Usage:
 Sections: boot · about/citations · model list (add/remove/reorder) ·
 plot quantity (nucleus/nucleon/lnA moments) · abscissa constraints (all 5,
 incl. deuterium on rigidity) · components (groups + all element
-chips + deuterium) · display (gamma, scale, bands, overlay hatches,
-opacity) · modulation (SC24/LIS/interval, reversed, edges) · advanced
+chips + deuterium) · display (gamma, scale, bands, pseudo-experiment
+samples + trials/alpha, overlay hatches, opacity) · modulation
+(SC24/LIS/interval, reversed, edges) · advanced
 (escale, cutoff, npts) · plot navigation (box-zoom, pan, wheel-pinch,
 wheel-pan, home, double-click) · hover readout · exports (CSV, PDF/SVG/PNG,
 snapshot, data table) · theme (toggle, persistence, browser default) ·
@@ -344,11 +345,61 @@ def main() -> int:
 
             with check("display: bands off/on + opacity"):
                 bands = page.locator(
-                    ".band-control .switchcheck:has-text('Bands')")
+                    ".band-control .switchcheck:has-text('Uncertainty')")
                 bands.click(); page.wait_for_timeout(200)
                 bands.click(); page.wait_for_timeout(200)
                 page.locator(".opacity-control input[type=range]").fill("0.4")
                 settle(600)
+
+            with check("display: pseudo-experiment samples on/off"):
+                page.click(".band-control .seg button:text-is('Samples')")
+                settle(4_000)
+                paths = page.locator("svg.chart g.samples path")
+                # default 100 trials x (4 groups + total) coherent draws
+                assert paths.count() == 500, f"{paths.count()} sample paths"
+                alpha = float(page.get_attribute(
+                    "svg.chart g.samples", "stroke-opacity"))
+                assert 0.05 < alpha < 0.08, f"alpha {alpha} at 100 trials"
+                page.click(".band-control .seg button:text-is('Band')")
+                settle(2_000)
+                assert page.locator("svg.chart g.samples path").count() == 0
+
+            with check("display: trials slider rescales the alpha"):
+                page.click(".band-control .seg button:text-is('Samples')")
+                settle(4_000)
+                trials = page.locator(
+                    ".opacity-control input[type=range]")
+                trials.fill("20")
+                settle(3_000)
+                assert page.locator("svg.chart g.samples path").count() == 100
+                alpha = float(page.get_attribute(
+                    "svg.chart g.samples", "stroke-opacity"))
+                assert abs(alpha - 0.10) < 0.005, f"alpha {alpha} at 20 trials"
+                trials.fill("200")
+                settle(4_000)
+                assert page.locator("svg.chart g.samples path").count() == 1000
+                alpha = float(page.get_attribute(
+                    "svg.chart g.samples", "stroke-opacity"))
+                assert abs(alpha - 0.02) < 0.005, f"alpha {alpha} at 200 trials"
+                page.click(".band-control .seg button:text-is('Band')")
+                settle(2_000)
+
+            with check("display: samples follow the lnA moment quantity"):
+                page.click(".band-control .seg button:text-is('Samples')")
+                settle(4_000)
+                open_panel("Abscissa")
+                page.locator(
+                    ".settings-popover label.field:has-text('Plot') select"
+                ).select_option("mean_lna")
+                settle(12_000)
+                n = page.locator("svg.chart g.samples path").count()
+                assert n == 100, f"{n} lnA sample paths"
+                page.locator(
+                    ".settings-popover label.field:has-text('Plot') select"
+                ).select_option("nucleus")
+                settle(5_000)
+                page.click(".band-control .seg button:text-is('Band')")
+                settle(2_000)
 
             with check("display: overlay hatch bands (needs 2nd model)"):
                 open_panel("Model")

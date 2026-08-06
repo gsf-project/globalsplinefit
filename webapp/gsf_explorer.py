@@ -258,6 +258,81 @@ def phi_year_range(model) -> tuple[int, int]:
     return int(years[0]), int(years[-1])
 
 
+def _sample_delta(model, n_samples: int, seed: int):
+    """Shared amplitude draw for pseudo-experiments.
+
+    One draw underlies every displayed curve (groups, elements, total), so
+    each draw index is one internally consistent model realization; the seed
+    is fixed by the caller so recomputes redraw the same experiments.
+    """
+    slices, factor = model._amplitude_sample_factor()
+    rng = np.random.default_rng(seed)
+    return slices, rng.standard_normal((n_samples, factor.shape[0])) @ factor.T
+
+
+def _flux_samples(
+    model, x, named_targets, time_interval, rigidity_cutoff, quantity,
+    n_samples, seed, nucleus_cache, with_total,
+):
+    """Pseudo-experiment draws per displayed series, plus the total.
+
+    Returns ``{series_name: (n_samples, n_x) array}`` with the all-particle
+    (or all-nucleon) sum under ``"total"``. Reuses the jacobians the band
+    evaluation already computed for the nucleus quantity.
+    """
+    slices, delta = _sample_delta(model, n_samples, seed)
+    kw = dict(time_interval=time_interval, rigidity_cutoff=rigidity_cutoff)
+    draws_by_target = {}
+
+    def draws_for(target):
+        key = target if not isinstance(target, list) else tuple(target)
+        if key in draws_by_target:
+            return draws_by_target[key]
+        if quantity == "nucleus":
+            if target not in nucleus_cache:
+                nucleus_cache[target] = _nucleus_flux_jacobian(
+                    model, x, target, time_interval, rigidity_cutoff
+                )
+            flux, jac = nucleus_cache[target]
+        else:
+            flux = np.asarray(model.flux(x, target, **kw), float)
+            jac = np.asarray(model.jacobian(x, target, **kw), float)
+        _zlist, leader = model._resolve_z(target)
+        sid = model._leader_by_charge[leader]
+        draws_by_target[key] = flux + delta[:, slices[sid]] @ jac.T
+        return draws_by_target[key]
+
+    out = {name: draws_for(target) for name, target in named_targets}
+    if with_total:
+        out["total"] = sum(draws_for(g) for g in GROUPS)
+    return out
+
+
+def _composition_samples(
+    model, x, quantity, time_interval, rigidity_cutoff, n_samples, seed
+):
+    """Pseudo-experiment draws of a ln(A) moment (nonlinear, per draw)."""
+    slices, delta = _sample_delta(model, n_samples, seed)
+    denominator = np.zeros((n_samples, len(x)))
+    first = np.zeros_like(denominator)
+    second = np.zeros_like(denominator)
+    for sid in model.species:
+        flux, jac = _nucleus_flux_jacobian(
+            model, x, sid, time_interval, rigidity_cutoff
+        )
+        leader_sid = model._leader_by_charge[model.z_ungroup[sid[0]]]
+        draws = flux + delta[:, slices[leader_sid]] @ jac.T
+        ln_a = np.log(model.mass_number[sid])
+        denominator += draws
+        first += ln_a * draws
+        second += ln_a**2 * draws
+    denominator = np.where(denominator > 0, denominator, np.nan)
+    mean = first / denominator
+    if quantity == "mean_lna":
+        return mean
+    return second / denominator - mean**2
+
+
 def evaluate(
     model,
     basis: str,
@@ -272,12 +347,17 @@ def evaluate(
     with_total: bool = True,
     with_errors: bool = True,
     quantity: str = "nucleus",
+    n_samples: int = 0,
+    sample_seed: int = 0,
 ) -> dict:
     """Evaluate the selected flux or composition observable on a log grid.
 
     Returns plain numpy arrays only, so results are cache- and pickle-friendly.
     Zeros (below threshold / LIS at low energy) are kept as zeros; the plotting
-    layer masks them.
+    layer masks them. With ``n_samples > 0`` the result additionally carries
+    ``out["samples"]``: pseudo-experiment draws per series (and ``"total"``)
+    from one shared, seeded amplitude draw — each draw index is one
+    internally consistent model realization.
     """
     validate_quantity_basis(quantity, basis)
     energy_scale = float(energy_scale)
@@ -294,6 +374,11 @@ def evaluate(
         out["series"][quantity] = _composition(
             model, x, quantity, time_interval, rigidity_cutoff, with_errors
         )
+        if n_samples:
+            out["samples"] = {quantity: _composition_samples(
+                model, x, quantity, time_interval, rigidity_cutoff,
+                int(n_samples), int(sample_seed),
+            )}
         return out
 
     nucleus_cache = {}
@@ -316,14 +401,23 @@ def evaluate(
             )
         return f, e
 
+    named_targets = []
     for g in groups:
         out["series"][g] = f_and_e(g)
+        named_targets.append((g, g))
     for z in elements:
         # "D" (2026+ deuterium species) is a native flux/error target.
         name = "D" if z == "D" else ELEMENT_SYMBOLS.get(z, f"Z={z}")
         if name in out["series"]:
             continue  # e.g. element He duplicates the He group series
         out["series"][name] = f_and_e(z if z == "D" else int(z))
+        named_targets.append((name, z if z == "D" else int(z)))
+    if n_samples:
+        out["samples"] = _flux_samples(
+            model, x, named_targets, time_interval, rigidity_cutoff,
+            quantity, int(n_samples), int(sample_seed), nucleus_cache,
+            with_total,
+        )
     if with_total:
         if quantity == "nucleus":
             out["total"] = _total_from_groups(

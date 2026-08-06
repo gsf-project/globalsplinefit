@@ -7,8 +7,8 @@
 
 import { html, render, useState, useEffect, useRef, useMemo }
   from "https://cdn.jsdelivr.net/npm/htm@3.1.1/preact/standalone.module.js";
-import { Chart, THEMES, GROUPS, MODEL_DASH, X_DOMAIN, sciLabel, sup,
-         xTitle, yTitle } from "./chart.js";
+import { Chart, THEMES, GROUPS, MODEL_DASH, X_DOMAIN, SAMPLE_TRIALS,
+         sciLabel, sup, xTitle, yTitle } from "./chart.js";
 
 const WHEEL = "./globalsplinefit-2.0.0a1-py3-none-any.whl";
 const MAX_MODELS = 3;
@@ -269,6 +269,7 @@ function App() {
   const [params, setParams] = useState({
     versions: ["2026"], quantity: "nucleus", basis: "etot", npts: 480,
     elements: [], mod: "SC24", cutoff: 0, escale: 1.0, phiBins: 12,
+    samples: 0,   // pseudo-experiment trials; 0 = error band
   });
   const [view, setView] = useState({
     gamma: 2.7, ylog: true, ratio: false, showTotal: true, showBands: true,
@@ -333,6 +334,9 @@ function App() {
     npts: p.npts, groups: GROUPS,
     elements: withElements ? p.elements : [],
     mod: p.mod, cutoff: p.cutoff, escale: p.escale, phiBins: p.phiBins,
+    /* pseudo-experiments: primary model only (like the bands); the seed is
+       fixed so a recompute redraws the same experiments */
+    samples: withElements ? p.samples : 0, sampleSeed: 0,
   });
   const paramsKey = JSON.stringify(params);
   const latestKey = useRef(null);
@@ -736,11 +740,21 @@ function App() {
         <div class="dockcontrol band-control">
           <label class="switchcheck">
             <input type="checkbox" checked=${view.showBands}
-                   onchange=${() => setV({ showBands: !view.showBands })} />
+                   onchange=${() => {
+                     const on = !view.showBands;
+                     setV({ showBands: on });
+                     if (!on) setParams((p) => ({ ...p, samples: 0 }));
+                   }} />
             <span class="switchtrack" aria-hidden="true"></span>
-            <span>Bands</span>
+            <span>Uncertainty</span>
           </label>
-          ${view.showBands && params.versions.length > 1 && html`
+          ${view.showBands && html`<${Seg} value=${params.samples > 0}
+            onSelect=${(v) => setParams((p) => ({
+              ...p, samples: v ? SAMPLE_TRIALS.def : 0 }))}
+            options=${[{ v: false, label: "Band" },
+                       { v: true, label: "Samples" }]} />`}
+          ${view.showBands && params.samples === 0
+            && params.versions.length > 1 && html`
             <label class="switchcheck compact">
               <input type="checkbox" checked=${view.overlayBands}
                      onchange=${() => setV({ overlayBands: !view.overlayBands })} />
@@ -755,10 +769,17 @@ function App() {
               onInput=${(v) => setV({ lineWeight: v })}
               fmt=${(v) => `${v.toFixed(2)}×`} />
           </div>
-          ${view.showBands && html`<div class="opacity-control">
+          ${view.showBands && params.samples === 0 && html`<div class="opacity-control">
             <${Slider} label="Band opacity" min="0.05" max="0.6" step="0.01"
               value=${view.bandAlpha} onInput=${(v) => setV({ bandAlpha: v })}
               fmt=${(v) => v.toFixed(2)} />
+          </div>`}
+          ${view.showBands && params.samples > 0 && html`<div class="opacity-control">
+            <${Slider} label="Trials" min=${SAMPLE_TRIALS.min}
+              max=${SAMPLE_TRIALS.max} step=${SAMPLE_TRIALS.step}
+              value=${params.samples}
+              onInput=${(v) => setParams((p) => ({ ...p, samples: Math.round(v) }))}
+              fmt=${(v) => `${Math.round(v)}`} />
           </div>`}
         </div>
       </section>

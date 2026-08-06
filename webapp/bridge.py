@@ -19,6 +19,15 @@ def _numbers(values):
     return [float(value) if math.isfinite(value) else None for value in values]
 
 
+def _draws(matrix):
+    """Sample draws as compact JSON rows (4 significant digits — well below
+    line width on screen, and it halves the payload of large ensembles)."""
+    return [
+        [float(f"{v:.4g}") if math.isfinite(v) else None for v in row]
+        for row in matrix
+    ]
+
+
 def _phi_bins(v):
     """JSON phi-bin spec -> solar_cycle_average_bins (0/None/"full" -> None)."""
     if v is None or v == "full" or v == 0:
@@ -105,6 +114,8 @@ def _params(p):
         rigidity_cutoff=(float(p["cutoff"]) if p.get("cutoff") else None),
         energy_scale=float(p.get("escale", 1.0)),
         quantity=p.get("quantity", "nucleus"),
+        n_samples=int(p.get("samples", 0) or 0),
+        sample_seed=int(p.get("sampleSeed", 0) or 0),
     )
 
 
@@ -117,16 +128,20 @@ def _evaluate(p):
 def evaluate(params_json):
     p = json.loads(params_json)
     _, res = _evaluate(p)
+    samples = res.get("samples") or {}
     series = [
         {"name": name, "flux": _numbers(f),
-         "err": (_numbers(e) if e is not None else None)}
+         "err": (_numbers(e) if e is not None else None),
+         "samples": (_draws(samples[name]) if name in samples else None)}
         for name, (f, e) in res["series"].items()
     ]
     total = None
     if res["total"] is not None:
         tf, te = res["total"]
         total = {"flux": _numbers(tf),
-                 "err": (_numbers(te) if te is not None else None)}
+                 "err": (_numbers(te) if te is not None else None),
+                 "samples": (_draws(samples["total"])
+                             if "total" in samples else None)}
     return json.dumps({
         "x": _numbers(res["x"]),
         "series": series,
@@ -144,6 +159,7 @@ def evaluate(params_json):
 
 def csv(params_json, include_cov):
     p = json.loads(params_json)
+    p["samples"] = 0  # exports never need pseudo-experiment draws
     model, res = _evaluate(p)
     return gx.build_csv(model, res, p["basis"], p["version"], _ti(p["mod"]),
                         (float(p["cutoff"]) if p.get("cutoff") else None),
@@ -154,6 +170,7 @@ def figure(params_json, opts_json):
     """Publication-style matplotlib figure (paper rc) -> base64 bytes."""
     p = json.loads(params_json)
     o = json.loads(opts_json)
+    p["samples"] = 0  # exports never need pseudo-experiment draws
     _, res = _evaluate(p)
     fig = gx.make_figure(
         res, p["basis"], float(o.get("gamma", 2.7)),
