@@ -152,6 +152,7 @@ def _(
     helium_flux,
     iron_error,
     iron_flux,
+    gsf_nucleon,
     np,
     oxygen_error,
     oxygen_flux,
@@ -160,7 +161,14 @@ def _(
     total_error,
     total_flux,
 ):
-    # Export nucleon flux data
+    # Export nucleon flux data. Stamp the provenance: the physical model
+    # version incl. its revision (gsf_nucleon.version) and the code version.
+    import globalsplinefit
+
+    provenance = (
+        f"parameter set {gsf_nucleon.version}, "
+        f"globalsplinefit {globalsplinefit.__version__}\n"
+    )
     np.savetxt(
         "gsf_nucleon_flux.dat",
         np.transpose(
@@ -174,7 +182,8 @@ def _(
             )
         ),
         fmt="%.10e",
-        header="energy, hydrogen group, helium, oxygen group, iron group, total\n"
+        header=provenance
+        + "energy, hydrogen group, helium, oxygen group, iron group, total\n"
         "[units: energy in GeV per nucleon, flux in 1/(GeV m2 s sr)]",
     )
 
@@ -191,7 +200,8 @@ def _(
             )
         ),
         fmt="%.10e",
-        header="energy, hydrogen group, helium, oxygen group, iron group, total\n"
+        header=provenance
+        + "energy, hydrogen group, helium, oxygen group, iron group, total\n"
         "[units: energy in GeV per nucleon, flux error in 1/(GeV m2 s sr)]",
     )
 
