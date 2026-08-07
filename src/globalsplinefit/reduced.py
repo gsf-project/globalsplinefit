@@ -4,7 +4,7 @@ Provides a small set of flux-deformation parameters ``theta`` designed to be
 carried as nuisance parameters in downstream analyses (atmospheric lepton
 calculations, detector fits): vary one component at a time to build a
 Jacobian of your observable, then constrain the components with the exact
-``N x N`` covariance penalty shipped with the reduction.
+``N x N`` covariance penalty of the reduction.
 
 Construction
 ------------
@@ -93,28 +93,6 @@ def _build_stacked_system(model, energy_grid, **kwargs):
 
     return jacobian, covariance
 
-
-def _load_recommended_pivots() -> dict:
-    """Read the published per-version pivot grids
-    (``data/<version>/reduced_pivots.dat``, one energy in GeV/n per line).
-    """
-    from pathlib import Path
-
-    from .data_management import MODEL_VERSIONS
-
-    data_dir = Path(__file__).parent / "data"
-    grids = {}
-    for version in MODEL_VERSIONS:
-        pivots_file = data_dir / version / "reduced_pivots.dat"
-        if pivots_file.exists():
-            grids[version] = tuple(np.atleast_1d(np.loadtxt(pivots_file)))
-    return grids
-
-
-#: Published pivot grid per model version, read from the shipped
-#: ``data/<version>/reduced_pivots.dat`` files (see
-#: :func:`_load_recommended_pivots`).
-RECOMMENDED_PIVOTS = _load_recommended_pivots()
 
 _DEFAULT_ENERGY_RANGE = (1.0, 1e9)
 
@@ -217,11 +195,9 @@ class ReducedGSF:
         Nucleon model to reduce. Default: ``GSFEnergyPerNucleon()`` using the
         2026 set and Solar Cycle 24 average.
     n_pivots : int, optional
-        Number of log-spaced pivot energies per species.  If neither this
-        nor ``pivot_energies`` is given (and ``energy_range`` is left at
-        its default), the published grid shipped with the model bundle
-        (``data/<version>/reduced_pivots.dat``) is used; a custom bundle
-        without a pivot table raises.
+        Number of log-spaced pivot energies per species.  By default the
+        model version's published pivot grid
+        (``model.params.reduced_pivots``) is used.
     energy_range : tuple of float, optional
         ``(E_min, E_max)`` of the pivot grid in GeV per nucleon.
         Default ``(1.0, 1e9)`` — beyond ~1e9 the heavy-group fluxes
@@ -303,20 +279,14 @@ class ReducedGSF:
 
         if pivot_energies is None:
             if n_pivots is None and energy_range == _DEFAULT_ENERGY_RANGE:
-                # The bundle's published grid: shipped as
-                # data/<version>/reduced_pivots.dat and loaded by Parameters.
-                # No silent fallback for bundles without a table — the grid is
-                # part of the citable parameter definition and an on-the-fly
-                # optimizer run would vary from system to system.
                 pivot_energies = model.params.reduced_pivots
                 if pivot_energies is None:
                     raise ValueError(
-                        "this model bundle ships no reduced_pivots.dat, so there "
-                        "is no published pivot grid. Either derive one once with "
-                        "optimize_pivots(model, n_pivots=12) and pass it via "
-                        "pivot_energies= (ship it as reduced_pivots.dat in the "
-                        "bundle directory to make it the default), or request a "
-                        "log-spaced grid with n_pivots=."
+                        "this model bundle has no reduced_pivots.dat. Derive "
+                        "a grid once with optimize_pivots(model, n_pivots=12) "
+                        "and pass it via pivot_energies= (or store it as "
+                        "reduced_pivots.dat in the bundle directory), or "
+                        "request a log-spaced grid with n_pivots=."
                     )
             else:
                 if n_pivots is not None and (

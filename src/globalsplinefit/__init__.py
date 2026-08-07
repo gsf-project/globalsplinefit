@@ -74,7 +74,7 @@ from .model import (
     GSFKineticEnergyPerNucleon,
     GSFRigidity,
 )
-from .reduced import RECOMMENDED_PIVOTS, ReducedGSF, optimize_pivots
+from .reduced import ReducedGSF, optimize_pivots
 
 __all__ = [
     "GSFEnergy",
@@ -82,7 +82,6 @@ __all__ = [
     "GSFEnergyPerNucleon",
     "GSFKineticEnergyPerNucleon",
     "GSFRigidity",
-    "RECOMMENDED_PIVOTS",
     "ReducedGSF",
     "optimize_pivots",
     "DEFAULT_VERSION",
