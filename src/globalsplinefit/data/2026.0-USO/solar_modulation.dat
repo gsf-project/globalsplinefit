@@ -1,9 +1,7 @@
 #The monthly values of the solar-modulation potential phi (in MV) for the
 #2026-USO alternative parameter set (Usoskin et al. 2017 reconstruction).
-#Transcribed from the shared bundled table at the package data root (identical
-#values; that file is a UTF-16 export carrying a trailing Annual column, which
-#is dropped here). Shipped per-set so the alternative set names its own
-#potential rather than inheriting whatever the shared table holds.
+#Values match the bundled table at the package data root (trailing Annual
+#column dropped).
 #References:
 #[1] Usoskin, Gil, Kovaltsov, Mishev, Mikhailov, JGR Space Physics 122 (2017)
 #    3875 [Usoskin:2017cli].

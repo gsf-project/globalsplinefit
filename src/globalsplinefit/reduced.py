@@ -4,7 +4,7 @@ Provides a small set of flux-deformation parameters ``theta`` designed to be
 carried as nuisance parameters in downstream analyses (atmospheric lepton
 calculations, detector fits): vary one component at a time to build a
 Jacobian of your observable, then constrain the components with the exact
-``N x N`` covariance penalty shipped with the reduction.
+``N x N`` covariance penalty of the reduction.
 
 Construction
 ------------
@@ -15,24 +15,21 @@ central model at ``n_pivots`` log-spaced pivot energies:
     f_s(E; theta) = f_central,s(E) * (1 + sum_k H_k(log E) theta_{s,k})
 
 where ``H_k`` are cardinal interpolation functions in log-energy — a local
-cubic (Catmull-Rom) spline by default (smooth C1 deformations, each
-component confined to its two neighboring intervals), or piecewise-linear
-hat functions with ``basis="hat"`` — frozen to the edge value outside the
-pivot range.  Either way ``H`` is the identity at the pivots, so the components
-``theta`` are *relative flux deviations at the pivot energies* — directly
-interpretable knobs — and their covariance is evaluated **exactly** from the
-full GSF parameter covariance at the pivots:
+cubic (Catmull-Rom) spline by default, or piecewise-linear hats with
+``basis="hat"``.  Either way ``H`` is the identity at the pivots, so the
+components ``theta`` are *relative flux deviations at the pivot energies* —
+directly interpretable knobs — and their covariance is evaluated **exactly**
+from the full GSF parameter covariance at the pivots:
 
     C = J_rel(pivots) Cov_param J_rel(pivots)^T
 
-No mode truncation: at the pivot energies the reduced
-variance (and every cross-species/cross-energy correlation between pivots)
-equals the full model's.  Between pivots the deformation is interpolated,
-which provides a compact nuisance-parameter model for downstream fits.
+At the pivot energies the reduced variance — and every
+cross-species/cross-energy correlation between pivots — equals the full
+model's.  Between pivots the deformation is interpolated.
 
 Intended use in a fit::
 
-    red = ReducedGSF()                       # 2 species x 12 pivots = 24 pars
+    red = ReducedGSF()
     flux = red.flux(E, theta)                # vary theta -> observable Jacobian
     chi2_penalty = red.penalty(theta)        # theta^T C^-1 theta
 
@@ -94,46 +91,14 @@ def _build_stacked_system(model, energy_grid, **kwargs):
     return jacobian, covariance
 
 
-# Published pivot grids, one per model version — the reproducible, quotable
-# component definition (theta_k = relative deviation of the total p/n flux
-# at these energies).  ``ReducedGSF()`` with all-default arguments uses the
-# entry for its model's version, so downstream results reference a fixed,
-# citable parameter set instead of a per-user optimizer run.
-#
-# 2026: derived once with ``optimize_pivots(n_pivots=12, n_grid=300,
-# n_restarts=4, seed=0)`` and polished on round, quotable values; worst-case
-# coverage factor 1.29 of the exact total p/n uncertainty over 1-1e9 GeV
-# (verified on an independent 601-point grid, 2026-07-31).  Tuned for the
-# total-p/n species with the (local cubic) spline basis.  Regenerate when a
-# model version is updated.
-_STANDARD_PIVOTS = (
-    1.0,
-    4.0,
-    90.0,
-    9e3,
-    2.5e4,
-    1e5,
-    3e6,
-    6e6,
-    3e7,
-    1e8,
-    3e8,
-    1e9,
-)
-RECOMMENDED_PIVOTS = dict.fromkeys(
-    ("2017", "2019", "2025", "2026", "2026-USO", "2026-S23e", "2026-EPOS-LHCR"),
-    _STANDARD_PIVOTS,
-)
-
 _DEFAULT_ENERGY_RANGE = (1.0, 1e9)
 
 
 def _format_energy(e: float) -> str:
     """Quotable energy label: 80GeV, 9TeV, 4PeV, 1EeV.
 
-    Three significant figures: the published grids sit on round values and are
-    unaffected, while a grid derived by :func:`optimize_pivots` still yields a
-    readable label (``1.52GeV``, not ``1.51566076GeV``).
+    Three significant figures, so an :func:`optimize_pivots` grid still
+    labels readably (``1.52GeV``).
     """
     for unit, scale in (("EeV", 1e9), ("PeV", 1e6), ("TeV", 1e3)):
         if e >= scale:
@@ -151,12 +116,9 @@ def _interp_basis(log_pivots: np.ndarray, log_x: np.ndarray, basis: str) -> np.n
     if basis == "spline":
         from scipy.interpolate import CubicHermiteSpline
 
-        # LOCAL cubic (Catmull-Rom): Hermite interpolation with
-        # finite-difference slopes.  Linear in the pivot values, C1, and each
-        # cardinal function only touches its two neighboring intervals — on
-        # strongly non-uniform grids a global (natural) cubic spline rings
-        # with side lobes larger than the bump itself, which would make
-        # single-component variations non-local.
+        # Hermite interpolation with finite-difference slopes (Catmull-Rom).
+        # Local, because a global cubic on a non-uniform grid rings with side
+        # lobes larger than the bump.
         slopes = np.zeros((n_piv, n_piv))
         slopes[0, :2] = [-1.0, 1.0] / (log_pivots[1] - log_pivots[0])
         slopes[-1, -2:] = [-1.0, 1.0] / (log_pivots[-1] - log_pivots[-2])
@@ -226,12 +188,9 @@ class ReducedGSF:
         Nucleon model to reduce. Default: ``GSFEnergyPerNucleon()`` using the
         2026 set and Solar Cycle 24 average.
     n_pivots : int, optional
-        Number of log-spaced pivot energies per species.  If neither this
-        nor ``pivot_energies`` is given (and ``energy_range`` is left at
-        its default), the **published grid** for the model version is used
-        (:data:`RECOMMENDED_PIVOTS`; 12 pivots and a measured worst-case
-        standard-deviation ratio of 1.29 for the 2026 set).
-        Passing ``n_pivots`` explicitly requests a log-spaced grid instead.
+        Number of log-spaced pivot energies per species.  By default the
+        model version's published pivot grid
+        (``model.params.reduced_pivots``) is used.
     energy_range : tuple of float, optional
         ``(E_min, E_max)`` of the pivot grid in GeV per nucleon.
         Default ``(1.0, 1e9)`` — beyond ~1e9 the heavy-group fluxes
@@ -313,11 +272,15 @@ class ReducedGSF:
 
         if pivot_energies is None:
             if n_pivots is None and energy_range == _DEFAULT_ENERGY_RANGE:
-                # Supported versions use a fixed, citable grid. Custom bundles
-                # use the same stable default unless pivots are supplied.
-                pivot_energies = np.array(
-                    RECOMMENDED_PIVOTS.get(model.version, _STANDARD_PIVOTS)
-                )
+                pivot_energies = model.params.reduced_pivots
+                if pivot_energies is None:
+                    raise ValueError(
+                        "this model bundle has no reduced_pivots.dat. Derive "
+                        "a grid once with optimize_pivots(model, n_pivots=12) "
+                        "and pass it via pivot_energies= (or store it as "
+                        "reduced_pivots.dat in the bundle directory), or "
+                        "request a log-spaced grid with n_pivots=."
+                    )
             else:
                 if n_pivots is not None and (
                     isinstance(n_pivots, bool)
@@ -416,19 +379,8 @@ class ReducedGSF:
     # ------------------------------------------------------------------
 
     def basis(self, energy: ArrayLike) -> np.ndarray:
-        """Interpolation basis H, shape (n_E, N).
-
-        Cardinal in the pivot values (``H`` is the identity at the pivots)
-        and a partition of unity, for either ``basis_type``:
-
-        - ``"spline"`` (default): local cubic (Catmull-Rom) spline in
-          log-energy — smooth (C1) deformations, each component confined to
-          its two neighboring intervals.
-        - ``"hat"``: piecewise-linear hat functions in log-energy — also
-          local, non-negative, but kinked.
-
-        Outside the pivot range the edge pivot's deformation is held
-        constant.
+        """Interpolation basis H, shape (n_E, N); see the ``basis``
+        constructor parameter.
         """
         energy = self.model._as_1d_values(energy, "energy", positive=True)
         log_e = np.log(energy)
@@ -439,7 +391,6 @@ class ReducedGSF:
     # ------------------------------------------------------------------
 
     def _effective_kwargs(self, overrides: dict) -> dict:
-        """Keep the physical configuration used to construct the covariance fixed."""
         for key, value in overrides.items():
             if key not in self._kwargs or self._kwargs[key] != value:
                 raise ValueError(
@@ -578,12 +529,7 @@ class ReducedGSF:
     # ------------------------------------------------------------------
 
     def to_dict(self) -> dict:
-        """JSON-serializable description of the reduction.
-
-        Contains everything a downstream fitter needs besides the central
-        flux itself: pivot energies, species labels, the central flux at
-        the pivots, and the component covariance.
-        """
+        """JSON-serializable description of the reduction."""
         return {
             "description": (
                 "GSF reduced flux representation: theta are relative flux "
@@ -637,10 +583,9 @@ def optimize_pivots(
     apart (near-duplicate pivots are statistically useless and make the
     cardinal spline ring violently).
 
-    Runtime is dominated by the exchange loop (roughly half a minute for
-    the defaults; scales with ``n_pivots * n_grid * n_restarts`` and is a
-    few times slower with ``per_group=True``).  The result is deterministic
-    for a given ``seed``.
+    Roughly half a minute with the defaults; scales as
+    ``n_pivots * n_grid * n_restarts``.  The result is deterministic for a
+    given ``seed``.
 
     Parameters
     ----------
@@ -695,8 +640,6 @@ def optimize_pivots(
     S = jac_rel @ cov_par @ jac_rel.T
     sig2_exact = np.diag(S).reshape(len(species), n_grid)
 
-    # anti-aliasing guards: candidates on every second grid point (so the
-    # objective always samples between pivots) and a minimum separation
     span_decades = np.log10(energy_range[1] / energy_range[0])
     min_sep = max(2, int(np.ceil(min_separation * (n_grid - 1) / span_decades)))
     candidates = np.arange(2, n_grid - 1, 2)

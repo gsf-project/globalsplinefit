@@ -44,7 +44,7 @@ def test_provenance_is_validated_and_returned_by_copy(tmp_path):
     model = GSFEnergy()
     provenance = model.params.provenance
     provenance["version"] = "changed"
-    assert model.params.provenance["version"] == "2026"
+    assert model.params.provenance["version"] == "2026.0"
 
     bundle = tmp_path / "bad-provenance"
     shutil.copytree(GSFEnergy(version="2017").params.data_path, bundle)

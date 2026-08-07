@@ -94,7 +94,7 @@ async def _():
 
 @app.cell
 def _(MODEL_VERSIONS, mo):
-    version = mo.ui.dropdown(options=list(MODEL_VERSIONS), value="2026", label="model")
+    version = mo.ui.dropdown(options=list(MODEL_VERSIONS), value="2026.0", label="model")
     ref_version = mo.ui.dropdown(
         options=list(MODEL_VERSIONS), value="2025", label="reference (comparison)"
     )
@@ -414,10 +414,9 @@ def _(mo):
     mo.md(r"""
     ## Custom fits
 
-    Every panel works the same for a parameter directory that is not in the
-    registry — construct the model with `GSFEnergy(data_path="my_fit/")`
-    instead of `version=...` (run the notebook locally for that; the browser
-    version has no filesystem access). To save any figure, use
+    Every panel works the same for your own fit:
+    `GSFEnergy(data_path="my_fit/")`. This requires a local run — the
+    browser version has no filesystem access. To save any figure, use
     `fig.savefig("name.png", dpi=120, bbox_inches="tight")` in a cell.
     """)
     return

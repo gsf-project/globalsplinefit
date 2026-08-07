@@ -40,6 +40,20 @@ export const X_DOMAIN = [-1, 11];
 /* line style per model slot (identity of a model = its dash, not a color) */
 export const MODEL_DASH = ["none", "2 3.5", "9 3 2.5 3"];
 
+/* Pseudo-experiment trials: slider limits and the per-draw stroke opacity,
+   0.10 at the low end fading linearly to 0.02 at the max so large ensembles
+   read as a density, not clutter. The max comes from the 2026-08-06 headless
+   chromium benchmark (5 series x trials paths): at 200 trials a display-state
+   re-render costs ~270 ms and the worst pan frame ~180 ms — the edge of
+   "feels live"; 500 trials is a freeze (~640 ms re-renders). WASM eval+
+   payload is ~1.4 s at 200. */
+export const SAMPLE_TRIALS = { min: 20, max: 200, def: 100, step: 20 };
+export const sampleAlpha = (n) => {
+  const { min, max } = SAMPLE_TRIALS;
+  const t = Math.min(Math.max((n - min) / (max - min), 0), 1);
+  return 0.10 - t * (0.10 - 0.02);
+};
+
 /* TEMPORARY pre-publication marker: diagonal PRELIMINARY watermark across
    the plot area (also lands in the SVG export). Set false / delete at the
    GSF 2026 release. */
@@ -195,6 +209,9 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
         rows.push({
           name: data.quantityLabel, tag, mi, kind: "composition", color: theme.ink,
           w: s.flux.map((v) => (Number.isFinite(v) ? v : NaN)),
+          draws: mi === 0 && s.samples
+            ? s.samples.map((d) => d.map((v) => (Number.isFinite(v) ? v : NaN)))
+            : null,
           lo: withBand && s.err
             ? s.flux.map((v, i) => Number.isFinite(v) && Number.isFinite(s.err[i])
               ? v - s.err[i] : NaN) : null,
@@ -212,11 +229,12 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
             (v > 0 && tot?.[i] > 0 ? v / tot[i] : NaN))
         : (f) => f.map((v, i) => (v > 0 ? v * x[i] ** g : NaN));
       if (view.showTotal && data.total && !view.ratio) {
-        const { flux, err } = data.total;
+        const { flux, err, samples } = data.total;
         rows.push({
           name: data.quantity === "nucleon" ? "all-nucleon" : "all-particle",
           tag, mi, kind: "total", color: theme.ink,
           w: weigh(flux),
+          draws: mi === 0 && samples ? samples.map(weigh) : null,
           lo: withBand && err ? weigh(flux.map((v, i) => v - err[i])) : null,
           hi: withBand && err ? weigh(flux.map((v, i) => v + err[i])) : null,
         });
@@ -231,6 +249,7 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
         rows.push({
           name: s.name, tag, mi, kind: isGroup ? "group" : "element", color,
           w: weigh(s.flux),
+          draws: mi === 0 && s.samples ? s.samples.map(weigh) : null,
           lo: withBand && isGroup && s.err
             ? weigh(s.flux.map((v, i) => Math.max(v - s.err[i], 0))) : null,
           hi: withBand && isGroup && s.err
@@ -291,8 +310,11 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
   const shapes = built.rows.map((r) => ({
     ...r,
     py: r.w.map(Y),
-    band: view.showBands && r.hi
+    /* pseudo-experiment draws replace the band for the primary model */
+    band: view.showBands && r.hi && !r.draws
       ? bandPath(px, r.lo.map(Y), r.hi.map(Y), bottomY) : null,
+    samplePaths: view.showBands && r.draws
+      ? r.draws.map((d) => linePath(px, d.map(Y))) : null,
   }));
 
   /* legend (top-right box): primary components, then model line styles */
@@ -591,6 +613,12 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
                   fill=${s.mi > 0 ? `url(#hatch${i})` : s.color}
                   opacity=${s.mi > 0
                     ? Math.min(view.bandAlpha * 2.5, 0.8) : view.bandAlpha} />`)}
+          ${shapes.map((s) => s.samplePaths && html`
+            <g class="samples" fill="none" stroke=${s.color}
+               stroke-opacity=${sampleAlpha(s.samplePaths.length)}
+               stroke-width=${0.8 * lineWeight}>
+              ${s.samplePaths.map((d) => html`<path d=${d}/>`)}
+            </g>`)}
           ${shapes.map((s) => html`
             <path d=${linePath(px, s.py)} fill="none" stroke=${s.color}
                   stroke-width=${(

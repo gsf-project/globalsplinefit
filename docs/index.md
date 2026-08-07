@@ -4,8 +4,6 @@
 
 GlobalSplineFit (GSF) is a Python package that provides precise parametrizations
 of cosmic ray flux and composition based on spline fits to experimental data.
-The package offers specialized model classes optimized for different input
-parameters and use cases.
 
 <div class="grid cards" markdown>
 

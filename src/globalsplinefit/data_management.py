@@ -74,37 +74,31 @@ def _collect_phi_values(
 
 
 #: Default model version used by model constructors.
-DEFAULT_VERSION = "2026"
+DEFAULT_VERSION = "2026.0"
 
 #: Registry of the distributable model versions.
 #:
-#: Model names are bare years (plus a variant suffix) -- no "GSF" prefix.
+#: Model names are ``<line>.<revision>[-<physics classifier>]``: ``2026.0``
+#: is the first revision of the 2026 line, ``2026.0-USO`` its
+#: Usoskin-potential variant, ``2026.0-SIB23e`` its SIBYLL-2.3e-only
+#: variant. A data or fit patch is published as a new
+#: revision (``2026.1``, ...). Unrevisioned names resolve via
+#: :func:`resolve_version`. Historical releases (``2025``, ``2019``,
+#: ``2017``) use bare names.
 #:
 #: ``status`` is one of:
 #:   ``"current"``     the default 2026 fit and its variants;
-#:   ``"historical"``  a previously published GSF release, kept so older work can
-#:                     be reproduced.
+#:   ``"historical"``  a published GSF release, kept for reproducing older
+#:                     work.
 #:
-#: The four ``current`` sets are:
+#: The mixture covering is an equal-weight parameter-level combination of
+#: the Auger FD-2026 SIBYLL-2.3e and EPOS-LHC-R interpretations, whose
+#: covariance carries a rank-one between-model term, so the band spans both
+#: hadronic interpretations.
 #:
-#:   ``2026``            mixture covering + GMD potential   (the default)
-#:   ``2026-USO``        mixture covering + USO potential   (modulation systematic)
-#:   ``2026-S23e``       single-interpretation Auger FD-2026 SIBYLL-2.3e + GMD
-#:   ``2026-EPOS-LHCR``  single-interpretation Auger FD-2026 EPOS-LHC-R + GMD
-#:                       (the other half of the mixture)
-#:
-#: The ``historical`` sets (``2025``, ``2019``, ``2017``) are published releases.
-#:
-#: The mixture covering of the two 2026 mixture sets is an equal-weight
-#: parameter-level combination of the Auger FD-2026 SIBYLL-2.3e and EPOS-LHC-R
-#: interpretations, whose covariance carries a rank-one between-model term so the
-#: band spans both hadronic interpretations instead of committing to one.
-#:
-#: This registry is an allow-list. Only directories named here are offered as
-#: model versions, so an intermediate or transient fit exported into ``data/``
-#: cannot become distributable by accident.
+#: Allow-list: only directories named here are offered as model versions.
 MODEL_VERSIONS: dict[str, dict[str, str]] = {
-    "2026": {
+    "2026.0": {
         "status": "current",
         "role": "default",
         "covering": "mixture: equal-weight Auger FD-2026 SIBYLL-2.3e + EPOS-LHC-R",
@@ -115,7 +109,7 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
             "data mildly prefer."
         ),
     },
-    "2026-USO": {
+    "2026.0-USO": {
         "status": "current",
         "role": "alternative",
         "covering": "mixture: equal-weight Auger FD-2026 SIBYLL-2.3e + EPOS-LHC-R",
@@ -127,54 +121,78 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
             "to gauge the solar-modulation systematic."
         ),
     },
-    "2026-S23e": {
+    "2026.0-SIB23e": {
         "status": "current",
         "role": "single-interpretation variant",
-        "covering": "Auger FD-2026 SIBYLL-2.3e (single interpretation, no mixture)",
+        "covering": "Auger FD-2026 SIBYLL-2.3e (single interpretation)",
         "solar_modulation": "GMD (Ghelfi-Maurin-Derome, Ghelfi et al. 2017)",
         "description": (
             "The 2026 fit under the SIBYLL-2.3e interpretation of the Auger "
             "FD-2026 composition alone, for applications that need a single "
-            "consistent hadronic-interaction model rather than "
-            "the mixture band. Same GMD potential as the default."
+            "consistent hadronic-interaction model."
         ),
     },
-    "2026-EPOS-LHCR": {
+    "2026.0-EPOSLHCR": {
         "status": "current",
         "role": "single-interpretation variant",
-        "covering": "Auger FD-2026 EPOS-LHC-R (single interpretation, no mixture)",
+        "covering": "Auger FD-2026 EPOS-LHC-R (single interpretation)",
         "solar_modulation": "GMD (Ghelfi-Maurin-Derome, Ghelfi et al. 2017)",
         "description": (
             "The 2026 fit under the EPOS-LHC-R interpretation of the Auger "
             "FD-2026 composition alone -- the other half of the mixture, for "
             "applications that need a single consistent hadronic-interaction "
-            "model. Same GMD potential as the default."
+            "model."
         ),
     },
     "2025": {
         "status": "historical",
-        "role": "superseded release",
+        "role": "published release",
         "covering": "see the GSF 2025 release notes",
         "solar_modulation": "USO (shared Usoskin table)",
-        "description": "Previous published release. Superseded by 2026.",
+        "description": "GSF 2025 published release.",
     },
     "2019": {
         "status": "historical",
-        "role": "superseded release",
+        "role": "published release",
         "covering": "see the GSF 2019 release notes",
         "solar_modulation": "USO (shared Usoskin table)",
-        "description": "Legacy published release. Superseded by 2026.",
+        "description": "GSF 2019 published release.",
     },
     "2017": {
         "status": "historical",
-        "role": "superseded release",
+        "role": "published release",
         "covering": "see Dembinski et al. (2017)",
         "solar_modulation": "USO (shared Usoskin table)",
-        "description": (
-            "Original GSF release (Dembinski et al. 2017). Superseded by 2026."
-        ),
+        "description": "Original GSF release (Dembinski et al. 2017).",
     },
 }
+
+def resolve_version(version: str | None = None) -> str:
+    """Resolve a version request to a registered ``<line>.<revision>`` name.
+
+    An exact registered name (``"2026.0"``, ``"2025"``) is returned as is.
+    An unrevisioned name -- ``"2026"``, ``"2026-USO"`` -- resolves to the
+    NEWEST registered revision of that line and variant, so callers that do
+    not pin a revision follow data patches automatically. ``None`` resolves
+    :data:`DEFAULT_VERSION`.
+    """
+    name = DEFAULT_VERSION if version is None else str(version).strip()
+    if name in MODEL_VERSIONS:
+        return name
+    line, _, variant = name.partition("-")
+    revisions = []
+    for registered in MODEL_VERSIONS:
+        rline, _, rvariant = registered.partition("-")
+        rbase, dot, rev = rline.partition(".")
+        if dot and rbase == line and rvariant == variant and rev.isdigit():
+            revisions.append((int(rev), registered))
+    if revisions:
+        return max(revisions)[1]
+    raise ValueError(
+        f"Version {name!r} not found. Available versions: "
+        f"{get_available_versions()}"
+    )
+
 
 _REQUIRED_FILES = ("knots.dat", "nuclei.dat", "parameters.dat", "covariance.dat")
 
@@ -187,8 +205,8 @@ def get_available_versions(include_historical: bool = True) -> list[str]:
     Parameters
     ----------
     include_historical
-        When True (default), include previously published releases. Pass False
-        for the current 2026 family.
+        When True (default), include historical releases. Pass False for
+        the current 2026 family.
 
     Returns
     -------
@@ -240,21 +258,13 @@ def version_info(version: str | None = None) -> dict[str, str]:
     dict[str, str]
         The :data:`MODEL_VERSIONS` entry for that version.
     """
-    name = DEFAULT_VERSION if version is None else str(version).strip()
-    if name not in MODEL_VERSIONS:
-        raise ValueError(
-            f"Unknown model version {name!r}. Available versions: "
-            f"{get_available_versions()}"
-        )
-    return dict(MODEL_VERSIONS[name])
+    name = resolve_version(version)
+    return {"name": name, **MODEL_VERSIONS[name]}
 
 
 class Parameters:
-    """Parameter loading and validation class for GSF model data.
-
-    This class handles loading and validation of all GSF model parameters
-    including knots, spline parameters, covariance matrices, nuclear data,
-    and solar modulation data.
+    """Immutable bundle of loaded GSF model data: knots, spline parameters,
+    covariance, nuclei and solar-modulation table.
 
     Parameters
     ----------
@@ -276,7 +286,6 @@ class Parameters:
         data_path: str | Path | None = None,
         version: str | None = None,
     ):
-        """Initialize GSF parameters."""
         self.data_path = self._setup_data_path(data_path, version)
         self._load_all_data()
         self._provenance = self._read_provenance()
@@ -292,10 +301,7 @@ class Parameters:
         """Return a shared immutable parameter bundle for model instances."""
         if data_path is not None:
             return cls(data_path=data_path, version=version)
-        normalized_version = (
-            DEFAULT_VERSION if version is None else str(version).strip()
-        )
-        return cls._cached(normalized_version)
+        return cls._cached(resolve_version(version))
 
     @staticmethod
     @lru_cache(maxsize=32)
@@ -306,31 +312,18 @@ class Parameters:
         self, data_path: str | Path | None, version: str | None
     ) -> Path:
         """Set up the data path, recording which version was resolved."""
-        #: Resolved version name, or None when loading an arbitrary data_path.
-        #: Unlike the constructor argument this is filled in for the default, so
-        #: a model built with no arguments still reports what it loaded.
+        #: Resolved version name; None when loading an arbitrary data_path.
         self.version = None
         if version is not None and data_path is not None:
             raise ValueError("pass either version or data_path, not both")
-        if version is not None:
-            version_str = str(version).strip()
-            if version_str not in MODEL_VERSIONS:
-                raise ValueError(
-                    f"Version {version_str!r} not found. Available versions: "
-                    f"{get_available_versions()}"
-                )
+        if version is not None or data_path is None:
+            version_str = resolve_version(version)
             data_dir = Path(__file__).parent / "data" / version_str
             if not data_dir.exists():
                 raise ValueError(
                     f"Version '{version_str}' not found. Available versions: {get_available_versions()}"
                 )
             self.version = version_str
-            return data_dir
-        if data_path is None:
-            data_dir = Path(__file__).parent / "data" / DEFAULT_VERSION
-            if not data_dir.exists():
-                raise OSError(f"Default data directory not found: {data_dir}")
-            self.version = DEFAULT_VERSION
             return data_dir
         path = Path(data_path)
         if not path.exists():
@@ -388,7 +381,32 @@ class Parameters:
         self._load_covariance()
         self._load_solar_modulation()
         self._load_subleading()
+        self._load_reduced_pivots()
         self._calculate_flux_ratios()
+
+    def _load_reduced_pivots(self):
+        """Load the optional per-bundle ``reduced_pivots.dat`` grid.
+
+        An absent file leaves ``reduced_pivots = None``.
+        """
+        self.reduced_pivots = None
+        pivots_file = self.data_path / "reduced_pivots.dat"
+        if not pivots_file.exists():
+            return
+        pivots = np.atleast_1d(np.loadtxt(pivots_file, dtype=float))
+        if (
+            pivots.ndim != 1
+            or len(pivots) < 2
+            or not np.all(np.isfinite(pivots))
+            or np.any(pivots <= 0)
+            or np.any(np.diff(pivots) <= 0)
+        ):
+            raise ValueError(
+                f"invalid pivot table {pivots_file}: need at least two positive, "
+                "finite, strictly increasing energies"
+            )
+        pivots.setflags(write=False)
+        self.reduced_pivots = pivots
 
     def _validate_loaded_data(self) -> None:
         """Validate cross-file invariants before a model can use the bundle."""
@@ -647,21 +665,13 @@ class Parameters:
     def _load_solar_modulation(self):
         """Load the monthly solar-modulation potential table (phi, MV).
 
-        Precedence: a VERSION-LOCAL ``<data_path>/solar_modulation.dat`` if the
-        parameter set ships its own potential, else the shared table at the
-        package data root. This matters because the LIS is demodulated with a
-        specific phi(t): the fitted LIS must be re-modulated by the SAME
-        potential to recover a flux at Earth. Sets whose LIS was demodulated
-        with a non-default potential (e.g. 2026, Ghelfi-Maurin-Derome) ship
-        their table alongside the parameters; legacy sets (2017/2019/2025) and
-        the Usoskin variant (2026-USO) fall back to the shared Usoskin table.
-
-        Robust to both the shared file (UTF-16-BOM, Usoskin) and version-local
-        UTF-8 files: encoding is detected from the byte-order mark, header lines
-        are '#'-commented, and the columns are Year followed by the 12 monthly
-        values (a trailing Annual column, present in the Usoskin file, is
-        ignored). Rows with any NaN month (e.g. Jan 1951 in the Usoskin table)
-        are dropped.
+        Precedence: a VERSION-LOCAL ``<data_path>/solar_modulation.dat``,
+        else the shared Usoskin table at the package data root. The LIS is
+        demodulated with a specific phi(t), so the fitted LIS must be
+        re-modulated by the SAME potential to recover a flux at Earth: the
+        GMD sets (2026 mixture and single-interpretation variants) store
+        their Ghelfi-Maurin-Derome table alongside the parameters, while
+        2017/2019/2025 and 2026-USO use the shared Usoskin table.
         """
         local = self.data_path / "solar_modulation.dat"
         shared = Path(__file__).parent / "data" / "solar_modulation.dat"
@@ -685,11 +695,7 @@ class Parameters:
             self.phi[int(row[0])] = months * 1e-3  # MV -> GV
 
     def _load_subleading(self):
-        """Load optional subleading-species extrapolation parameters.
-
-        Rows contain ``(Z, A, norm, slope)``. Older bundles omit this file and
-        use a constant ratio computed from the splines at the top knot.
-        """
+        """Load optional subleading-species extrapolation parameters."""
         self._stored_sub = {}
         sub_file = self.data_path / "subleading.dat"
         if not sub_file.exists():
@@ -762,21 +768,17 @@ class Parameters:
         Returns
         -------
         tuple[int, int]
-            Time interval tuple (start, end) in YYYYMM format for Solar Cycle 24
-            (December 2008 to December 2019)
+            Time interval (start, end) in YYYYMM format.
         """
         return SOLAR_CYCLE_24_START[0], SOLAR_CYCLE_24_END[0]
 
     def get_solar_cycle_24_phi_average(self) -> float:
-        """Get the average solar modulation potential for Solar Cycle 24.
-
-        This method implements the approximate averaging by calculating the
-        mean of all monthly phi values during Solar Cycle 24.
+        """Mean of the monthly modulation potentials over Solar Cycle 24, in GV.
 
         Returns
         -------
         float
-            Average solar modulation potential in GV for Solar Cycle 24
+            Average solar modulation potential in GV.
         """
         start, end = self.get_solar_cycle_24_interval()
         phis = _collect_phi_values(self.phi, start, end)
@@ -786,24 +788,13 @@ class Parameters:
 def list_versions(return_paths: bool = False) -> None | list:
     """List available GSF data versions and their validity.
 
-    This function scans the data directory for available GSF data versions,
-    attempts to load parameters from each, and displays a table showing
-    which versions are valid and which have errors.
-
-    Parameters
-    ----------
-    return_paths : bool, optional
-        If True, returns a list of valid data paths that can be used
-        to initialize Parameters objects. If False (default), prints
-        a table and returns None.
-
     Returns
     -------
     list or None
-        If return_paths is True, returns list of valid Path objects.
-        Otherwise prints table and returns None.
+        If ``return_paths`` is True, the list of valid data paths, usable
+        to initialize :class:`Parameters`. Otherwise prints a table and
+        returns None.
     """
-    # Get the data directory from the package
     current_dir = Path(__file__).parent
     data_dir = current_dir / "data"
 
@@ -814,26 +805,21 @@ def list_versions(return_paths: bool = False) -> None | list:
     results = []
     valid_paths = []
 
-    # Get available versions using the helper function
     available_versions = get_available_versions()
 
     if not available_versions:
         print("No valid GSF data versions found in the data directory.")
         return [] if return_paths else None
 
-    # Test each version by trying to initialize Parameters
     for version_name in available_versions:
         version_path = data_dir / version_name
         try:
-            # Try to initialize Parameters with this data path
             _ = Parameters(data_path=version_path)
             results.append([version_name, "Valid", ""])
             valid_paths.append(version_path)
 
         except Exception as e:
-            # Capture the error reason
             error_reason = str(e)
-            # Truncate long error messages
             if len(error_reason) > 60:
                 error_reason = error_reason[:57] + "..."
             results.append([version_name, "Invalid", error_reason])

@@ -1,101 +1,31 @@
 # User Guide
 
-Comprehensive guide to using GlobalSplineFit for cosmic ray flux calculations.
-
-## Overview
-
-GlobalSplineFit (GSF) provides accurate parameterizations of cosmic ray flux and composition based on spline fits to experimental data. The package includes uncertainty quantification and supports various input parameters.
-
-## Installation
-
-Install GlobalSplineFit using pip:
-
-```bash
-pip install globalsplinefit
-```
-
-For development installation (uses [uv](https://docs.astral.sh/uv/)):
-
-```bash
-git clone https://github.com/gsf-project/globalsplinefit.git
-cd globalsplinefit
-uv sync --all-extras
-uv run pytest tests/
-```
-
-## Quick Start
-
-```python
-import numpy as np
-from globalsplinefit import GSFEnergy
-
-# Initialize the model
-gsf = GSFEnergy()
-
-# Define energy range (GeV)
-energy = np.logspace(1, 6, 100)
-
-# Calculate proton flux
-proton_flux = gsf.flux(energy, "p")
-
-# Calculate uncertainties
-proton_error = gsf.error(energy, "p")
-
-# Print results
-print(f"Energy range: {energy[0]:.1e} - {energy[-1]:.1e} GeV")
-print(f"Flux range: {proton_flux.min():.2e} - {proton_flux.max():.2e}")
-print(f"Relative error: {(proton_error/proton_flux).mean()*100:.1f}%")
-```
+Installation and first steps: [Getting Started](getting_started.md).
 
 ## Model Classes
 
+One class per input variable, sharing the same interface
+(full signatures in the [API Reference](api_reference.md)):
+
 ### GSFEnergy
 
-The [`GSFEnergy`][globalsplinefit.GSFEnergy] class calculates flux as a function of total energy per nucleus.
-
+[`GSFEnergy`][globalsplinefit.GSFEnergy] —
 **Input**: Total energy per nucleus [GeV]
 **Output**: Differential flux [particles/(m² s sr GeV)]
 
-```python
-from globalsplinefit import GSFEnergy
-import numpy as np
-
-gsf = GSFEnergy()
-energy = np.logspace(1, 6, 100)  # 10 GeV to 1 PeV
-flux = gsf.flux(energy, "p")  # Proton flux
-```
-
 ### GSFEnergyPerNucleon
 
-The [`GSFEnergyPerNucleon`][globalsplinefit.GSFEnergyPerNucleon] class calculates nucleon flux for atmospheric shower simulations.
-
+[`GSFEnergyPerNucleon`][globalsplinefit.GSFEnergyPerNucleon] —
 **Input**: Total energy per nucleon [GeV/nucleon] (use
 [`GSFKineticEnergyPerNucleon`][globalsplinefit.GSFKineticEnergyPerNucleon]
 for kinetic energy per nucleon)
 **Output**: Nucleon flux [nucleons/(m² s sr GeV)]
 
-```python
-from globalsplinefit import GSFEnergyPerNucleon
-
-gsf_nucleon = GSFEnergyPerNucleon()
-energy_per_nucleon = np.logspace(0, 6, 100)
-nucleon_flux = gsf_nucleon.total_flux(energy_per_nucleon)
-```
-
 ### GSFRigidity
 
-The [`GSFRigidity`][globalsplinefit.GSFRigidity] class works in magnetic rigidity space with solar modulation.
-
+[`GSFRigidity`][globalsplinefit.GSFRigidity] —
 **Input**: Magnetic rigidity [GV]
 **Output**: Modulated flux [particles/(m² s sr GV)]
-
-```python
-from globalsplinefit import GSFRigidity
-
-gsf_rigidity = GSFRigidity()
-rigidity = np.logspace(0, 3, 100)  # 1 GV to 1 TV
-flux = gsf_rigidity.flux(rigidity, "p")
-```
 
 ## Model Versions
 
@@ -104,34 +34,36 @@ All model classes accept a `version` parameter selecting the fitted parameter se
 ```python
 gsf = GSFEnergy()                           # default 2026 fit
 gsf_uso = GSFEnergy(version="2026-USO")     # Usoskin modulation variant
-gsf_s23e = GSFEnergy(version="2026-S23e")
-gsf_epos = GSFEnergy(version="2026-EPOS-LHCR")
+gsf_s23e = GSFEnergy(version="2026.0-SIB23e")
+gsf_epos = GSFEnergy(version="2026.0-EPOSLHCR")
 gsf_2025 = GSFEnergy(version="2025")        # historical release
 ```
 
-The 2026 family includes a solar-modulation variant and two fits using a
-single hadronic-interaction interpretation. Older releases remain available
-for reproducibility.
+Physical model versions are named `<line>.<revision>[-<physics classifier>]`:
+`2026.0` is the first revision of the 2026 line, `2026.0-USO` its
+Usoskin-potential variant, `2026.0-SIB23e` its SIBYLL-2.3e-only variant. A data or fit patch is published as a new revision (`2026.1`, ...).
+An unrevisioned name (`"2026"`, `"2026-USO"`) resolves to the newest
+registered revision of that line and variant — use it to follow patches
+automatically, or pass the revisioned name to pin one
+(`resolve_version("2026")` shows the resolution). Bare names `2025`, `2019`,
+`2017` select the earlier published sets.
 
 | Version | Status | Covering | Modulation | Description |
 |---------|--------|----------|------------|-------------|
-| `"2026"` | **current -- default** | SIBYLL-2.3e / EPOS-LHC-R mixture | Ghelfi--Maurin--Derome (**baseline**) | Default 2026 fit |
-| `"2026-USO"` | current -- alternative | SIBYLL-2.3e / EPOS-LHC-R mixture | Usoskin 2017 (alternative) | The same fit with the other potential; use it to gauge the solar-modulation systematic |
-| `"2026-S23e"` | current -- single interpretation | Auger FD-2026 SIBYLL-2.3e only | Ghelfi--Maurin--Derome | Single hadronic-interaction interpretation for applications that cannot use a mixture band |
-| `"2026-EPOS-LHCR"` | current -- variant | Auger FD-2026 EPOS-LHC-R only | Ghelfi--Maurin--Derome | The other single-interpretation half of the mixture |
-| `"2025"` | historical | superseded | Usoskin | Previous published release |
-| `"2019"` | historical | superseded | Usoskin | Legacy published release |
-| `"2017"` | historical | superseded | Usoskin | Original GSF release (Dembinski et al. 2017) |
-
-The historical sets are earlier published releases retained for reproducing
-results that cited them.
+| `"2026.0"` | **current -- default** | SIBYLL-2.3e / EPOS-LHC-R mixture | Ghelfi--Maurin--Derome (**baseline**) | Default 2026 fit |
+| `"2026.0-USO"` | current -- alternative | SIBYLL-2.3e / EPOS-LHC-R mixture | Usoskin 2017 (alternative) | The same fit with the other potential; use it to gauge the solar-modulation systematic |
+| `"2026.0-SIB23e"` | current -- single interpretation | Auger FD-2026 SIBYLL-2.3e only | Ghelfi--Maurin--Derome | For applications needing a definite hadronic model |
+| `"2026.0-EPOSLHCR"` | current -- variant | Auger FD-2026 EPOS-LHC-R only | Ghelfi--Maurin--Derome | The other single-interpretation half of the mixture |
+| `"2025"` | historical | PDG scale factors | Usoskin | GSF 2025 published release |
+| `"2019"` | historical | PDG scale factors | Usoskin | GSF 2019 published release |
+| `"2017"` | historical | PDG scale factors | Usoskin | Original GSF release (Dembinski et al. 2017) |
 
 `get_available_versions(include_historical=False)` returns just the current
 sets, and `version_info(version)` reports any version's status, covering and
 modulation potential. A loaded model also carries its own provenance:
 
 ```python
-gsf.version                      # -> "2026", the version actually loaded
+gsf.version                      # -> "2026.0", the revision actually loaded
 gsf.params.provenance["covering"]                  # the air-shower interpretation
 gsf.params.provenance["solar_modulation_source"]   # GMD or USO
 ```
@@ -139,16 +71,13 @@ gsf.params.provenance["solar_modulation_source"]   # GMD or USO
 ### What "covering" means, and why both current sets are a mixture
 
 Above ~10^8 GeV the mass composition inferred from air-shower data depends on the
-hadronic interaction model used to interpret it. Rather than committing to one,
-both current sets use an equal-weight **parameter-level mixture** of the Auger
-FD-2026 SIBYLL-2.3e and EPOS-LHC-R interpretations: parameters are the mean of
-the two fits, and the covariance carries an additional rank-one between-model
-term. The published band therefore spans both interpretations where they diverge
-and collapses to the ordinary fit covariance where they agree (below
-~2x10^8 GeV, where the two coincide). The two halves of the mixture are also
-distributed as single-interpretation sets — `2026-S23e` (SIBYLL-2.3e only)
-and `2026-EPOS-LHCR` (EPOS-LHC-R only) — for applications that need a definite
-hadronic model; all other intermediate fits are not distributed.
+hadronic interaction model used to interpret it. Both current sets use an
+equal-weight **parameter-level mixture** of the Auger FD-2026 SIBYLL-2.3e and
+EPOS-LHC-R interpretations: parameters are the mean of the two fits, and the
+covariance carries an additional rank-one between-model term. The published band
+therefore spans both interpretations where they diverge and collapses to the
+ordinary fit covariance where they agree (below ~2x10^8 GeV, where the two
+coincide). `2026.0-SIB23e` and `2026.0-EPOSLHCR` are the two halves of the mixture.
 
 The 2026 sets are fitted in isotope format (deuterium and the ³He/⁴He
 split are carried explicitly). The choice of solar modulation potential
@@ -158,13 +87,11 @@ spectrum below 2 GV, with the two converging above ~10 GV. All
 higher-energy results are identical.
 
 Each set is re-modulated with the potential it was demodulated with: every
-current set ships its own monthly `phi(t)` table
+current set includes its own monthly `phi(t)` table
 (`<version>/solar_modulation.dat` — Ghelfi--Maurin--Derome for all but
 2026-USO, which carries the Usoskin table), while the historical sets use the
-bundled Usoskin table at the package data root. Because the two
-LIS are paired with their respective potentials, the resulting fluxes at
-Earth agree far better than the LIS do (the residual below a few GV is
-the solar-modulation systematic captured by the fit's `phi` nuisance).
+bundled Usoskin table at the package data root. Because each LIS is paired
+with its own potential, the fluxes at Earth agree far better than the LIS do.
 
 ## Particle Groups
 
@@ -201,10 +128,10 @@ element's direct data. The saturation rigidity $R_{\text{sat}} = 5$ PV sits
 near the proton knee, motivated by the common galactic origin and the assumed
 similarity of transport effects above it.
 
-For the `2026` and `2026-USO` sets these per-element parameters ship in
-`data/<version>/subleading.dat` (columns `Z A norm slope`). The legacy sets
-(`2017`, `2019`, `2025`) omit the file; a missing file — or a zero slope —
-reproduces the historical **constant-ratio** extrapolation bit-identically.
+For the `2026` and `2026-USO` sets these per-element parameters are in
+`data/<version>/subleading.dat` (columns `Z A norm slope`). Without the file
+(`2017`, `2019`, `2025`), or with a zero slope, the ratio is constant above
+$R_{\text{max}}$.
 
 !!! note
     The norm and slope are best-fit point estimates; their uncertainty is not
@@ -214,17 +141,16 @@ reproduces the historical **constant-ratio** extrapolation bit-identically.
 
 ## Uncertainty Quantification
 
-GSF provides full uncertainty quantification including correlations:
+Errors and covariances:
 
 ```python
-# Calculate flux and uncertainties
 flux = gsf.flux(energy, "p")
 error = gsf.error(energy, "p")
 
 # Relative uncertainty
 rel_error = error / flux
 
-# Covariance matrix (for advanced users)
+# Covariance matrix
 cov_matrix = gsf.covariance("p", "He", energy)
 ```
 
@@ -257,32 +183,7 @@ flux_cut = gsf.flux(energy, "p", rigidity_cutoff=20.0)
 
 See the [Rigidity Cutoff tutorial](../gallery/rigidity_cutoff/) for more details.
 
-## Performance Considerations
-
-- **Vectorization**: All methods support vectorized calculations
-- **Energy ranges**: The fit spans ~1 GeV -- 10^11 GeV total energy per nucleus
-- **Caching**: Repeated Jacobians use a byte-bounded in-memory cache
-- **Memory**: Consider chunking for very large arrays (>10^6 points)
-
-## Data Export
-
-Export results for use in other applications:
-
-```python
-import numpy as np
-
-# Prepare data
-data = np.column_stack([energy, flux, error])
-
-# Save to file
-np.savetxt("cosmic_ray_flux.dat", data,
-          header="energy[GeV] flux[1/(GeV m2 s sr)] error[1/(GeV m2 s sr)]",
-          fmt="%.6e")
-```
-
-## Advanced Features
-
-### Jacobian Access
+## Jacobian Access
 
 For sensitivity studies and error propagation:
 
@@ -291,26 +192,17 @@ jacobian = gsf.jacobian(energy, "p")
 print(f"Jacobian shape: {jacobian.shape}")
 ```
 
-### Model Information
-
-Access model metadata:
-
-```python
-# Available groups
-print(f"Particle groups: {gsf.GROUP_NAMES}")
-```
-
 ## Best Practices
 
-1. **Choose the right model**: Use `GSFEnergy` for most applications, `GSFEnergyPerNucleon` for shower simulations
-2. **Vectorize calculations**: Pass arrays instead of loops for better performance
-3. **Handle uncertainties**: Always consider flux uncertainties in your analysis
-4. **Energy ranges**: Stay within the fitted energy range (~1 GeV -- 10^11 GeV per nucleus); the flux is zero below the first knot and extrapolated above the last
+1. **Vectorize calculations**: Pass arrays instead of loops; repeated
+   Jacobians use a byte-bounded in-memory cache
+2. **Handle uncertainties**: Always consider flux uncertainties in your analysis
+3. **Energy ranges**: Stay within the fitted energy range (~1 GeV -- 10^11 GeV
+   per nucleus); the flux is zero below the first knot and extrapolated above
+   the last
+4. **Memory**: Consider chunking for very large arrays (>10^6 points)
 5. **Solar modulation**: Use time intervals for time-dependent studies
 
 ## Tutorials
 
-See the [tutorial gallery](gallery.md) for detailed, worked examples — the
-notebooks run interactively in the browser, and can be downloaded to
-[run locally](getting_started.md#run-the-tutorials-locally) with marimo or
-Jupyter.
+See the [tutorial gallery](gallery.md) for detailed, worked examples.

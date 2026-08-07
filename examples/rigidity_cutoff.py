@@ -310,7 +310,6 @@ def _(GSFEnergyPerNucleon, R_CUT, groups, np, plt):
     axes[1].legend(fontsize=9)
     axes[1].grid(True, alpha=0.3)
     axes[1].set_title("Relative Uncertainty (solid: no cutoff, dashed: with cutoff)")
-    # Relative error comparison
     plt.tight_layout()
     plt.show()
     return
@@ -319,12 +318,7 @@ def _(GSFEnergyPerNucleon, R_CUT, groups, np, plt):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## Summary
-
-    - In **rigidity space** the cutoff is a universal sharp threshold.
-    - In **energy space** the cutoff energy depends on $Z/A$; protons are suppressed up to higher energies than heavier nuclei.
-    - **Uncertainties propagate correctly** through the cutoff with no user intervention.
-    - The `rigidity_cutoff` parameter is available on all flux/error methods.
+    `rigidity_cutoff` is accepted by all flux and error methods.
     """)
     return
 

@@ -1,13 +1,9 @@
 # Tutorial gallery
 
-The tutorials are [marimo](https://marimo.io) notebooks compiled to
-WebAssembly — a **full notebook editor running entirely in your browser**.
-They execute on load (allow ~half a minute while Python boots and packages
-install), and every cell is editable: change a value, a model version, or
-the code itself and the affected cells re-run. Nothing to install; to work
-with local files instead,
-[run them locally](getting_started.md#run-the-tutorials-locally) with marimo
-or Jupyter.
+Editable [marimo](https://marimo.io) notebooks running in your browser
+(allow ~half a minute to boot); the sources are in
+[`examples/`](https://github.com/gsf-project/globalsplinefit/tree/main/examples),
+or [run them locally](getting_started.md#run-the-tutorials-locally).
 
 <div class="grid cards" markdown>
 
@@ -68,15 +64,10 @@ or Jupyter.
 
     ---
 
-    `ReducedGSF`: pivot-based flux nuisance parameters with an exact
-    covariance penalty, for use in downstream fits (daemonflux-style).
+    Build the pivot-component reduction, validate its coverage against the
+    full covariance, and export it for a downstream fit.
 
     [:octicons-arrow-right-24: Open](reduced_model/)
 
 </div>
 
-The notebook sources live in
-[`examples/`](https://github.com/gsf-project/globalsplinefit/tree/main/examples)
-— plain Python files, exported to WebAssembly by the docs build. To get a
-Jupyter `.ipynb`, run `uvx marimo export ipynb <notebook>.py -o <notebook>.ipynb`
-on a downloaded source file.

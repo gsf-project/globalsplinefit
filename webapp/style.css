@@ -333,7 +333,7 @@ svg.chart .axistitle {
 .scale-control { flex: 0 0 158px; }
 .band-control {
   display: grid;
-  flex: 0 0 118px;
+  flex: 0 0 164px;
   gap: 5px;
   justify-items: start;
 }

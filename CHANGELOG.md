@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0] - Unreleased
 
+### Added
+
+- **Revisioned model versions.** Physical model versions are now named
+  `<line>.<revision>[-<physics classifier>]`: the 2026 family is
+  `2026.0`, `2026.0-USO`, `2026.0-SIB23e`, `2026.0-EPOSLHCR`; a data or fit
+  patch to a released line is published as a new revision (`2026.1`, ...).
+  `DEFAULT_VERSION` is the pinned newest revision (`"2026.0"`).
+  Unrevisioned names (`"2026"`, `"2026-USO"`) resolve to the newest
+  registered revision via the new `resolve_version()`; revisioned names pin
+  one. Historical releases (`2025`, `2019`, `2017`) keep their bare
+  names. `version_info()` now includes the resolved `name`, and the
+  package exposes `__version__` (the code release, distinct from the model
+  version). Explorer CSV exports record both: the physical model version
+  including its revision and the `globalsplinefit` code version.
+
+- **`GSFBase.sample()` — pseudo-experiments from the native covariance.**
+  Every model class can draw random flux realizations,
+  `model.sample(energy, target, n_samples)`, with `target=None` giving the
+  all-particle total. The flux is linear in the spline amplitudes, so each
+  draw is a genuine model realization with the exact covariance at every
+  energy and all cross-group correlations intact. One shared amplitude draw
+  underlies all targets: identically seeded calls return the same
+  pseudo-experiments (group draws sum to the all-particle draw exactly).
+  Recommended for ensemble error propagation when nuclei fluxes or their
+  correlation with the all-particle flux matter; Jacobian-based propagation
+  via `ReducedGSF` remains the recommendation for nucleon fluxes.
+
 ### Changed
 
 - **Docs consolidated into one Pages site; tutorials now run in the browser.**
@@ -27,21 +54,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `GSF2026` → `2026` and `GSF2026-USO` → `2026-USO` (data directories,
   `version=` strings, `DEFAULT_VERSION`, docs, webapp). The historical sets
   were already year-named.
-- **The shipping state is now documented and enforced by the registry**: after
+- **The release state is documented and enforced by the registry**: after
   every promotion the four `current` sets (`2026`, `2026-USO`,
-  `2026-S23e`, `2026-EPOS-LHCR`) are generated from the same fit and
-  re-shipped together; `2025`/`2019`/`2017` are static historical releases.
+  `2026.0-SIB23e`, `2026.0-EPOSLHCR`) are regenerated together from the same
+  fit; `2025`/`2019`/`2017` are static historical releases.
   All seven directories constitute the release-complete package.
 
 ### Added
 
-- **`2026-S23e`** and **`2026-EPOS-LHCR`**: the single-interpretation
+- **`2026.0-SIB23e`** and **`2026.0-EPOSLHCR`**: the single-interpretation
   Auger FD-2026 SIBYLL-2.3e and EPOS-LHC-R variants of the 2026 fit (GMD
   potential) — the two halves of the mixture, for applications that need one
   definite hadronic-interaction model rather than the mixture band.
 
 - **The distributed GSF2026 / GSF2026-USO parameter sets are now the mixture
-  fits.** Both previously shipped *single-interpretation* (Auger SIBYLL-2.3e
+  fits.** Both previously distributed *single-interpretation* (Auger SIBYLL-2.3e
   only) fits, which were intermediate products of the analysis: `GSF2026` is now
   the equal-weight SIBYLL-2.3e/EPOS-LHC-R parameter-level mixture with the
   Ghelfi-Maurin-Derome potential, and `GSF2026-USO` is the same mixture with the
@@ -61,7 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the current sets
 - `Parameters.provenance`: the `covering` (air-shower interpretation) and
   `solar_modulation_source` recorded with a parameter set, plus per-component fit
-  quality for a mixture. `fit_result.json` now ships in the wheel/sdist, so this
+  quality for a mixture. `fit_result.json` is included in the wheel/sdist, so this
   provenance travels with an install
 - `Model.version` now reports the version actually **resolved** -- a model built
   with no arguments reports `"GSF2026"` rather than `None`
@@ -74,14 +101,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Type hints throughout codebase
 - Solar modulation (force-field, monthly phi table) on all model classes. Each
   parameter set is re-modulated with the potential it was demodulated with:
-  GSF2026 ships a version-local Ghelfi-Maurin-Derome table, while GSF2026-USO
+  GSF2026 includes a version-local Ghelfi-Maurin-Derome table, while GSF2026-USO
   and the historical sets use the bundled Usoskin table
 - Isotope-aware (Z, A) species keying + FitResult v2 format (deuteron as a
   sub-leading Z=1 species); global `energy_scale` model parameter
 - Data-anchored power-law extrapolation of the sub-leading element abundances
   above their top knot: the member-to-leader flux ratio is tilted by a fitted
   spectral slope and normalization and saturates at `R_sat = 5` PV
-  (`SUBLEADING_SAT_LNR`). Parameters ship in `data/<version>/subleading.dat`
+  (`SUBLEADING_SAT_LNR`). Parameters are in `data/<version>/subleading.dat`
   (`Z A norm slope`) for GSF2026 / GSF2026-USO. Previous releases held this
   ratio constant; legacy sets without `subleading.dat` fall back to that
   constant-ratio behavior bit-identically
@@ -90,6 +117,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Code quality tooling (ruff) and pre-commit hooks
 - mkdocs documentation + tutorial notebooks
 - CI/CD pipeline with GitHub Actions
+
+### Added
+
+- **Per-version reduced-pivot tables** are distributed as
+  `data/<version>/reduced_pivots.dat` (plain text, one energy per line, the
+  `optimize_pivots` parameters in the header). An all-default `ReducedGSF`
+  uses its bundle's grid (`model.params.reduced_pivots`), and every version
+  carries its own optimized table. Worst-case coverage vs the previously
+  shared 2026 grid: 1.26/1.36/1.27 (was 1.28/1.53/1.38) for
+  2026.0-USO/-SIB23e/-EPOSLHCR and 1.24/1.55/1.21 (was 2.76/2.45/1.78) for
+  2025/2019/2017. Pivots are version-specific, so theta components do not
+  line up 1:1 across versions. Custom bundles without a table raise; derive
+  a grid with `optimize_pivots` and pass it via `pivot_energies=`.
 
 ### Fixed
 

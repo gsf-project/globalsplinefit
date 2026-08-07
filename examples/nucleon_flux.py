@@ -107,10 +107,12 @@ def _(mo):
 
 @app.cell
 def _(energy_per_nucleon, gsf_nucleon):
-    proton_flux = gsf_nucleon.flux(energy_per_nucleon, "p")
+    # "H*", "O*", "Fe*" select the mass groups; bare "p", "O", "Fe" select
+    # the single leading elements
+    proton_flux = gsf_nucleon.flux(energy_per_nucleon, "H*")
     helium_flux = gsf_nucleon.flux(energy_per_nucleon, "He")
-    oxygen_flux = gsf_nucleon.flux(energy_per_nucleon, "O")
-    iron_flux = gsf_nucleon.flux(energy_per_nucleon, "Fe")
+    oxygen_flux = gsf_nucleon.flux(energy_per_nucleon, "O*")
+    iron_flux = gsf_nucleon.flux(energy_per_nucleon, "Fe*")
     total_flux = gsf_nucleon.total_flux(energy_per_nucleon)
     return helium_flux, iron_flux, oxygen_flux, proton_flux, total_flux
 
@@ -127,10 +129,10 @@ def _(mo):
 
 @app.cell
 def _(energy_per_nucleon, gsf_nucleon):
-    proton_error = gsf_nucleon.error(energy_per_nucleon, "p")
+    proton_error = gsf_nucleon.error(energy_per_nucleon, "H*")
     helium_error = gsf_nucleon.error(energy_per_nucleon, "He")
-    oxygen_error = gsf_nucleon.error(energy_per_nucleon, "O")
-    iron_error = gsf_nucleon.error(energy_per_nucleon, "Fe")
+    oxygen_error = gsf_nucleon.error(energy_per_nucleon, "O*")
+    iron_error = gsf_nucleon.error(energy_per_nucleon, "Fe*")
     total_error = gsf_nucleon.total_error(energy_per_nucleon)
     return helium_error, iron_error, oxygen_error, proton_error, total_error
 
@@ -150,6 +152,7 @@ def _(
     helium_flux,
     iron_error,
     iron_flux,
+    gsf_nucleon,
     np,
     oxygen_error,
     oxygen_flux,
@@ -158,7 +161,14 @@ def _(
     total_error,
     total_flux,
 ):
-    # Export nucleon flux data
+    # Export nucleon flux data. Stamp the provenance: the physical model
+    # version incl. its revision (gsf_nucleon.version) and the code version.
+    import globalsplinefit
+
+    provenance = (
+        f"parameter set {gsf_nucleon.version}, "
+        f"globalsplinefit {globalsplinefit.__version__}\n"
+    )
     np.savetxt(
         "gsf_nucleon_flux.dat",
         np.transpose(
@@ -172,7 +182,8 @@ def _(
             )
         ),
         fmt="%.10e",
-        header="energy, proton, helium, oxygen group, iron group, total\n"
+        header=provenance
+        + "energy, hydrogen group, helium, oxygen group, iron group, total\n"
         "[units: energy in GeV per nucleon, flux in 1/(GeV m2 s sr)]",
     )
 
@@ -189,7 +200,8 @@ def _(
             )
         ),
         fmt="%.10e",
-        header="energy, proton, helium, oxygen group, iron group, total\n"
+        header=provenance
+        + "energy, hydrogen group, helium, oxygen group, iron group, total\n"
         "[units: energy in GeV per nucleon, flux error in 1/(GeV m2 s sr)]",
     )
 
@@ -226,10 +238,10 @@ def _(
     # Plot nucleon flux with error bands
     plt.figure(figsize=(12, 8))
     components = [
-        (proton_flux, proton_error, "r", "Proton", 1),
+        (proton_flux, proton_error, "r", "Hydrogen*", 1),
         (helium_flux, helium_error, "orange", "Helium", 1),
-        (oxygen_flux, oxygen_error, "g", "Oxygen", 1),
-        (iron_flux, iron_error, "b", "Iron", 1),
+        (oxygen_flux, oxygen_error, "g", "Oxygen*", 1),
+        (iron_flux, iron_error, "b", "Iron*", 1),
         (total_flux, total_error, "k", "Total", 2),
     ]
     for flux, error, _color, _label, lw in components:
@@ -251,7 +263,7 @@ def _(
     )
     plt.xlim(energy_per_nucleon[0], energy_per_nucleon[-1])
     plt.ylim(500.0, 10000000.0)
-    plt.title("Cosmic Ray Nucleon Flux (GSF 2025)")
+    plt.title("Cosmic Ray Nucleon Flux (GSF)")
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.show()
@@ -287,10 +299,10 @@ def _(
     # Plot nucleon relative uncertainties
     plt.figure(figsize=(12, 8))
     error_components = [
-        (proton_error / np.maximum(proton_flux, 1e-90), "r", "Proton"),
+        (proton_error / np.maximum(proton_flux, 1e-90), "r", "Hydrogen*"),
         (helium_error / np.maximum(helium_flux, 1e-90), "orange", "Helium"),
-        (oxygen_error / np.maximum(oxygen_flux, 1e-90), "g", "Oxygen"),
-        (iron_error / np.maximum(iron_flux, 1e-90), "b", "Iron"),
+        (oxygen_error / np.maximum(oxygen_flux, 1e-90), "g", "Oxygen*"),
+        (iron_error / np.maximum(iron_flux, 1e-90), "b", "Iron*"),
         (total_error / np.maximum(total_flux, 1e-90), "k", "Total"),
     ]
     for rel_error, _color, _label in error_components:
@@ -309,7 +321,7 @@ def _(
     plt.ylabel("Relative Uncertainty (σ/flux)")
     plt.xlim(energy_per_nucleon[0], energy_per_nucleon[-1])
     plt.ylim(0.003, 1)
-    plt.title("Nucleon Flux Relative Uncertainties (GSF 2025)")  # & (rel_error < 10)
+    plt.title("Nucleon Flux Relative Uncertainties (GSF)")
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.axhline(y=0.01, color="gray", linestyle="--", alpha=0.5)

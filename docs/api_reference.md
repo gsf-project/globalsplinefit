@@ -1,10 +1,6 @@
 # API Reference
 
-Complete API documentation for the GlobalSplineFit package.
-
 ## Model Classes
-
-The main interface to GlobalSplineFit functionality.
 
 ::: globalsplinefit.GSFEnergy
     options:
@@ -82,8 +78,6 @@ The main interface to GlobalSplineFit functionality.
 ## Constants
 
 ### GROUP_NAMES
-
-Dictionary mapping group names to atomic numbers.
 
 Maps string group names (`"H"`, `"He"`, `"O*"`, `"Fe*"`, etc.) to their
 corresponding group leader atomic numbers.

@@ -1,9 +1,8 @@
 """Global Spline Fit (GSF) model for cosmic ray flux and composition.
 
-The GSF model provides parametrizations of cosmic ray flux and composition
-based on spline fits to observational data. This package offers a modern
-Python interface to the model with four specialized classes for different
-input parameters.
+Spline-fit parametrizations of cosmic-ray flux and composition, with one
+model class per input variable: energy, kinetic energy, energy per
+nucleon, kinetic energy per nucleon, and rigidity.
 
 Solar Cycle 24 (December 2008 to December 2019) is used as the default
 reference period for solar modulation calculations. The "LIS" time_interval
@@ -57,6 +56,9 @@ Calculate flux using rigidity:
 >>> proton_flux = rigidity_model.flux(rigidity, "p")
 """
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _dist_version
+
 from .data_management import (
     DEFAULT_VERSION,
     MODEL_VERSIONS,
@@ -65,6 +67,7 @@ from .data_management import (
     SOLAR_CYCLE_24_START,
     get_available_versions,
     list_versions,
+    resolve_version,
     version_info,
 )
 from .model import (
@@ -74,15 +77,22 @@ from .model import (
     GSFKineticEnergyPerNucleon,
     GSFRigidity,
 )
-from .reduced import RECOMMENDED_PIVOTS, ReducedGSF, optimize_pivots
+from .reduced import ReducedGSF, optimize_pivots
+
+try:
+    #: Installed code version. The model parameter-set version is reported
+    #: by ``Parameters.version``.
+    __version__ = _dist_version("globalsplinefit")
+except PackageNotFoundError:  # running from a source tree without install
+    __version__ = "unknown"
 
 __all__ = [
+    "__version__",
     "GSFEnergy",
     "GSFKineticEnergy",
     "GSFEnergyPerNucleon",
     "GSFKineticEnergyPerNucleon",
     "GSFRigidity",
-    "RECOMMENDED_PIVOTS",
     "ReducedGSF",
     "optimize_pivots",
     "DEFAULT_VERSION",
@@ -92,5 +102,6 @@ __all__ = [
     "SOLAR_CYCLE_24_START",
     "get_available_versions",
     "list_versions",
+    "resolve_version",
     "version_info",
 ]

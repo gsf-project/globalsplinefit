@@ -75,7 +75,7 @@ def main() -> int:
             # second model overlay
             page.click(".commandbtn:text-is('Series')")
             page.select_option(
-                "label.field:has-text('Add model') select", value="2026-USO")
+                "label.field:has-text('Add model') select", value="2026.0-USO")
             page.wait_for_timeout(3_000)
 
             # toolbar: box zoom, pan, home

@@ -45,14 +45,10 @@ def _bin_phi(phis: np.ndarray, n_bins: int | None) -> tuple[np.ndarray, np.ndarr
     Mirrors the fitter's period average
     (``gsffit.data.solarmod.window_phi_samples`` in gsf-fitter-2): histogram the
     monthly potentials into ``n_bins`` bins and keep each populated bin's **mean**
-    phi — not its center — weighted by the number of months in it.  The weighted
-    mean of the representatives then equals the true monthly mean exactly, so the
-    first-order (mean) suppression is preserved and only the curvature of
-    flux(phi) is approximated.
-
-    Because the flux is nonlinear in phi, averaging the modulated flux over these
-    bins ("mean of modulated") is not the same as modulating at the mean phi
-    ("modulate the mean"); the bin count sets how much of that curvature is kept.
+    phi, weighted by its month count.  The weighted mean of the representatives
+    then equals the true monthly mean exactly, so the first-order (mean)
+    suppression is preserved and only the curvature of flux(phi) is
+    approximated; the bin count sets how much of that curvature is retained.
 
     Parameters
     ----------
@@ -123,14 +119,11 @@ class GSFBase(ABC):
 
     # --- global energy-scale nuisance (carried as a model parameter) -----------
     # A single fractional shift applied to the INPUT energy at evaluation:
-    # the model is read at E*(1+energy_scale). Default 0.0 -> exact no-op. Lets a
-    # user explore the (data-insensitive) global scale that propagates from the
-    # low-energy anchor up to high energy. Usage: ``model.energy_scale = delta``.
-    # ``energy_scale_prior`` is the advisory 1-sigma fractional prior width.
-    # NOTE: GSFRigidity is INTENTIONALLY not scaled — the rigidity/LIS model is
-    # the fit's low-energy anchor, and a rigidity scaling is not an energy
-    # scaling. The knob acts on the energy-based evaluators only (GSFEnergy,
-    # GSFKineticEnergy, the per-nucleon variants).
+    # the model is read at E*(1+energy_scale). Default 0.0. Usage:
+    # ``model.energy_scale = delta``; ``energy_scale_prior`` is the advisory
+    # 1-sigma fractional prior width. Applies to the energy-based evaluators
+    # only (GSFEnergy, GSFKineticEnergy, the per-nucleon variants); rigidity
+    # is the fit's low-energy anchor.
     _energy_scale = 0.0
     energy_scale_prior = 0.10
 
@@ -167,7 +160,7 @@ class GSFBase(ABC):
             Optional path to custom data files. If None, uses default
             data files included with the package.
         version
-            Optional registered model version. Defaults to ``"2026"``. See
+            Optional registered model version. Defaults to ``"2026.0"``. See
             :data:`~globalsplinefit.data_management.MODEL_VERSIONS` and
             :func:`~globalsplinefit.data_management.version_info`. If specified,
             overrides data_path and uses the corresponding package data directory.
@@ -219,9 +212,8 @@ class GSFBase(ABC):
         self.default_rigidity_cutoff = default_rigidity_cutoff
         self.cutoff_width = float(cutoff_width)
 
-        # The RESOLVED version name, not the constructor argument: a model built
-        # with no arguments reports the default it actually loaded rather than
-        # None. None only when data_path points outside the packaged versions.
+        # Resolved version name; None when data_path points outside the
+        # packaged versions.
         self.version = self.params.version
 
         # Copy frequently used parameters for convenience. Species are keyed by
@@ -254,6 +246,10 @@ class GSFBase(ABC):
         self._jacobian_cache: OrderedDict[tuple, np.ndarray] = OrderedDict()
         self._jacobian_cache_bytes = 0
         self._cache_max_bytes = 64 * 1024 * 1024
+
+        # Lazy factorization of the stacked leader-amplitude covariance
+        # used by ``sample`` (see _amplitude_sample_factor).
+        self._sample_factor_cache: tuple[dict, np.ndarray] | None = None
 
     def _as_sid(self, x):
         """Normalize a species ID or unambiguous bare charge.
@@ -332,8 +328,8 @@ class GSFBase(ABC):
         -------
             Tuple of:
             - List of atomic numbers included in the target; a single-species
-              target yields a one-element list holding the species id tuple
-              instead of a bare charge (see ``_target_sids``)
+              target yields a one-element list holding the species-id tuple
+              (see ``_target_sids``)
             - Group leader atomic number (1 for H, 2 for He, 8 for O*, 26 for Fe*)
 
         Raises
@@ -462,8 +458,8 @@ class GSFBase(ABC):
 
         Parameters
         ----------
-        z
-            Atomic number.
+        sid
+            Species id ``(Z, A)`` or a target resolvable by ``_as_sid``.
         energy
             Total energy per nucleus in GeV (at Earth).
         rigidity_cutoff
@@ -515,9 +511,8 @@ class GSFBase(ABC):
         ----------
         time_interval
             Time period specification:
-            - None: Solar Cycle 24 average (December 2008 to December 2019) —
-              the default (restored 2026-07-17; comparisons against
-              modulation-unaware models expect a flux at Earth, not the LIS)
+            - None (default): Solar Cycle 24 average flux at Earth
+              (December 2008 to December 2019)
             - "LIS": Local Interstellar Spectrum (phi=0, no modulation)
             - tuple[int, int]: (start, end) in YYYYMM format; the end month
             is EXCLUSIVE. Example: (200901, 201001) for Jan-Dec 2009.
@@ -596,8 +591,7 @@ class GSFBase(ABC):
                 # Group leader's spline scaled by the ratio at xmax, tilted by
                 # the stored power-law slope and SATURATING at R_sat:
                 # ratio(R>Rmax) = ratio * (min(R, R_sat)/Rmax)^s.
-                # slope == 0 (pre-slope bundles) reproduces the historical
-                # constant-ratio extrapolation bit-identically.
+                # slope == 0 gives a constant ratio.
                 extrap_indices = valid_mask.copy()
                 extrap_indices[valid_mask] = extrapolation
                 x_ex = valid_log_rigidity[extrapolation]
@@ -667,8 +661,8 @@ class GSFBase(ABC):
 
         # Apply factors (broadcasting over parameter dimension); above the
         # sub-leading species' top knot the extrapolation carries the stored
-        # power-law tilt (clamped at xmax: below it the historical
-        # ratio*leader-Jacobian approximation is unchanged).
+        # power-law tilt (clamped at xmax; below it the ratio*leader-Jacobian
+        # approximation applies).
         slope = self.flux_slope[sid]
         if slope != 0.0:
             xmax = self.kx[sid][-1]
@@ -730,8 +724,7 @@ class GSFBase(ABC):
     def _rigidity_flux_jacobian(self, sid, rigidity: np.ndarray) -> np.ndarray:
         """Calculate Jacobian of LIS flux for the (leader) species ``sid``.
 
-        This method is cached to improve performance for repeated calls with
-        the same parameters.
+        Cached on the instance.
         """
         sid = self._as_sid(sid)
         cache_key = self._make_cache_key(sid, rigidity)
@@ -744,11 +737,7 @@ class GSFBase(ABC):
         return result
 
     def _compute_rigidity_flux_jacobian(self, sid, rigidity: np.ndarray) -> np.ndarray:
-        """Compute Jacobian of LIS flux for species ``sid`` (uncached).
-
-        This is the original implementation extracted to a separate method
-        to maintain clean separation between caching logic and computation.
-        """
+        """Compute Jacobian of LIS flux for species ``sid`` (uncached)."""
         sid = self._as_sid(sid)
         with np.errstate(divide="ignore"):
             x = np.log(rigidity)
@@ -770,9 +759,7 @@ class GSFBase(ABC):
         time_interval: tuple[int, int] | str | None = None,
         rigidity_cutoff: float | None = None,
     ) -> np.ndarray:
-        """Calculate total flux from all element groups.
-
-        Computes the sum of the H, He, O*, and Fe* group fluxes.
+        """Sum of the H, He, O* and Fe* group fluxes.
 
         Parameters
         ----------
@@ -817,10 +804,8 @@ class GSFBase(ABC):
         time_interval: tuple[int, int] | str | None = None,
         rigidity_cutoff: float | None = None,
     ) -> np.ndarray:
-        """Calculate uncertainty of total flux.
-
-        Computes the standard deviation of the total flux from all element groups,
-        accounting for correlations between groups through the covariance matrix.
+        """1-sigma uncertainty of the total flux, including cross-group
+        correlations.
 
         Parameters
         ----------
@@ -859,7 +844,6 @@ class GSFBase(ABC):
 
     # ------------------------------------------------------------------
     # Composition helpers (derived from per-group / per-element flux).
-    # Added so plotting/comparison can be built on the package natively.
     # ------------------------------------------------------------------
     def fraction(
         self,
@@ -1159,6 +1143,142 @@ class GSFBase(ABC):
             return np.zeros((jac1.shape[0], jac2.shape[0]))
         return self._propagate_cov(jac1, jac2, block)
 
+    def _amplitude_sample_factor(self) -> tuple[dict, np.ndarray]:
+        """Factorize the stacked leader-amplitude covariance for ``sample``.
+
+        Returns a dict mapping each group-leader sid to its column slice in
+        the stacked amplitude vector, and a matrix ``F`` with ``F @ F.T``
+        equal to the stacked covariance (eigendecomposition, negative
+        round-off eigenvalues clipped to zero). Cached on the instance.
+        """
+        if self._sample_factor_cache is None:
+            sids = []
+            widths = []
+            for group in self.active_groups:
+                _zlist, leader = self._resolve_z(group)
+                sid = self._leader_by_charge[leader]
+                sids.append(sid)
+                widths.append(self.cov[(sid, sid)].shape[0])
+            edges = np.concatenate([[0], np.cumsum(widths)])
+            stacked = np.zeros((edges[-1], edges[-1]))
+            for i, sid1 in enumerate(sids):
+                for j, sid2 in enumerate(sids):
+                    block = self.cov.get((sid1, sid2))
+                    if block is not None:
+                        stacked[
+                            edges[i] : edges[i + 1], edges[j] : edges[j + 1]
+                        ] = block
+            stacked = 0.5 * (stacked + stacked.T)
+            eigenvalues, eigenvectors = np.linalg.eigh(stacked)
+            factor = eigenvectors * np.sqrt(np.clip(eigenvalues, 0.0, None))
+            slices = {
+                sid: slice(edges[i], edges[i + 1]) for i, sid in enumerate(sids)
+            }
+            self._sample_factor_cache = (slices, factor)
+        return self._sample_factor_cache
+
+    def sample(
+        self,
+        energy_or_rigidity: ArrayLike,
+        target: Target | None = None,
+        n_samples: int = 100,
+        *,
+        time_interval: tuple[int, int] | str | None = None,
+        rigidity_cutoff: float | None = None,
+        rng: np.random.Generator | None = None,
+    ) -> np.ndarray:
+        """Draw random flux realizations from the parameter covariance.
+
+        The flux is linear in the spline amplitudes, so drawing amplitude
+        vectors from the fitted covariance and evaluating the model is the
+        exact model response: each sample is a genuine model realization
+        (a pseudo-experiment), with the full covariance at every energy and
+        all cross-group correlations intact.
+
+        One shared amplitude draw underlies all targets: calling this
+        method several times with an ``rng`` seeded identically returns
+        views of the *same* pseudo-experiments, so per-group and
+        all-particle samples obtained that way are mutually consistent
+        (the group draws sum to the all-particle draw).
+
+        Parameters
+        ----------
+        energy_or_rigidity
+            Input energy or rigidity values. Units depend on subclass.
+        target
+            Any target accepted by :meth:`flux`, or ``None`` (default) for
+            the all-particle total flux.
+        n_samples : int, optional
+            Number of realizations to draw. Default 100.
+        time_interval
+            Time period specification, as for :meth:`flux`.
+        rigidity_cutoff
+            Geomagnetic rigidity cutoff in GV, as for :meth:`flux`.
+        rng : numpy.random.Generator, optional
+            Source of randomness. Default: a fresh
+            ``numpy.random.default_rng()``.
+
+        Returns
+        -------
+        flux : ndarray, shape (n_samples, n_E)
+            One flux realization per row, same units as :meth:`flux`.
+
+        Notes
+        -----
+        Samples follow the Gaussian parameter covariance of the fit.
+        Individual group fluxes can fluctuate below zero where their
+        relative uncertainty is of order one (the data-free tails); the
+        all-particle flux is protected by the cross-group correlations.
+
+        Examples
+        --------
+        >>> model = GSFEnergy()
+        >>> energy = np.logspace(2, 10, 100)
+        >>> realizations = model.sample(energy, "He", n_samples=200)
+        >>> band = np.percentile(realizations, [16, 84], axis=0)
+        """
+        if (
+            isinstance(n_samples, bool)
+            or not isinstance(n_samples, int | np.integer)
+            or n_samples < 1
+        ):
+            raise ValueError("n_samples must be a positive integer")
+        if rng is None:
+            rng = np.random.default_rng()
+        values = self._as_1d_values(energy_or_rigidity, "energy or rigidity")
+
+        slices, factor = self._amplitude_sample_factor()
+        delta = rng.standard_normal((n_samples, factor.shape[0])) @ factor.T
+
+        if target is None:
+            central = self.total_flux(
+                values,
+                time_interval=time_interval,
+                rigidity_cutoff=rigidity_cutoff,
+            )
+            targets = self.active_groups
+        else:
+            central = self.flux(
+                values,
+                target,
+                time_interval=time_interval,
+                rigidity_cutoff=rigidity_cutoff,
+            )
+            targets = (target,)
+
+        out = np.tile(central, (n_samples, 1))
+        for tgt in targets:
+            _zlist, leader = self._resolve_z(tgt)
+            sid = self._leader_by_charge[leader]
+            jac = self.jacobian(
+                values,
+                tgt,
+                time_interval=time_interval,
+                rigidity_cutoff=rigidity_cutoff,
+            )
+            out += delta[:, slices[sid]] @ jac.T
+        return out
+
 
 class GSFEnergy(GSFBase):
     """GSF model evaluated at total energy per nucleus in GeV.
@@ -1298,9 +1418,8 @@ class GSFKineticEnergy(GSFEnergy):
 class GSFRigidity(GSFBase):
     """GSF model evaluated at magnetic rigidity in GV.
 
-    Solar modulation uses the force-field approximation. ``energy_scale`` has
-    no effect because rigidity is the low-energy anchor, not an energy
-    coordinate.
+    Solar modulation uses the force-field approximation. ``energy_scale``
+    applies to the energy-based models only.
 
     Examples
     --------
@@ -1370,12 +1489,6 @@ class GSFRigidity(GSFBase):
         -------
             Array of differential flux values in units of particles/(m²·s·sr·GV).
             Shape matches the input rigidity array.
-
-        Notes
-        -----
-            Solar modulation is now supported for rigidity-based calculations.
-            The transformation uses the force-field approximation to convert
-            between Earth and interstellar rigidity spectra.
         """
         time_interval = self._resolve_time_interval(time_interval)
         rigidity_cutoff = self._resolve_rigidity_cutoff(rigidity_cutoff)
@@ -1463,10 +1576,6 @@ class GSFRigidity(GSFBase):
 
 class GSFEnergyPerNucleon(GSFBase):
     """GSF model for nucleon flux calculations (energy per nucleon).
-
-    This class implements the GSF model for calculating nucleon (proton + neutron)
-    flux from cosmic ray nuclei. Input energy is specified per nucleon, and the
-    output separates proton and neutron contributions.
 
     The nucleon flux is calculated by:
     - Proton flux = sum over nuclei: flux(nucleus) × A × Z
@@ -1717,8 +1826,7 @@ class GSFEnergyPerNucleon(GSFBase):
             )
         )
 
-        # Use group leaders for covariance lookup
-        # key the covariance by the leader SPECIES id (Z, A). _resolve_z returns a
+        # Key the covariance by the leader SPECIES id (Z, A). _resolve_z returns a
         # charge; a charge with a single species has a cov alias under the bare int,
         # but a charge carrying >1 species (p + D at Z=1) does not — so resolve to
         # the leader sid, which is always a real cov key.
@@ -1727,15 +1835,13 @@ class GSFEnergyPerNucleon(GSFBase):
             self._leader_by_charge.get(leader2, leader2),
         )
 
-        # Check if covariance matrix entry exists
         if cov_key in self.cov:
             return (
                 self._propagate_cov(jac1_p, jac2_p, self.cov[cov_key]),
                 self._propagate_cov(jac1_n, jac2_n, self.cov[cov_key]),
             )
         else:
-            # If no covariance matrix entry exists, return zero covariance
-            # This happens for elements not in the main groups (H, He, O, Fe)
+            # Elements not in the main groups (H, He, O, Fe) carry no covariance
             energy_per_nucleon = np.atleast_1d(energy_per_nucleon)
             n_energies = len(energy_per_nucleon)
             zero_cov = np.zeros((n_energies, n_energies))
