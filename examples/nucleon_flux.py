@@ -107,8 +107,8 @@ def _(mo):
 
 @app.cell
 def _(energy_per_nucleon, gsf_nucleon):
-    # group symbols: bare names ("p", "O", "Fe") would return the single
-    # leading elements, not the groups
+    # "H*", "O*", "Fe*" select the mass groups; bare "p", "O", "Fe" select
+    # the single leading elements
     proton_flux = gsf_nucleon.flux(energy_per_nucleon, "H*")
     helium_flux = gsf_nucleon.flux(energy_per_nucleon, "He")
     oxygen_flux = gsf_nucleon.flux(energy_per_nucleon, "O*")
@@ -263,7 +263,7 @@ def _(
     )
     plt.xlim(energy_per_nucleon[0], energy_per_nucleon[-1])
     plt.ylim(500.0, 10000000.0)
-    plt.title("Cosmic Ray Nucleon Flux (GSF 2025)")
+    plt.title("Cosmic Ray Nucleon Flux (GSF)")
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.show()
@@ -321,7 +321,7 @@ def _(
     plt.ylabel("Relative Uncertainty (σ/flux)")
     plt.xlim(energy_per_nucleon[0], energy_per_nucleon[-1])
     plt.ylim(0.003, 1)
-    plt.title("Nucleon Flux Relative Uncertainties (GSF 2025)")  # & (rel_error < 10)
+    plt.title("Nucleon Flux Relative Uncertainties (GSF)")
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.axhline(y=0.01, color="gray", linestyle="--", alpha=0.5)

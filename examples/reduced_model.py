@@ -29,10 +29,10 @@ def _(mo):
     hats with `basis="hat"`. Either way $H$ is the identity at the pivots, so
     the components are *relative flux deviations at the pivots* — interpretable
     knobs — and their covariance $C$ is evaluated **exactly** from the full GSF
-    parameter covariance at the pivot energies. There is no truncation: at the pivots
-    the reduced model carries the full model variance and all cross-energy /
-    p–n correlations between pivots; between them the deformation is
-    interpolated, which is median-unbiased and errs conservative.
+    parameter covariance at the pivot energies. At the pivots the reduced
+    model carries the full model variance and all cross-energy / p–n
+    correlations exactly; between them the deformation is interpolated,
+    which is median-unbiased and errs conservative.
 
     Intended fit loop — no setup, the default is the published grid:
 
@@ -125,9 +125,9 @@ def _(mo):
     species — 1, 4, 90 GeV, 9, 25, 100 TeV, 3, 6, 30, 100, 300 PeV, 1 EeV —
     derived once with `optimize_pivots`. Every component has a citable name
     (`p_9TeV`, `n_30PeV`, ...), so results quoted against them are
-    reproducible — the same model as the daemonflux GSF parameters. The
-    worst-case coverage of the exact uncertainty is a factor 1.29 anywhere
-    in 1–$10^9$ GeV (validated below and enforced by a unit test).
+    reproducible. The worst-case coverage of the exact uncertainty is a
+    factor 1.29 anywhere in 1–$10^9$ GeV (validated below and enforced by
+    a unit test).
     """)
     return
 
@@ -225,12 +225,8 @@ def _(ReducedGSF, gsf, np, plt, red):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    (For custom energy windows, per-group reductions, or other model
-    versions, `optimize_pivots` re-derives a grid: coordinate exchange on a
-    dense energy grid, minimizing the worst-case coverage mismatch — every
-    trial covariance is a submatrix of one precomputed dense-grid
-    covariance, so the search is pure linear algebra. The published grid
-    above is its output; standard use never requires running it.)
+    (`optimize_pivots` derives a grid for custom energy windows, per-group
+    reductions, or other model versions.)
     """)
     return
 
@@ -238,25 +234,19 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## The components and their covariance
+    ## Component prior widths
 
-    Left: the prior width of each component — sub-percent where AMS-02/CREAM
+    The prior width of each component — sub-percent where AMS-02/CREAM
     constrain the flux, ~8% at 1 GeV (solar modulation), growing to 20–30%
     at $10^9$ GeV. Note how the optimization crowded pivots into the
-    poorly-constrained $10^6$–$10^9$ GeV region. Right: the full
-    $24\times24$ correlation matrix (p block, n block): neighboring pivots
-    are strongly correlated, and the p–n off-diagonal blocks carry the common
-    group parameters — this is why the penalty must use the full matrix, not
-    just the diagonal.
+    poorly-constrained $10^6$–$10^9$ GeV region.
     """)
     return
 
 
 @app.cell
 def _(plt, red):
-    _fig, (_ax1, _ax2) = plt.subplots(
-        1, 2, figsize=(12, 4.4), gridspec_kw={"width_ratios": [1.2, 1]}
-    )
+    _fig, _ax1 = plt.subplots(figsize=(7, 4.4))
 
     _n = len(red.pivot_energies)
     _ax1.loglog(red.pivot_energies, red.sigma[:_n], "o-", color="C0", label="p")
@@ -265,14 +255,6 @@ def _(plt, red):
     _ax1.set_ylabel(r"prior width $\sigma_{\theta}$ (relative flux)")
     _ax1.grid(True, alpha=0.3)
     _ax1.legend()
-
-    _im = _ax2.imshow(red.correlation, cmap="RdBu_r", vmin=-1, vmax=1)
-    _ax2.axhline(_n - 0.5, color="k", lw=0.7)
-    _ax2.axvline(_n - 0.5, color="k", lw=0.7)
-    _ax2.set_xticks([_n / 2, 1.5 * _n], ["p", "n"])
-    _ax2.set_yticks([_n / 2, 1.5 * _n], ["p", "n"])
-    _ax2.set_title("component correlation matrix")
-    plt.colorbar(_im, ax=_ax2, fraction=0.046)
 
     plt.tight_layout()
     plt.show()
@@ -325,16 +307,12 @@ def _(mo):
     mo.md(r"""
     ## The components
 
-    Each panel shows the flux
-    deformation $1 \pm \sigma_k H_k(E)$ produced by moving one component by its
-    prior width — protons (blue) and neutrons (orange). This is exactly the
-    operation a downstream fit performs to build its Jacobian
-    (`red.flux_jacobian(E)` returns it analytically). Each component is local:
-    a smooth bump confined to the two intervals
-    around its own pivot, with small side lobes (the local cubic cardinal
-    functions dip to about $-0.12$). The dotted curve in the first panel shows
-    the same component with `basis="hat"` — non-negative but kinked; the
-    component covariance is identical for both bases.
+    Each panel shows the flux deformation $1 \pm \sigma_k H_k(E)$ produced
+    by moving one component by its prior width — protons (blue) and
+    neutrons (orange). This is the operation a downstream fit performs to
+    build its Jacobian (`red.flux_jacobian(E)` returns it analytically).
+    The dotted curve in the first panel is the same component with
+    `basis="hat"`.
     """)
     return
 
@@ -464,13 +442,12 @@ def _(mo):
     mo.md(r"""
     ## The component correlation
 
-    The 24 parameters are jointly Gaussian with covariance $C$ — the matrix that
-    `to_dict()` exports and that the penalty term inverts. Shown here as
-    correlation on a linear $[-1, 1]$ scale (left): neighbouring pivots are
-    strongly correlated, and the p–n off-diagonal blocks carry the common group
-    parameters. Right: the empirical correlation of the 2000 samples drawn above
-    reproduces the same structure — the draws carry the full correlation, not
-    just the diagonal.
+    The 24 parameters are jointly Gaussian with covariance $C$ — the matrix
+    that `to_dict()` exports and that the penalty term inverts. Left:
+    neighbouring pivots correlate strongly, and the p–n off-diagonal blocks
+    carry the common group parameters, so the penalty must use the full
+    matrix. Right: the empirical correlation of the 2000 samples drawn
+    above reproduces the same structure.
     """)
     return
 
@@ -545,7 +522,7 @@ def _(mo):
     group (`per_group=True`, $8 \times N$ parameters; `optimize_pivots`
     accepts the same flag). And `to_dict()` emits a JSON-serializable record —
     pivots, species, basis, central flux at the pivots, covariance — so a
-    fitter does not even need `globalsplinefit` installed at run time.
+    fitter can consume it with only a JSON reader.
     """)
     return
 

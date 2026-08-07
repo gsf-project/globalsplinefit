@@ -4,8 +4,7 @@ Four ways to use GSF, roughly in order of commitment:
 
 1. **[GSF Explorer](explorer.md)** —
    interactive model exploration in the browser, nothing to install.
-2. **[Tutorial gallery](gallery.md)** — notebooks running in the browser,
-   editable and downloadable.
+2. **[Tutorial gallery](gallery.md)** — notebooks in the browser.
 3. **Run notebooks locally** — marimo or Jupyter, full filesystem access
    (e.g. for custom fit directories).
 4. **Use as a package** — `import globalsplinefit` in your own code.
@@ -28,7 +27,7 @@ The core package depends only on `numpy` and `scipy`. Quick check:
 import numpy as np
 from globalsplinefit import GSFEnergy
 
-gsf = GSFEnergy()  # default: the newest 2026 revision (currently "2026.0")
+gsf = GSFEnergy()  # default: newest 2026 revision
 print(gsf.flux(np.logspace(3, 5, 3), "p"))
 ```
 
@@ -55,16 +54,12 @@ jupyter lab cosmic_ray_flux.ipynb
 
 ## Run the GSF Explorer locally
 
-The Explorer is a static web app (Pyodide — Python in the browser); the
-local server is only needed to serve the files:
+The Explorer is a static web app (Pyodide — Python in the browser). Serve it
+locally:
 
 ```bash
 python webapp/serve.py          # http://127.0.0.1:8123, default port 8123
 ```
-
-In **Settings → Abscissa**, choose nucleus flux, nucleon flux, ⟨ln A⟩, or
-σ²(ln A). Nucleus flux and the composition moments support all five axes;
-nucleon flux is restricted to total or kinetic energy per nucleon.
 
 If you changed the package source, rebuild the wheel the Explorer loads
 first: `webapp/update_wheel.sh`.

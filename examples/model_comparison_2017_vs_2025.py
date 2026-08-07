@@ -94,13 +94,13 @@ async def _():
 def _(GSFEnergy, GSFEnergyPerNucleon, np):
     energy = np.logspace(np.log10(0.5), np.log10(100000000000.0), 500)
     energy_per_nucleon = energy
-    compared_versions = ["2017", "2025", "2026"]
+    compared_versions = ["2017", "2025"]
     models_e = {_v: GSFEnergy(version=_v) for _v in compared_versions}
     models_n = {_v: GSFEnergyPerNucleon(version=_v) for _v in compared_versions}
     groups = ["p", "He", "O*", "Fe*"]
     group_labels = ["Proton", "Helium", "Oxygen*", "Iron*"]
     group_colors = ["red", "orange", "green", "blue"]
-    line_styles = {"2025": "--", "2017": ":", "2026": "-"}
+    line_styles = {"2017": "--", "2025": "-"}
     energy_exponent = 2.7
 
     def collect(models, grid):
@@ -231,96 +231,6 @@ def _(
     plt.show()
     return
 
-
-@app.cell
-def _(
-    energy,
-    energy_exponent,
-    energy_fluxes,
-    group_colors,
-    group_labels,
-    groups,
-    line_styles,
-    plt,
-):
-    _fig, _ax = plt.subplots()
-
-    for _group, _label, _color in zip(groups, group_labels, group_colors, strict=False):
-        for _v in ("2017", "2025"):
-            _flux = energy_fluxes[_v][_group]
-            _ax.loglog(
-                energy,
-                _flux * energy**energy_exponent,
-                ls=line_styles[_v],
-                color=_color,
-                alpha=0.8,
-                label=f"{_label} ({_v})" if _v == "2025" else None,
-            )
-    for _v in ("2017", "2025"):
-        _flux = energy_fluxes[_v]["Total"]
-        _ax.loglog(
-            energy,
-            _flux * energy**energy_exponent,
-            ls=line_styles[_v],
-            color="black",
-            lw=2,
-            alpha=0.9,
-            label=f"Total ({_v})",
-        )
-    _ax.set_xlabel("Energy [GeV]")
-    _ax.set_ylabel(f"Flux × $E^{{{energy_exponent}}}$")
-    _ax.grid(True, alpha=0.3)
-    _ax.legend(loc="lower center", ncol=2)
-    _ax.set_xlim(energy[0], energy[-1])
-    _ax.set_ylim(8.0, 90000.0)
-    plt.tight_layout()
-    plt.show()
-    return
-
-
-@app.cell
-def _(
-    energy,
-    energy_errors,
-    energy_fluxes,
-    group_colors,
-    group_labels,
-    groups,
-    line_styles,
-    plt,
-):
-    _fig, _ax = plt.subplots()
-    for _group, _label, _color in zip(groups, group_labels, group_colors, strict=False):
-        for _v in ("2017", "2025"):
-            _rel = energy_errors[_v][_group] / energy_fluxes[_v][_group]
-            _ax.loglog(
-                energy,
-                _rel,
-                ls=line_styles[_v],
-                color=_color,
-                alpha=0.8,
-                label=f"{_label} ({_v})" if _v == "2025" else None,
-            )
-    for _v in ("2017", "2025"):
-        _rel = energy_errors[_v]["Total"] / energy_fluxes[_v]["Total"]
-        _ax.loglog(
-            energy,
-            _rel,
-            ls=line_styles[_v],
-            color="black",
-            lw=2,
-            alpha=0.9,
-            label=f"Total ({_v})",
-        )
-    _ax.set_xlabel("Energy [GeV]")
-    _ax.set_ylabel("Relative error σ/Φ")
-    _ax.grid(True, alpha=0.3)
-    _ax.legend(loc="lower right", ncol=2)
-    _ax.set_xlim(energy[0], energy[-1])
-    _ax.set_ylim(0.001, 0.98)
-    plt.tight_layout()
-    plt.show()
-    return
 
 
 @app.cell

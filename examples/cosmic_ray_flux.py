@@ -107,9 +107,8 @@ def _(mo):
 
 @app.cell
 def _(energy, gsf):
-    # Calculate fluxes
-    # group symbols: bare names ("p", "O", "Fe") would return the single
-    # leading elements, not the groups
+    # "H*", "O*", "Fe*" select the mass groups; bare "p", "O", "Fe" select
+    # the single leading elements
     proton_flux = gsf.flux(energy, "H*")
     helium_flux = gsf.flux(energy, "He")
     oxygen_flux = gsf.flux(energy, "O*")
@@ -164,7 +163,6 @@ def _(
     total_error,
     total_flux,
 ):
-    # Plot flux with error bands
     plt.figure()
     components = [
         (proton_flux, proton_error, "r", "Hydrogen*", 1),
@@ -220,7 +218,6 @@ def _(
     total_error,
     total_flux,
 ):
-    # Plot relative uncertainties
     plt.figure()
     with np.errstate(divide="ignore", invalid="ignore"):
         error_components = [
@@ -241,7 +238,6 @@ def _(
     plt.grid(True, alpha=0.3)
     plt.axhline(y=0.01, color="gray", linestyle="--", alpha=0.5)
     plt.axhline(y=0.1, color="gray", linestyle="--", alpha=0.5)
-    # Reference lines
     plt.show()
     return
 
@@ -269,7 +265,6 @@ def _(
     total_error,
     total_flux,
 ):
-    # Export data
     flux_file_name = "gsf_particle_flux.dat"
     error_file_name = "gsf_particle_flux_error.dat"
 

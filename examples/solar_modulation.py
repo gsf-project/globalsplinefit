@@ -93,7 +93,7 @@ def _(mo):
     mo.md(r"""
     ## Three model types, three solar conditions
 
-    We compare three GSF model classes against three solar conditions: LIS, solar minimum (2009), solar maximum (1991).
+    Solar conditions: LIS, solar minimum (2009), solar maximum (1991).
     """)
     return
 
@@ -249,7 +249,7 @@ def _(mo):
     mo.md(r"""
     ### Total flux across model types
 
-    Overlay the total flux from all three models on a single axis. Note the x-axis units differ by model (GeV vs GV vs GeV/nucleon), so this exposes structural differences rather than direct comparisons.
+    Overlay the total flux from all three models on a single axis. Note the x-axis units differ by model (GeV vs GV vs GeV/nucleon).
     """)
     return
 
@@ -304,7 +304,6 @@ def _(mo):
 
 @app.cell
 def _(gsf_energy):
-    # Sample 17 monthly time points between 2013-01 and 2024-12
     total_months = (2024 - 2013) * 12 + 12
     step = total_months // 16
     time_points = []
@@ -437,8 +436,7 @@ def _(mo):
 
     The weighted mean $\phi$ is exact at every setting, so the first-order
     suppression is always right and only the curvature is approximated. At 1 GeV,
-    1 bin (the retired "approximate" mode) is off by 5.2% from the full monthly
-    average, the default 6 by 0.5%, and 12 by 0.1%; all are below 0.3% above
+    1 bin is off by 5.2% from the full monthly average, the default 6 by 0.5%, and 12 by 0.1%; all are below 0.3% above
     10 GeV. `None` averages every month explicitly.
     """)
     return
