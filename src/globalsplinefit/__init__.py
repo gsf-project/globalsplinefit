@@ -78,7 +78,7 @@ from .model import (
     GSFKineticEnergyPerNucleon,
     GSFRigidity,
 )
-from .reduced import RECOMMENDED_PIVOTS, ReducedGSF, optimize_pivots
+from .reduced import ReducedGSF, optimize_pivots
 
 try:
     #: Installed code version (the software release, distinct from the
@@ -94,7 +94,6 @@ __all__ = [
     "GSFEnergyPerNucleon",
     "GSFKineticEnergyPerNucleon",
     "GSFRigidity",
-    "RECOMMENDED_PIVOTS",
     "ReducedGSF",
     "optimize_pivots",
     "DEFAULT_VERSION",

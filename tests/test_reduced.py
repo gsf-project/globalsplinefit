@@ -6,7 +6,6 @@ import numpy as np
 import pytest
 
 from globalsplinefit import (
-    RECOMMENDED_PIVOTS,
     GSFEnergy,
     GSFEnergyPerNucleon,
     GSFKineticEnergyPerNucleon,
@@ -18,6 +17,10 @@ from globalsplinefit import (
 @pytest.fixture(scope="module")
 def gsf():
     return GSFEnergyPerNucleon()
+
+
+def _published_grid(version):
+    return GSFEnergyPerNucleon(version=version).params.reduced_pivots
 
 
 @pytest.fixture(scope="module", params=["spline", "hat"])
@@ -32,9 +35,9 @@ def red_groups(gsf):
 
 class TestConstruction:
     def test_default_is_published_grid(self, red):
-        """All-default construction uses the citable RECOMMENDED_PIVOTS."""
+        """All-default construction uses the model version's published grid."""
         assert red.species == ["p", "n"]
-        assert np.allclose(red.pivot_energies, RECOMMENDED_PIVOTS["2026.0"])
+        assert np.allclose(red.pivot_energies, _published_grid("2026.0"))
         assert red.n_params == 24
         assert red.cov.shape == (24, 24)
         assert len(red.labels) == 24
@@ -58,27 +61,29 @@ class TestConstruction:
         """Every supported version constructs immediately from a fixed grid."""
         model = GSFEnergyPerNucleon(version="2025")
         reduced = ReducedGSF(model)
-        assert np.array_equal(reduced.pivot_energies, RECOMMENDED_PIVOTS["2025"])
+        assert np.array_equal(reduced.pivot_energies, model.params.reduced_pivots)
 
-    def test_every_shipped_version_has_a_pivot_table(self):
+    def test_every_version_has_a_pivot_table(self):
         from globalsplinefit.data_management import MODEL_VERSIONS
 
-        assert set(RECOMMENDED_PIVOTS) == set(MODEL_VERSIONS)
-        for version, pivots in RECOMMENDED_PIVOTS.items():
+        grids = {v: _published_grid(v) for v in MODEL_VERSIONS}
+        for version, pivots in grids.items():
+            assert pivots is not None, version
             grid = np.asarray(pivots)
             assert len(grid) == 12, version
             assert np.all(np.diff(grid) > 0), version
             assert grid[0] == 1.0 and grid[-1] == 1e9, version
 
     def test_every_version_has_its_own_grid(self):
-        """Each shipped set carries its own optimized pivot table."""
-        grids = list(RECOMMENDED_PIVOTS.values())
+        """Each distributed set carries its own optimized pivot table."""
+        from globalsplinefit.data_management import MODEL_VERSIONS
+
+        grids = [tuple(_published_grid(v)) for v in MODEL_VERSIONS]
         assert len(grids) == len(set(grids))
 
-    def test_shipped_grid_matches_bundle_file(self):
+    def test_grid_matches_bundle_file(self):
         model = GSFEnergyPerNucleon(version="2019")
         reduced = ReducedGSF(model)
-        assert np.array_equal(reduced.pivot_energies, RECOMMENDED_PIVOTS["2019"])
         assert np.array_equal(model.params.reduced_pivots, reduced.pivot_energies)
 
     def test_custom_bundle_without_table_raises(self, tmp_path):
@@ -94,7 +99,7 @@ class TestConstruction:
         with pytest.raises(ValueError, match="reduced_pivots.dat"):
             ReducedGSF(model)
         # explicit pivots (as optimize_pivots would supply) still work
-        reduced = ReducedGSF(model, pivot_energies=RECOMMENDED_PIVOTS["2025"])
+        reduced = ReducedGSF(model, pivot_energies=_published_grid("2025"))
         assert reduced.n_params == 24
 
     def test_custom_bundle_with_table_uses_it(self, tmp_path):
@@ -244,7 +249,7 @@ class TestFlux:
 
 
 class TestPublishedGrid:
-    # Measured worst-case coverage factors of each shipped per-version grid
+    # Measured worst-case coverage factors of each per-version grid
     # (150-point check grid) plus a small margin. With the 2026 grid applied
     # everywhere these were 1.28 / 1.53 / 1.38 (USO / S23e / EPOS-LHCR) and
     # 2.76 / 2.45 / 1.78 (2025 / 2019 / 2017).

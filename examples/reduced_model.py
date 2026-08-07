@@ -120,16 +120,14 @@ def _(mo):
     mo.md(r"""
     ## The published parameter set
 
-    With all-default arguments, `ReducedGSF` uses the frozen pivot grid
-    registered for its model version (`RECOMMENDED_PIVOTS["2026.0"]`): twelve
-    round, quotable energies per species — 1, 4, 90 GeV, 9, 25, 100 TeV,
-    3, 6, 30, 100, 300 PeV, 1 EeV — derived once with `optimize_pivots` and
-    polished to round values. Every component has a citable name
-    (`p_9TeV`, `n_30PeV`, ...), and results quoted against them are
-    reproducible without anyone re-running an optimizer — the same model as
-    the daemonflux GSF parameters. The worst-case coverage of the exact
-    uncertainty is a factor 1.29 anywhere in 1–$10^9$ GeV (validated below
-    and enforced by a unit test).
+    With all-default arguments, `ReducedGSF` uses the pivot grid of its
+    model version (`model.params.reduced_pivots`): twelve energies per
+    species — 1, 4, 90 GeV, 9, 25, 100 TeV, 3, 6, 30, 100, 300 PeV, 1 EeV —
+    derived once with `optimize_pivots`. Every component has a citable name
+    (`p_9TeV`, `n_30PeV`, ...), so results quoted against them are
+    reproducible — the same model as the daemonflux GSF parameters. The
+    worst-case coverage of the exact uncertainty is a factor 1.29 anywhere
+    in 1–$10^9$ GeV (validated below and enforced by a unit test).
     """)
     return
 
@@ -195,7 +193,7 @@ def _(ReducedGSF, gsf, np, plt, red):
             lw=1.0,
             ls=":",
             alpha=0.7,
-            label=f"{_lbl}, log-spacedd" if _s == 0 else None,
+            label=f"{_lbl}, log-spaced" if _s == 0 else None,
         )
     _piv_ratio = red.error(red.pivot_energies) / np.vstack(
         [
@@ -232,8 +230,7 @@ def _(mo):
     dense energy grid, minimizing the worst-case coverage mismatch — every
     trial covariance is a submatrix of one precomputed dense-grid
     covariance, so the search is pure linear algebra. The published grid
-    above is its output, rounded to quotable values; you should not need to
-    run it for standard use.)
+    above is its output; standard use never requires running it.)
     """)
     return
 
