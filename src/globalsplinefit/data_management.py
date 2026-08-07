@@ -74,13 +74,14 @@ def _collect_phi_values(
 
 
 #: Default model version used by model constructors.
-DEFAULT_VERSION = "2026"
+DEFAULT_VERSION = "2026.0"
 
 #: Registry of the distributable model versions.
 #:
-#: Model names are ``<line>.<revision>`` (plus a variant suffix): ``2026.0``
+#: Model names are ``<line>.<revision>[-<physics classifier>]``: ``2026.0``
 #: is the first revision of the 2026 line, ``2026.0-USO`` its
-#: Usoskin-potential variant. A data or fit patch is published as a new
+#: Usoskin-potential variant, ``2026.0-SIB23e`` its SIBYLL-2.3e-only
+#: variant. A data or fit patch is published as a new
 #: revision (``2026.1``, ...). Unrevisioned names resolve via
 #: :func:`resolve_version`. Historical releases (``2025``, ``2019``,
 #: ``2017``) use bare names.
@@ -120,7 +121,7 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
             "to gauge the solar-modulation systematic."
         ),
     },
-    "2026.0-S23e": {
+    "2026.0-SIB23e": {
         "status": "current",
         "role": "single-interpretation variant",
         "covering": "Auger FD-2026 SIBYLL-2.3e (single interpretation)",
@@ -131,7 +132,7 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
             "consistent hadronic-interaction model."
         ),
     },
-    "2026.0-EPOS-LHCR": {
+    "2026.0-EPOSLHCR": {
         "status": "current",
         "role": "single-interpretation variant",
         "covering": "Auger FD-2026 EPOS-LHC-R (single interpretation)",

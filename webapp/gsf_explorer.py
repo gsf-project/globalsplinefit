@@ -93,8 +93,8 @@ BASES = {
 VERSION_NOTES = {
     "2026.0": "default — mixture covering, GMD potential",
     "2026.0-USO": "Usoskin-2017 potential (modulation systematic)",
-    "2026.0-S23e": "SIBYLL-2.3e only (single-interpretation variant)",
-    "2026.0-EPOS-LHCR": "EPOS-LHC-R only (single-interpretation variant)",
+    "2026.0-SIB23e": "SIBYLL-2.3e only (single-interpretation variant)",
+    "2026.0-EPOSLHCR": "EPOS-LHC-R only (single-interpretation variant)",
     "2025": "historical release",
     "2019": "historical release",
     "2017": "historical release (Dembinski et al., ICRC2017)",

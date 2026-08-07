@@ -31,19 +31,19 @@ def grid():
 def test_nucleon_flux_accepts_only_per_nucleon_axes(grid):
     for basis in gx.NUCLEON_BASES:
         result = gx.evaluate(
-            gx.make_model(basis, "2026", 1), basis, quantity="nucleon", **grid
+            gx.make_model(basis, "2026.0", 1), basis, quantity="nucleon", **grid
         )
         assert result["quantity"] == "nucleon"
         assert result["total"] is not None
 
     with pytest.raises(ValueError, match="energy-per-nucleon"):
         gx.evaluate(
-            gx.make_model("etot", "2026", 1), "etot", quantity="nucleon", **grid
+            gx.make_model("etot", "2026.0", 1), "etot", quantity="nucleon", **grid
         )
 
 
 def test_nucleus_and_nucleon_flux_are_distinct_on_per_nucleon_axis(grid):
-    model = gx.make_model("en", "2026", 1)
+    model = gx.make_model("en", "2026.0", 1)
     nucleus = gx.evaluate(model, "en", quantity="nucleus", **grid)
     nucleon = gx.evaluate(model, "en", quantity="nucleon", **grid)
 
@@ -55,7 +55,7 @@ def test_nucleus_and_nucleon_flux_are_distinct_on_per_nucleon_axis(grid):
 @pytest.mark.parametrize("quantity", ["mean_lna", "var_lna"])
 def test_composition_moments_are_dimensionless_with_propagated_errors(quantity, grid):
     result = gx.evaluate(
-        gx.make_model("etot", "2026", 1), "etot", quantity=quantity, **grid
+        gx.make_model("etot", "2026.0", 1), "etot", quantity=quantity, **grid
     )
     value, error = result["series"][quantity]
     assert result["total"] is None
@@ -65,14 +65,14 @@ def test_composition_moments_are_dimensionless_with_propagated_errors(quantity, 
 
 
 def test_energy_scale_is_a_factor_not_a_fractional_shift(grid):
-    model = gx.make_model("etot", "2026", 1)
+    model = gx.make_model("etot", "2026.0", 1)
     gx.evaluate(model, "etot", quantity="nucleus", **grid)
     assert model.energy_scale == 0.0
 
 
 def test_composition_bridge_emits_strict_json_gaps():
     payload = {
-        "version": "2026",
+        "version": "2026.0",
         "quantity": "mean_lna",
         "basis": "etot",
         "dmin": -1,

@@ -10,13 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Revisioned model versions.** Physical model versions are now named
-  `<line>.<revision>[-<variant>]`: the 2026 family ships as `2026.0`,
-  `2026.0-USO`, `2026.0-S23e`, `2026.0-EPOS-LHCR`, and a data or fit patch
-  to a released line is published as a new revision (`2026.1`, ...) next to
-  the old one. Unrevisioned names (`"2026"`, `"2026-USO"`) resolve to the
-  newest registered revision via the new `resolve_version()`; revisioned
-  names pin one. Historical releases (`2025`, `2019`, `2017`) keep their
-  bare names. `version_info()` now includes the resolved `name`, and the
+  `<line>.<revision>[-<physics classifier>]`: the 2026 family is
+  `2026.0`, `2026.0-USO`, `2026.0-SIB23e`, `2026.0-EPOSLHCR`; a data or fit
+  patch to a released line is published as a new revision (`2026.1`, ...).
+  `DEFAULT_VERSION` is the pinned newest revision (`"2026.0"`).
+  Unrevisioned names (`"2026"`, `"2026-USO"`) resolve to the newest
+  registered revision via the new `resolve_version()`; revisioned names pin
+  one. Historical releases (`2025`, `2019`, `2017`) keep their bare
+  names. `version_info()` now includes the resolved `name`, and the
   package exposes `__version__` (the code release, distinct from the model
   version). Explorer CSV exports record both: the physical model version
   including its revision and the `globalsplinefit` code version.
@@ -55,13 +56,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   were already year-named.
 - **The release state is documented and enforced by the registry**: after
   every promotion the four `current` sets (`2026`, `2026-USO`,
-  `2026-S23e`, `2026-EPOS-LHCR`) are regenerated together from the same
+  `2026.0-SIB23e`, `2026.0-EPOSLHCR`) are regenerated together from the same
   fit; `2025`/`2019`/`2017` are static historical releases.
   All seven directories constitute the release-complete package.
 
 ### Added
 
-- **`2026-S23e`** and **`2026-EPOS-LHCR`**: the single-interpretation
+- **`2026.0-SIB23e`** and **`2026.0-EPOSLHCR`**: the single-interpretation
   Auger FD-2026 SIBYLL-2.3e and EPOS-LHC-R variants of the 2026 fit (GMD
   potential) — the two halves of the mixture, for applications that need one
   definite hadronic-interaction model rather than the mixture band.
@@ -125,7 +126,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   uses its bundle's grid (`model.params.reduced_pivots`), and every version
   carries its own optimized table. Worst-case coverage vs the previously
   shared 2026 grid: 1.26/1.36/1.27 (was 1.28/1.53/1.38) for
-  2026-USO/-S23e/-EPOS-LHCR and 1.24/1.55/1.21 (was 2.76/2.45/1.78) for
+  2026.0-USO/-SIB23e/-EPOSLHCR and 1.24/1.55/1.21 (was 2.76/2.45/1.78) for
   2025/2019/2017. Pivots are version-specific, so theta components do not
   line up 1:1 across versions. Custom bundles without a table raise; derive
   a grid with `optimize_pivots` and pass it via `pivot_energies=`.

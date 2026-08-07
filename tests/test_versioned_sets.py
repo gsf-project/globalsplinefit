@@ -3,8 +3,8 @@
 2026 is the default equal-weight SIBYLL-2.3e/EPOS-LHC-R
 mixture covering with the Ghelfi-Maurin-Derome modulation potential.
 2026-USO is the same mixture fit with the Usoskin 2017 potential, which
-yields a lower low-rigidity local interstellar spectrum. 2026-S23e and
-2026-EPOS-LHCR are the single-interpretation variants (SIBYLL-2.3e and
+yields a lower low-rigidity local interstellar spectrum. 2026-SIB23e and
+2026-EPOSLHCR are the single-interpretation variants (SIBYLL-2.3e and
 EPOS-LHC-R, both GMD). All 2026 sets are isotope-format sets
 (they carry deuterium and the He-isotope split), so bare integer-charge access
 is not defined for the multi-species charges Z=1 (p+D) and Z=2 (3He+4He); the
@@ -29,8 +29,8 @@ def test_new_sets_available():
     versions = get_available_versions()
     assert "2026.0" in versions
     assert "2026.0-USO" in versions
-    assert "2026.0-S23e" in versions
-    assert "2026.0-EPOS-LHCR" in versions
+    assert "2026.0-SIB23e" in versions
+    assert "2026.0-EPOSLHCR" in versions
 
 
 def test_unrevisioned_names_resolve_to_newest_revision():
@@ -58,7 +58,7 @@ def test_default_is_gsf2026():
     E = np.logspace(0, 4, 50)
     for g in default.active_groups:
         np.testing.assert_allclose(default.flux(E, g), explicit.flux(E, g), rtol=1e-12)
-    assert DEFAULT_VERSION == "2026"
+    assert DEFAULT_VERSION == "2026.0"
 
 
 def test_resolved_version_is_reported():
@@ -84,7 +84,7 @@ def test_only_registered_versions_are_offered():
         assert name in MODEL_VERSIONS, f"{name} is offered but not registered"
     current = get_available_versions(include_historical=False)
     assert set(current) == {
-        "2026.0", "2026.0-USO", "2026.0-S23e", "2026.0-EPOS-LHCR",
+        "2026.0", "2026.0-USO", "2026.0-SIB23e", "2026.0-EPOSLHCR",
     }
     for name in current:
         assert MODEL_VERSIONS[name]["status"] == "current"
@@ -127,8 +127,8 @@ def test_current_sets_are_the_mixture_and_declare_provenance():
 @pytest.mark.parametrize(
     "version, model, absent",
     [
-        ("2026-S23e", "SIBYLL", "EPOS"),
-        ("2026-EPOS-LHCR", "EPOS", "SIBYLL"),
+        ("2026-SIB23e", "SIBYLL", "EPOS"),
+        ("2026-EPOSLHCR", "EPOS", "SIBYLL"),
     ],
 )
 def test_single_interpretation_variants(version, model, absent):
@@ -147,7 +147,7 @@ def test_historical_sets_are_marked_historical():
         assert MODEL_VERSIONS[name]["status"] == "historical"
 
 
-@pytest.mark.parametrize("version", ["2026", "2026-USO", "2026-S23e", "2026-EPOS-LHCR"])
+@pytest.mark.parametrize("version", ["2026", "2026-USO", "2026-SIB23e", "2026-EPOSLHCR"])
 def test_set_loads_and_is_positive(version):
     m = GSFEnergy(version=version)
     E = np.logspace(0, 6, 80)

@@ -34,14 +34,14 @@ All model classes accept a `version` parameter selecting the fitted parameter se
 ```python
 gsf = GSFEnergy()                           # default 2026 fit
 gsf_uso = GSFEnergy(version="2026-USO")     # Usoskin modulation variant
-gsf_s23e = GSFEnergy(version="2026-S23e")
-gsf_epos = GSFEnergy(version="2026-EPOS-LHCR")
+gsf_s23e = GSFEnergy(version="2026.0-SIB23e")
+gsf_epos = GSFEnergy(version="2026.0-EPOSLHCR")
 gsf_2025 = GSFEnergy(version="2025")        # historical release
 ```
 
-Physical model versions are named `<line>.<revision>[-<variant>]`: `2026.0`
-is the first revision of the 2026 line, `2026.0-USO` its Usoskin-potential
-variant. A data or fit patch is published as a new revision (`2026.1`, ...).
+Physical model versions are named `<line>.<revision>[-<physics classifier>]`:
+`2026.0` is the first revision of the 2026 line, `2026.0-USO` its
+Usoskin-potential variant, `2026.0-SIB23e` its SIBYLL-2.3e-only variant. A data or fit patch is published as a new revision (`2026.1`, ...).
 An unrevisioned name (`"2026"`, `"2026-USO"`) resolves to the newest
 registered revision of that line and variant — use it to follow patches
 automatically, or pass the revisioned name to pin one
@@ -52,8 +52,8 @@ automatically, or pass the revisioned name to pin one
 |---------|--------|----------|------------|-------------|
 | `"2026.0"` | **current -- default** | SIBYLL-2.3e / EPOS-LHC-R mixture | Ghelfi--Maurin--Derome (**baseline**) | Default 2026 fit |
 | `"2026.0-USO"` | current -- alternative | SIBYLL-2.3e / EPOS-LHC-R mixture | Usoskin 2017 (alternative) | The same fit with the other potential; use it to gauge the solar-modulation systematic |
-| `"2026.0-S23e"` | current -- single interpretation | Auger FD-2026 SIBYLL-2.3e only | Ghelfi--Maurin--Derome | For applications needing a definite hadronic model |
-| `"2026.0-EPOS-LHCR"` | current -- variant | Auger FD-2026 EPOS-LHC-R only | Ghelfi--Maurin--Derome | The other single-interpretation half of the mixture |
+| `"2026.0-SIB23e"` | current -- single interpretation | Auger FD-2026 SIBYLL-2.3e only | Ghelfi--Maurin--Derome | For applications needing a definite hadronic model |
+| `"2026.0-EPOSLHCR"` | current -- variant | Auger FD-2026 EPOS-LHC-R only | Ghelfi--Maurin--Derome | The other single-interpretation half of the mixture |
 | `"2025"` | historical | PDG scale factors | Usoskin | GSF 2025 published release |
 | `"2019"` | historical | PDG scale factors | Usoskin | GSF 2019 published release |
 | `"2017"` | historical | PDG scale factors | Usoskin | Original GSF release (Dembinski et al. 2017) |
@@ -77,7 +77,7 @@ EPOS-LHC-R interpretations: parameters are the mean of the two fits, and the
 covariance carries an additional rank-one between-model term. The published band
 therefore spans both interpretations where they diverge and collapses to the
 ordinary fit covariance where they agree (below ~2x10^8 GeV, where the two
-coincide). `2026-S23e` and `2026-EPOS-LHCR` are the two halves of the mixture.
+coincide). `2026.0-SIB23e` and `2026.0-EPOSLHCR` are the two halves of the mixture.
 
 The 2026 sets are fitted in isotope format (deuterium and the ³He/⁴He
 split are carried explicitly). The choice of solar modulation potential

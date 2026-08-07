@@ -267,7 +267,7 @@ function App() {
   /* model state: requires Python. The grid always covers the full
      10^0–10^11 range so pan/zoom are pure display operations. */
   const [params, setParams] = useState({
-    versions: ["2026"], quantity: "nucleus", basis: "etot", npts: 480,
+    versions: ["2026.0"], quantity: "nucleus", basis: "etot", npts: 480,
     elements: [], mod: "SC24", cutoff: 0, escale: 1.0, phiBins: 12,
     samples: 0,   // pseudo-experiment trials; 0 = error band
   });

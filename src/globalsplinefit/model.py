@@ -160,7 +160,7 @@ class GSFBase(ABC):
             Optional path to custom data files. If None, uses default
             data files included with the package.
         version
-            Optional registered model version. Defaults to ``"2026"``. See
+            Optional registered model version. Defaults to ``"2026.0"``. See
             :data:`~globalsplinefit.data_management.MODEL_VERSIONS` and
             :func:`~globalsplinefit.data_management.version_info`. If specified,
             overrides data_path and uses the corresponding package data directory.

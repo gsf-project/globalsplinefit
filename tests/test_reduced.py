@@ -251,13 +251,13 @@ class TestFlux:
 class TestPublishedGrid:
     # Measured worst-case coverage factors of each per-version grid
     # (150-point check grid) plus a small margin. With the 2026 grid applied
-    # everywhere these were 1.28 / 1.53 / 1.38 (USO / S23e / EPOS-LHCR) and
+    # everywhere these were 1.28 / 1.53 / 1.38 (USO / SIB23e / EPOSLHCR) and
     # 2.76 / 2.45 / 1.78 (2025 / 2019 / 2017).
     COVERAGE_BOUNDS = {
         "2026.0": 1.30,
         "2026.0-USO": 1.27,
-        "2026.0-S23e": 1.37,
-        "2026.0-EPOS-LHCR": 1.28,
+        "2026.0-SIB23e": 1.37,
+        "2026.0-EPOSLHCR": 1.28,
         "2025": 1.25,
         "2019": 1.56,
         "2017": 1.22,
