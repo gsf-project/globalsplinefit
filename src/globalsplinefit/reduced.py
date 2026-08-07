@@ -95,21 +95,8 @@ def _build_stacked_system(model, energy_grid, **kwargs):
 
 
 def _load_recommended_pivots() -> dict:
-    """Read the published per-version pivot grids shipped with the data.
-
-    Each registered model version ships a ``reduced_pivots.dat`` (one energy
-    in GeV per nucleon per line) — the reproducible, quotable component
-    definition (theta_k = relative deviation of the total p/n flux at these
-    energies).  ``ReducedGSF()`` with all-default arguments uses the grid of
-    its model's bundle, so downstream results reference a fixed, citable
-    parameter set instead of a per-user optimizer run.
-
-    The grids were derived per version with ``optimize_pivots(n_pivots=12,
-    n_grid=300, n_restarts=4, seed=0)`` and polished on round values — every
-    version ships its own table, so theta components are defined at
-    version-specific energies (they do not line up 1:1 across versions).
-    Provenance and measured worst-case coverage factors live in each file's
-    header.  Regenerate when a model version is updated.
+    """Read the published per-version pivot grids
+    (``data/<version>/reduced_pivots.dat``, one energy in GeV/n per line).
     """
     from pathlib import Path
 
@@ -232,13 +219,9 @@ class ReducedGSF:
     n_pivots : int, optional
         Number of log-spaced pivot energies per species.  If neither this
         nor ``pivot_energies`` is given (and ``energy_range`` is left at
-        its default), the **published grid** shipped with the model bundle
-        (``data/<version>/reduced_pivots.dat``, mirrored in
-        :data:`RECOMMENDED_PIVOTS`; 12 pivots per version, worst-case
-        standard-deviation ratios in each file's header) is used.  A custom
-        bundle without a pivot table raises — derive a grid once with
-        :func:`optimize_pivots` and pass (or ship) it explicitly.
-        Passing ``n_pivots`` explicitly requests a log-spaced grid instead.
+        its default), the published grid shipped with the model bundle
+        (``data/<version>/reduced_pivots.dat``) is used; a custom bundle
+        without a pivot table raises.
     energy_range : tuple of float, optional
         ``(E_min, E_max)`` of the pivot grid in GeV per nucleon.
         Default ``(1.0, 1e9)`` — beyond ~1e9 the heavy-group fluxes

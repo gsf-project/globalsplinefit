@@ -1,10 +1,6 @@
 # ReducedGSF pivot energies [GeV per nucleon], one per line.
-# Derived for the 2026-USO variant with optimize_pivots(n_pivots=12,
-# n_grid=300, n_restarts=4, seed=0), polished on round values (2026-08-04;
-# 601-point verification grid). Worst-case coverage factor of the total p/n
-# sigma over 1-1e9 GeV/n: 1.26 (the 2026 default grid gives 1.28 here).
-# NOTE: theta components are defined at these energies and therefore do NOT
-# line up 1:1 with the 2026 default's components.
+# optimize_pivots(n_pivots=12, n_grid=300, n_restarts=4, seed=0), polished on
+# round values.
 1.0
 2.5
 6.5
