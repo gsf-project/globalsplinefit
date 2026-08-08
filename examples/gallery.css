@@ -1,13 +1,52 @@
 /*
   Injected into every gallery export via `marimo.App(css_file=...)`.
+*/
 
-  Only applies to the editable variant (/gallery/<name>/edit/) — the app-view
-  pages have no editor chrome to begin with. marimo's sidebar carries a dozen
-  panels (variables, packages, dependencies, AI, scratchpad, tracing, ...);
-  for a docs tutorial the file explorer is the only one that earns its place.
-  Panel buttons are react-aria list options keyed by panel name, so this keeps
-  "files" and hides the rest.
+/*
+  Sidebar trim — only bites on the editable variant (/gallery/<name>/edit/);
+  the app-view pages have no editor chrome to begin with. marimo's sidebar
+  carries a dozen panels (variables, packages, dependencies, AI, scratchpad,
+  tracing, ...); for a docs tutorial the file explorer is the only one that
+  earns its place. Panel buttons are react-aria list options keyed by panel
+  name, so this keeps "files" and hides the rest.
 */
 [data-testid="chrome-sidebar"] [role="option"]:not([data-key="files"]) {
   display: none;
+}
+
+/*
+  Figure sizing — applies to BOTH variants.
+
+  marimo sizes a matplotlib output at `figsize_inches x 100` CSS px, whatever
+  its dpi: the formatter rasterises at `fig.dpi * 2` and then normalises the
+  display box back to a 100-dpi reference (marimo/_output/mpl.py). So dpi buys
+  resolution, never display size, and the notebooks' native widths run from
+  346 px (paper_figures, whose figsizes are real paper column widths and must
+  stay that way to keep the published aspect ratios and font sizes) to 1292 px
+  (rigidity_cutoff at figsize 16). Left alone, the gallery reads as a set of
+  randomly-sized plots pinned to the left edge of a full-width notebook.
+
+  Fix both here rather than in the notebooks: one declared width for every
+  figure, centred in the column. --gsf-plot-scale is driven by the "plot size"
+  slider each notebook puts next to its other controls; --gsf-plot-width is
+  the 1.0 baseline. min(100%, ...) keeps a scaled-up figure from overflowing a
+  narrow viewport (phones, split-screen iPad).
+
+  :has() scopes this to outputs that ARE a figure, so prose and tables keep
+  their normal left-aligned block layout.
+*/
+:root {
+  --gsf-plot-width: 900px;
+  --gsf-plot-scale: 1;
+}
+
+.output:has(> img[src^="data:image/png"]) {
+  display: block;
+}
+
+.output > img[src^="data:image/png"] {
+  display: block;
+  margin-inline: auto;
+  width: min(100%, calc(var(--gsf-plot-width) * var(--gsf-plot-scale)));
+  height: auto;
 }

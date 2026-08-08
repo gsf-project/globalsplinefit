@@ -145,8 +145,25 @@ def _(MODEL_VERSIONS, mo):
         label="flux scaling  E^k",
         show_value=True,
     )
-    mo.hstack([version, exponent], justify="start")
-    return exponent, version
+    plot_size = mo.ui.slider(
+        start=0.6,
+        stop=1.6,
+        step=0.1,
+        value=1.0,
+        label="plot size",
+        show_value=True,
+    )
+    mo.hstack([version, exponent, plot_size], justify="start", gap=2)
+    return exponent, plot_size, version
+
+
+@app.cell(hide_code=True)
+def _(mo, plot_size):
+    # Drives --gsf-plot-scale, which gallery.css multiplies into every figure's
+    # width. Scaling the rendered raster (rather than the figsize) is what keeps
+    # it proportional: fonts, line widths and the aspect ratio all ride along.
+    mo.Html(f"<style>:root{{--gsf-plot-scale:{plot_size.value}}}</style>")
+    return
 
 
 @app.cell

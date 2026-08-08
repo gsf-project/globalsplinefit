@@ -98,6 +98,17 @@ async def _():
         GSFRigidity,
     )
 
+    # ------------------------------------------------------------ raster dpi --
+    # These figsizes are paper column widths (3.4-3.8 in), so marimo's
+    # `figsize x 100` display rule makes them the smallest plots in the
+    # gallery; gallery.css scales every figure up to a common width. dpi does
+    # not affect the display size (marimo normalises it away) — only the pixel
+    # count — so raise it here to keep the upscaled figure sharp: at 150 a
+    # 3.4 in figure rasterises 1020 px wide for a 900 px box. Do NOT express
+    # the size change as a bigger figsize: that would rescale the fonts
+    # against the axes and break the match to the published figures.
+    plt.rcParams["figure.dpi"] = 150
+
     # ---------------------------------------------------------------- fonts --
     # The paper's figures come from two families of scripts and they do NOT
     # share a font. deck/config.py asks for Nimbus Roman (else a Times-like
@@ -403,8 +414,25 @@ def _(MODEL_VERSIONS, mo):
     version = mo.ui.dropdown(
         options=list(MODEL_VERSIONS), value="2026.0", label="parameter set"
     )
-    mo.hstack([version], justify="start")
-    return (version,)
+    plot_size = mo.ui.slider(
+        start=0.6,
+        stop=1.6,
+        step=0.1,
+        value=1.0,
+        label="plot size",
+        show_value=True,
+    )
+    mo.hstack([version, plot_size], justify="start", gap=2)
+    return plot_size, version
+
+
+@app.cell(hide_code=True)
+def _(mo, plot_size):
+    # Drives --gsf-plot-scale, which gallery.css multiplies into every figure's
+    # width. Scaling the rendered raster (rather than the figsize) is what keeps
+    # it proportional: fonts, line widths and the aspect ratio all ride along.
+    mo.Html(f"<style>:root{{--gsf-plot-scale:{plot_size.value}}}</style>")
+    return
 
 
 @app.cell
