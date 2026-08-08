@@ -1,7 +1,12 @@
 import marimo
 
 __generated_with = "0.23.15"
-app = marimo.App(width="full")
+app = marimo.App(
+    width="full",
+    app_title="GSF — Nucleon Flux",
+    css_file="gallery.css",
+    html_head_file="gallery_head.html",
+)
 
 
 @app.cell
@@ -25,7 +30,11 @@ def _(mo):
 async def _():
     import sys
 
-    if "pyodide" in sys.modules:
+    NOTEBOOK = "nucleon_flux"  # used by the download buttons at the end
+    IN_WASM = "pyodide" in sys.modules
+    SITE = ""
+
+    if IN_WASM:
         # WASM (docs gallery): TEMPORARY until globalsplinefit is on PyPI —
         # install the wheel published under /wheels/ on the same site the
         # notebook is served from (also works on staging or local hosts).
@@ -35,16 +44,19 @@ async def _():
         import micropip
 
         # notebook_location() resolution depth differs between marimo export
-        # layouts — try site-root /wheels/ from both plausible depths
+        # layouts — try site-root /wheels/ from every plausible depth, and
+        # keep the depth that worked as the site root for other assets.
+        _base = str(_mo.notebook_location()) + "/"
         _err = None
-        for _up in ("../../", "../../../"):
+        for _up in ("", "../", "../../", "../../../"):
             try:
                 await micropip.install(
                     urljoin(
-                        str(_mo.notebook_location()) + "/",
+                        _base,
                         _up + "wheels/globalsplinefit-2.0.0a1-py3-none-any.whl",
                     )
                 )
+                SITE = urljoin(_base, _up)
                 _err = None
                 break
             except Exception as _e:  # noqa: BLE001 — 404 lands as generic error
@@ -55,44 +67,76 @@ async def _():
     import matplotlib.pyplot as plt
     import numpy as np
 
-    from globalsplinefit import GSFEnergyPerNucleon
+    from globalsplinefit import MODEL_VERSIONS, GSFEnergyPerNucleon
 
     plt.rcParams["figure.figsize"] = (10, 6)
 
-    # TEMPORARY pre-publication marker: stamp every figure this notebook
-    # shows with a diagonal PRELIMINARY watermark. Delete at the GSF 2026
-    # release (guarded so a cell re-run does not stack wrappers).
-    if not getattr(plt.show, "_gsf_preliminary", False):
-        _orig_show = plt.show
+    def show(fig=None):
+        """Stamp and return a figure as the cell output.
 
-        def _show_with_watermark(*args, **kwargs):
-            plt.gcf().text(
-                0.5,
-                0.5,
-                "PRELIMINARY",
-                ha="center",
-                va="center",
-                rotation=30,
-                fontsize=42,
-                fontweight="bold",
-                color="gray",
-                alpha=0.18,
-                zorder=1000,
-            )
-            return _orig_show(*args, **kwargs)
+        marimo renders a cell's last expression; `plt.show()` produces no
+        output at all in app view, so every plot cell ends with `show(fig)`.
+        """
+        fig = plt.gcf() if fig is None else fig
+        # TEMPORARY pre-publication marker (_gsf_preliminary): diagonal
+        # PRELIMINARY watermark on every figure. Delete this block at the
+        # GSF 2026 release — keep the `return fig`.
+        fig.text(
+            0.5,
+            0.5,
+            "PRELIMINARY",
+            ha="center",
+            va="center",
+            rotation=30,
+            fontsize=42,
+            fontweight="bold",
+            color="gray",
+            alpha=0.18,
+            zorder=1000,
+        )
+        return fig
 
-        _show_with_watermark._gsf_preliminary = True
-        plt.show = _show_with_watermark
+    def autoscale(ax, *series, pad=1.6):
+        """Fit the y-axis to the positive, finite values in `series`."""
+        _v = np.concatenate([np.asarray(s, float).ravel() for s in series])
+        _v = _v[np.isfinite(_v) & (_v > 0)]
+        if _v.size:
+            ax.set_ylim(_v.min() / pad, _v.max() * pad)
 
-    return GSFEnergyPerNucleon, np, plt
+    return (
+        GSFEnergyPerNucleon,
+        MODEL_VERSIONS,
+        NOTEBOOK,
+        SITE,
+        autoscale,
+        np,
+        plt,
+        show,
+    )
+
+
+@app.cell(hide_code=True)
+def _(MODEL_VERSIONS, mo):
+    version = mo.ui.dropdown(
+        options=list(MODEL_VERSIONS), value="2026.0", label="model version"
+    )
+    exponent = mo.ui.slider(
+        start=0.0,
+        stop=3.5,
+        step=0.1,
+        value=3.0,
+        label="flux scaling  E_N^k",
+        show_value=True,
+    )
+    mo.hstack([version, exponent], justify="start")
+    return exponent, version
 
 
 @app.cell
-def _(GSFEnergyPerNucleon, np):
+def _(GSFEnergyPerNucleon, np, version):
     energy_per_nucleon = 10 ** np.linspace(0, 10, 200)  # GeV/nucleon
-    energy_exponent = 3.0
-    gsf_nucleon = GSFEnergyPerNucleon()
-    return energy_exponent, energy_per_nucleon, gsf_nucleon
+    gsf_nucleon = GSFEnergyPerNucleon(version=version.value)
+    return energy_per_nucleon, gsf_nucleon
 
 
 @app.cell(hide_code=True)
@@ -214,15 +258,16 @@ def _(mo):
     mo.md(r"""
     ## Spectrum
 
-    Flux scaled by E^3 to flatten the steep falloff. Shaded bands are 1-sigma.
+    Flux scaled by E_N^k (slider above) to flatten the steep falloff. Shaded bands are 1-sigma; the axis follows the scaling.
     """)
     return
 
 
 @app.cell
 def _(
-    energy_exponent,
+    autoscale,
     energy_per_nucleon,
+    exponent,
     helium_error,
     helium_flux,
     iron_error,
@@ -232,41 +277,42 @@ def _(
     plt,
     proton_error,
     proton_flux,
+    show,
     total_error,
     total_flux,
 ):
     # Plot nucleon flux with error bands
-    plt.figure(figsize=(12, 8))
-    components = [
-        (proton_flux, proton_error, "r", "Hydrogen*", 1),
-        (helium_flux, helium_error, "orange", "Helium", 1),
-        (oxygen_flux, oxygen_error, "g", "Oxygen*", 1),
-        (iron_flux, iron_error, "b", "Iron*", 1),
+    _fig, _ax = plt.subplots(figsize=(12, 8))
+    _scale = energy_per_nucleon**exponent.value
+    _components = [
+        (proton_flux, proton_error, "r", "H*", 1),
+        (helium_flux, helium_error, "orange", "He*", 1),
+        (oxygen_flux, oxygen_error, "g", "O*", 1),
+        (iron_flux, iron_error, "b", "Fe*", 1),
         (total_flux, total_error, "k", "Total", 2),
     ]
-    for flux, error, _color, _label, lw in components:
-        scaled_flux = flux * energy_per_nucleon**energy_exponent
-        plt.plot(
-            energy_per_nucleon, scaled_flux, "-", color=_color, lw=lw, label=_label
+    for _flux, _error, _color, _label, _lw in _components:
+        _ax.plot(
+            energy_per_nucleon, _flux * _scale, "-", color=_color, lw=_lw, label=_label
         )
-        plt.fill_between(
+        _ax.fill_between(
             energy_per_nucleon,
-            (flux - error) * energy_per_nucleon**energy_exponent,
-            (flux + error) * energy_per_nucleon**energy_exponent,
+            (_flux - _error) * _scale,
+            (_flux + _error) * _scale,
             facecolor=_color,
             alpha=0.2,
         )
-    plt.loglog()
-    plt.xlabel("$E_N$ [GeV/nucleon]")
-    plt.ylabel(
-        f"Nucleon Flux × $(E_N/\\mathrm{{GeV}})^{{{energy_exponent}}}$ [1/(GeV m² s sr)]"
+    _ax.loglog()
+    _ax.set_xlabel("$E_N$ [GeV/nucleon]")
+    _ax.set_ylabel(
+        f"Nucleon Flux × $(E_N/\\mathrm{{GeV}})^{{{exponent.value:g}}}$ [1/(GeV m² s sr)]"
     )
-    plt.xlim(energy_per_nucleon[0], energy_per_nucleon[-1])
-    plt.ylim(500.0, 10000000.0)
-    plt.title("Cosmic Ray Nucleon Flux (GSF)")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.show()
+    _ax.set_xlim(energy_per_nucleon[0], energy_per_nucleon[-1])
+    autoscale(_ax, total_flux * _scale, (total_flux + total_error) * _scale)
+    _ax.set_title("Cosmic Ray Nucleon Flux (GSF)")
+    _ax.legend()
+    _ax.grid(True, alpha=0.3)
+    show(_fig)
     return
 
 
@@ -282,6 +328,7 @@ def _(mo):
 
 @app.cell
 def _(
+    autoscale,
     energy_per_nucleon,
     helium_error,
     helium_flux,
@@ -293,16 +340,17 @@ def _(
     plt,
     proton_error,
     proton_flux,
+    show,
     total_error,
     total_flux,
 ):
     # Plot nucleon relative uncertainties
     plt.figure(figsize=(12, 8))
     error_components = [
-        (proton_error / np.maximum(proton_flux, 1e-90), "r", "Hydrogen*"),
-        (helium_error / np.maximum(helium_flux, 1e-90), "orange", "Helium"),
-        (oxygen_error / np.maximum(oxygen_flux, 1e-90), "g", "Oxygen*"),
-        (iron_error / np.maximum(iron_flux, 1e-90), "b", "Iron*"),
+        (proton_error / np.maximum(proton_flux, 1e-90), "r", "H*"),
+        (helium_error / np.maximum(helium_flux, 1e-90), "orange", "He*"),
+        (oxygen_error / np.maximum(oxygen_flux, 1e-90), "g", "O*"),
+        (iron_error / np.maximum(iron_flux, 1e-90), "b", "Fe*"),
         (total_error / np.maximum(total_flux, 1e-90), "k", "Total"),
     ]
     for rel_error, _color, _label in error_components:
@@ -320,14 +368,49 @@ def _(
     plt.xlabel("$E_N$ [GeV/nucleon]")
     plt.ylabel("Relative Uncertainty (σ/flux)")
     plt.xlim(energy_per_nucleon[0], energy_per_nucleon[-1])
-    plt.ylim(0.003, 1)
+    autoscale(plt.gca(), *[_e for _e, _c, _l in error_components], pad=1.3)
     plt.title("Nucleon Flux Relative Uncertainties (GSF)")
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.axhline(y=0.01, color="gray", linestyle="--", alpha=0.5)
     plt.axhline(y=0.1, color="gray", linestyle="--", alpha=0.5)
     # Reference lines
-    plt.show()
+    show()
+    return
+
+
+@app.cell(hide_code=True)
+def _(NOTEBOOK, SITE, mo):
+    if SITE:  # running in the browser: link the sources published next to it
+        _py = f"{SITE}gallery/{NOTEBOOK}/{NOTEBOOK}.py"
+        _ipynb = f"{SITE}gallery/{NOTEBOOK}/{NOTEBOOK}.ipynb"
+    else:  # running locally: hand over the file on disk
+        _py = (mo.notebook_dir() / f"{NOTEBOOK}.py").read_bytes()
+        _ipynb = None
+
+    _buttons = [
+        mo.download(
+            _py,
+            filename=f"{NOTEBOOK}.py",
+            label="marimo notebook (.py)",
+            mimetype="text/x-python",
+        )
+    ]
+    if _ipynb is not None:
+        _buttons.append(
+            mo.download(
+                _ipynb,
+                filename=f"{NOTEBOOK}.ipynb",
+                label="Jupyter notebook (.ipynb)",
+                mimetype="application/x-ipynb+json",
+            )
+        )
+    mo.vstack(
+        [
+            mo.md(r"""### Take this notebook with you"""),
+            mo.hstack(_buttons, justify="start"),
+        ]
+    )
     return
 
 

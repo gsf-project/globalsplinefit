@@ -1,0 +1,13 @@
+/*
+  Injected into every gallery export via `marimo.App(css_file=...)`.
+
+  Only applies to the editable variant (/gallery/<name>/edit/) — the app-view
+  pages have no editor chrome to begin with. marimo's sidebar carries a dozen
+  panels (variables, packages, dependencies, AI, scratchpad, tracing, ...);
+  for a docs tutorial the file explorer is the only one that earns its place.
+  Panel buttons are react-aria list options keyed by panel name, so this keeps
+  "files" and hides the rest.
+*/
+[data-testid="chrome-sidebar"] [role="option"]:not([data-key="files"]) {
+  display: none;
+}

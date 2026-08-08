@@ -1,0 +1,19 @@
+<!--
+  Injected into every gallery export via `marimo.App(html_head_file=...)`.
+
+  The exports are built with `--show-code`, which is what puts "Show code" in
+  the notebook menu — but it also makes code the *initial* state. marimo reads
+  its `show-code` query parameter to decide, so default it to false here (no
+  reload; this runs before the marimo bundle) and the page lands in app view
+  however the reader arrived at it. The menu toggle still works, and an
+  explicit ?show-code=true still opens with code.
+-->
+<script>
+  (function () {
+    var url = new URL(window.location.href);
+    if (!url.searchParams.has("show-code")) {
+      url.searchParams.set("show-code", "false");
+      history.replaceState(null, "", url);
+    }
+  })();
+</script>

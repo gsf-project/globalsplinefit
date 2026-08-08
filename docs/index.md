@@ -49,20 +49,19 @@ Explorer locally? See [Getting Started](getting_started.md).
 
 ## Citation
 
-If you use GlobalSplineFit in your research, please cite:
+<!-- citations:recommended -->
 
-```bibtex
-@article{gsf2025,
-  title={GlobalSplineFit: Modern Python package for cosmic ray flux parametrizations},
-  author={Dembinski, Hans and Fedynitch, Anatoli},
-  journal={Astrophys. J.},
-  year={2025},
-  note={In preparation}
-}
-```
+The GSF 2026 paper is in preparation; this page and the
+[Explorer](explorer.md) both read
+[`webapp/citations.json`](https://github.com/gsf-project/globalsplinefit/blob/main/webapp/citations.json)
+and will switch to the 2026 record the moment it exists.
+
+Citing a specific parameter set, or one of the models GSF is compared with?
+The [model version table](user_guide.md#model-versions) lists the reference
+for every version, and the
+[solar-modulation potentials](user_guide.md#solar-modulation) carry their own.
 
 ## Support
 
 - **Source Code**: [GitHub Repository](https://github.com/gsf-project/globalsplinefit)
 - **Issues**: [Report bugs and request features](https://github.com/gsf-project/globalsplinefit/issues)
-- **Discussions**: [Community discussions](https://github.com/gsf-project/globalsplinefit/discussions)

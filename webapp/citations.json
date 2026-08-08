@@ -1,0 +1,61 @@
+{
+  "_comment": [
+    "Single source of truth for GSF citation metadata. Consumed by the GSF",
+    "Explorer (webapp/main.js fetches this file) and by the documentation",
+    "(docs/hooks/citations.py renders it into the Home page and the model",
+    "version table at mkdocs build time). Edit here, nowhere else.",
+    "BibTeX blocks are InspireHEP records, verbatim (fetched 2026-07-30)."
+  ],
+  "recommended": "Dembinski:2025nmp",
+  "recommended_note": "Cite the GSF 2025 proceedings until the GSF 2026 paper has an InspireHEP record; this page and the Explorer will switch over together.",
+  "entries": [
+    {
+      "key": "Dembinski:2017zsh",
+      "label": "GSF 2017 / 2019",
+      "url": "https://inspirehep.net/literature/1639832",
+      "bibtex": "@article{Dembinski:2017zsh,\n    author = \"Dembinski, Hans Peter and Engel, Ralph and Fedynitch, Anatoli and Gaisser, Thomas and Riehn, Felix and Stanev, Todor\",\n    title = \"{Data-driven model of the cosmic-ray flux and mass composition from 10 GeV to $10^{11}$ GeV}\",\n    eprint = \"1711.11432\",\n    archivePrefix = \"arXiv\",\n    primaryClass = \"astro-ph.HE\",\n    doi = \"10.22323/1.301.0533\",\n    journal = \"PoS\",\n    volume = \"ICRC2017\",\n    pages = \"533\",\n    year = \"2018\"\n}"
+    },
+    {
+      "key": "Fujisue:2025wnp",
+      "label": "GSF 2024/2025 — UHECR 2024",
+      "url": "https://inspirehep.net/literature/2907063",
+      "bibtex": "@article{Fujisue:2025wnp,\n    author = \"Fujisue, Kozo and Dembinski, Hans and Engel, Ralph and Fedynitch, Anatoli\",\n    title = \"{Global Spline Fit (GSF) 2024}\",\n    doi = \"10.22323/1.484.0087\",\n    journal = \"PoS\",\n    volume = \"UHECR2024\",\n    pages = \"087\",\n    year = \"2025\"\n}"
+    },
+    {
+      "key": "Dembinski:2025nmp",
+      "label": "GSF 2025 — ICRC 2025",
+      "url": "https://inspirehep.net/literature/3067434",
+      "bibtex": "@article{Dembinski:2025nmp,\n    author = \"Dembinski, Hans and Engel, Ralph Richard and Fedynitch, Anatoli and Fujisue, Kozo\",\n    title = \"{Global Spline Fit GSF-2025 - An update of the data-driven model of the cosmic-ray flux and its mass composition}\",\n    doi = \"10.22323/1.501.0248\",\n    journal = \"PoS\",\n    volume = \"ICRC2025\",\n    pages = \"248\",\n    year = \"2025\"\n}"
+    },
+    {
+      "key": "GSF2026",
+      "label": "GSF 2026",
+      "url": null,
+      "bibtex": null,
+      "note": "Publication in preparation — citation to follow."
+    }
+  ],
+  "versions": {
+    "2026.0": ["GSF2026"],
+    "2026.0-USO": ["GSF2026"],
+    "2026.0-SIB23e": ["GSF2026"],
+    "2026.0-EPOSLHCR": ["GSF2026"],
+    "2025": ["Fujisue:2025wnp", "Dembinski:2025nmp"],
+    "2019": ["Dembinski:2017zsh"],
+    "2017": ["Dembinski:2017zsh"]
+  },
+  "solar_modulation_potentials": [
+    {
+      "key": "Ghelfi:2016pcv",
+      "label": "Ghelfi–Maurin–Derome (GMD) φ(t)",
+      "url": "https://inspirehep.net/literature/1474379",
+      "note": "Neutron monitors and muon detectors for solar modulation studies: 2. φ time series. The GSF 2026 default; each current set ships its own monthly table as data/<version>/solar_modulation.dat."
+    },
+    {
+      "key": "Usoskin:2017cli",
+      "label": "Usoskin et al. 2017 φ(t)",
+      "url": "https://inspirehep.net/literature/1600902",
+      "note": "Heliospheric modulation of cosmic rays during the neutron monitor era. Used by the 2026.0-USO variant and by the historical sets; bundled at the package data root as solar_modulation.dat."
+    }
+  ]
+}

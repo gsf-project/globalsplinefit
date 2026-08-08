@@ -68,55 +68,12 @@ function stateLine(p, unit, win, quantityLabel) {
          `10${dec(win[0])}–10${dec(win[1])} ${unit} · ${ABBR[p.basis]}`;
 }
 
-/* InspireHEP records, verbatim (fetched 2026-07-30) */
-const CITATIONS = [
-  {
-    label: "GSF 2017 / 2019", key: "Dembinski:2017zsh",
-    url: "https://inspirehep.net/literature/1639832",
-    bibtex: `@article{Dembinski:2017zsh,
-    author = "Dembinski, Hans Peter and Engel, Ralph and Fedynitch, Anatoli and Gaisser, Thomas and Riehn, Felix and Stanev, Todor",
-    title = "{Data-driven model of the cosmic-ray flux and mass composition from 10 GeV to $10^{11}$ GeV}",
-    eprint = "1711.11432",
-    archivePrefix = "arXiv",
-    primaryClass = "astro-ph.HE",
-    doi = "10.22323/1.301.0533",
-    journal = "PoS",
-    volume = "ICRC2017",
-    pages = "533",
-    year = "2018"
-}`,
-  },
-  {
-    label: "GSF 2024/2025 — UHECR 2024", key: "Fujisue:2025wnp",
-    url: "https://inspirehep.net/literature/2907063",
-    bibtex: `@article{Fujisue:2025wnp,
-    author = "Fujisue, Kozo and Dembinski, Hans and Engel, Ralph and Fedynitch, Anatoli",
-    title = "{Global Spline Fit (GSF) 2024}",
-    doi = "10.22323/1.484.0087",
-    journal = "PoS",
-    volume = "UHECR2024",
-    pages = "087",
-    year = "2025"
-}`,
-  },
-  {
-    label: "GSF 2025 — ICRC 2025", key: "Dembinski:2025nmp",
-    url: "https://inspirehep.net/literature/3067434",
-    bibtex: `@article{Dembinski:2025nmp,
-    author = "Dembinski, Hans and Engel, Ralph Richard and Fedynitch, Anatoli and Fujisue, Kozo",
-    title = "{Global Spline Fit GSF-2025 - An update of the data-driven model of the cosmic-ray flux and its mass composition}",
-    doi = "10.22323/1.501.0248",
-    journal = "PoS",
-    volume = "ICRC2025",
-    pages = "248",
-    year = "2025"
-}`,
-  },
-  {
-    label: "GSF 2026", key: "TBD",
-    bibtex: null, note: "Publication in preparation — citation to follow.",
-  },
-];
+/* Citation metadata lives in citations.json — the single source shared with
+ * the documentation (docs/hooks/citations.py renders the same file). Loaded
+ * here with a top-level await so CITATIONS is ready before the first render. */
+const CITATIONS = await fetch(new URL("./citations.json", import.meta.url))
+  .then((r) => r.json())
+  .then((d) => d.entries);
 
 function CiteBlock({ c }) {
   const [copied, setCopied] = useState(false);

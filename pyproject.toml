@@ -47,6 +47,12 @@ test = [
 examples = [
     "matplotlib>=3.5.0",
     "marimo>=0.14",
+    # `marimo export ipynb`: the gallery publishes a Jupyter copy of every
+    # notebook next to it, for the in-notebook download button
+    "nbformat>=5.0",
+    # model_deck.py: H3a/H4a, GST, Hörandel, ... for the paper's comparison
+    # figures (the WASM build micropips it from PyPI — pure python wheel)
+    "crflux>=2.0",
 ]
 docs = [
     # examples: the tutorial pages are `marimo export html-wasm` builds of

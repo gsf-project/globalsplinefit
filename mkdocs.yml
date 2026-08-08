@@ -33,6 +33,10 @@ validation:
   links:
     unrecognized_links: ignore
 
+hooks:
+  # renders webapp/citations.json into the pages (single citation source)
+  - mkdocs_hooks/citations.py
+
 plugins:
   - search
   - mkdocstrings:

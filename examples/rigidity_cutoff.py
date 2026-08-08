@@ -1,7 +1,12 @@
 import marimo
 
 __generated_with = "0.23.15"
-app = marimo.App(width="full")
+app = marimo.App(
+    width="full",
+    app_title="GSF — Rigidity Cutoff",
+    css_file="gallery.css",
+    html_head_file="gallery_head.html",
+)
 
 
 @app.cell
@@ -25,7 +30,11 @@ def _(mo):
 async def _():
     import sys
 
-    if "pyodide" in sys.modules:
+    NOTEBOOK = "rigidity_cutoff"  # used by the download buttons at the end
+    IN_WASM = "pyodide" in sys.modules
+    SITE = ""
+
+    if IN_WASM:
         # WASM (docs gallery): TEMPORARY until globalsplinefit is on PyPI —
         # install the wheel published under /wheels/ on the same site the
         # notebook is served from (also works on staging or local hosts).
@@ -35,16 +44,19 @@ async def _():
         import micropip
 
         # notebook_location() resolution depth differs between marimo export
-        # layouts — try site-root /wheels/ from both plausible depths
+        # layouts — try site-root /wheels/ from every plausible depth, and
+        # keep the depth that worked as the site root for other assets.
+        _base = str(_mo.notebook_location()) + "/"
         _err = None
-        for _up in ("../../", "../../../"):
+        for _up in ("", "../", "../../", "../../../"):
             try:
                 await micropip.install(
                     urljoin(
-                        str(_mo.notebook_location()) + "/",
+                        _base,
                         _up + "wheels/globalsplinefit-2.0.0a1-py3-none-any.whl",
                     )
                 )
+                SITE = urljoin(_base, _up)
                 _err = None
                 break
             except Exception as _e:  # noqa: BLE001 — 404 lands as generic error
@@ -55,44 +67,92 @@ async def _():
     import matplotlib.pyplot as plt
     import numpy as np
 
-    from globalsplinefit import GSFEnergy, GSFEnergyPerNucleon, GSFRigidity
+    from globalsplinefit import (
+        MODEL_VERSIONS,
+        GSFEnergy,
+        GSFEnergyPerNucleon,
+        GSFRigidity,
+    )
 
     plt.rcParams["figure.figsize"] = (10, 6)
 
     R_CUT = 20.0  # GV
     groups = [
-        ("p", "r", "Proton"),
-        ("He", "orange", "Helium"),
-        ("O*", "g", "Oxygen*"),
-        ("Fe*", "b", "Iron*"),
+        ("p", "r", "H*"),
+        ("He", "orange", "He*"),
+        ("O*", "g", "O*"),
+        ("Fe*", "b", "Fe*"),
     ]
 
-    # TEMPORARY pre-publication marker: stamp every figure this notebook
-    # shows with a diagonal PRELIMINARY watermark. Delete at the GSF 2026
-    # release (guarded so a cell re-run does not stack wrappers).
-    if not getattr(plt.show, "_gsf_preliminary", False):
-        _orig_show = plt.show
+    def show(fig=None):
+        """Stamp and return a figure as the cell output.
 
-        def _show_with_watermark(*args, **kwargs):
-            plt.gcf().text(
-                0.5,
-                0.5,
-                "PRELIMINARY",
-                ha="center",
-                va="center",
-                rotation=30,
-                fontsize=42,
-                fontweight="bold",
-                color="gray",
-                alpha=0.18,
-                zorder=1000,
-            )
-            return _orig_show(*args, **kwargs)
+        marimo renders a cell's last expression; `plt.show()` produces no
+        output at all in app view, so every plot cell ends with `show(fig)`.
+        """
+        fig = plt.gcf() if fig is None else fig
+        # TEMPORARY pre-publication marker (_gsf_preliminary): diagonal
+        # PRELIMINARY watermark on every figure. Delete this block at the
+        # GSF 2026 release — keep the `return fig`.
+        fig.text(
+            0.5,
+            0.5,
+            "PRELIMINARY",
+            ha="center",
+            va="center",
+            rotation=30,
+            fontsize=42,
+            fontweight="bold",
+            color="gray",
+            alpha=0.18,
+            zorder=1000,
+        )
+        return fig
 
-        _show_with_watermark._gsf_preliminary = True
-        plt.show = _show_with_watermark
+    def autoscale(ax, *series, pad=1.6):
+        """Fit the y-axis to the positive, finite values in `series`."""
+        _v = np.concatenate([np.asarray(s, float).ravel() for s in series])
+        _v = _v[np.isfinite(_v) & (_v > 0)]
+        if _v.size:
+            ax.set_ylim(_v.min() / pad, _v.max() * pad)
 
-    return GSFEnergy, GSFEnergyPerNucleon, GSFRigidity, R_CUT, groups, np, plt
+    return (
+        GSFEnergy,
+        GSFEnergyPerNucleon,
+        GSFRigidity,
+        MODEL_VERSIONS,
+        NOTEBOOK,
+        R_CUT,
+        SITE,
+        autoscale,
+        groups,
+        np,
+        plt,
+        show,
+    )
+
+
+@app.cell(hide_code=True)
+def _(MODEL_VERSIONS, mo):
+    version = mo.ui.dropdown(
+        options=list(MODEL_VERSIONS), value="2026.0", label="model version"
+    )
+    exponent = mo.ui.slider(
+        start=0.0,
+        stop=3.0,
+        step=0.1,
+        value=2.6,
+        label="flux scaling  E^k",
+        show_value=True,
+    )
+    mo.hstack([version, exponent], justify="start")
+    return exponent, version
+
+
+@app.cell
+def _(exponent):
+    energy_exponent = exponent.value  # display scaling, driven by the slider
+    return (energy_exponent,)
 
 
 @app.cell(hide_code=True)
@@ -106,10 +166,19 @@ def _(mo):
 
 
 @app.cell
-def _(GSFEnergy, R_CUT, groups, np, plt):
+def _(
+    GSFEnergy,
+    R_CUT,
+    autoscale,
+    energy_exponent,
+    groups,
+    np,
+    plt,
+    show,
+    version,
+):
     energy = np.logspace(0, 3, 500)  # 1 GeV to 10 PeV
-    energy_exponent = 2.6
-    gsf = GSFEnergy()
+    gsf = GSFEnergy(version=version.value)
     _fig, (_ax1, _ax2) = plt.subplots(1, 2, figsize=(16, 7))
     for _name, _color, _label in groups:
         _f0 = gsf.flux(energy, _name)
@@ -134,7 +203,7 @@ def _(GSFEnergy, R_CUT, groups, np, plt):
     _ax1.set_xlabel("Energy [GeV]")
     _ax1.set_ylabel(f"Nucleus Flux x (E/GeV)$^{{{energy_exponent}}}$ [1/(GeV m² s sr)]")
     _ax1.set_xlim(energy[0], energy[-1])
-    _ax1.set_ylim(1.0, 30000.0)
+    autoscale(_ax1, _f0_tot * energy**energy_exponent)
     _ax1.legend()
     _ax1.grid(True, alpha=0.3)
     _ax1.set_title(f"Nucleus Flux (solid: no cutoff, dashed: $R_{{cut}}$ = {R_CUT} GV)")
@@ -155,7 +224,7 @@ def _(GSFEnergy, R_CUT, groups, np, plt):
     _ax2.set_title(f"Suppression by $R_{{cut}}$ = {R_CUT} GV")
     _ax2.axhline(1.0, color="gray", ls="--", alpha=0.5)
     plt.tight_layout()
-    plt.show()
+    show()
     return
 
 
@@ -170,10 +239,20 @@ def _(mo):
 
 
 @app.cell
-def _(GSFRigidity, R_CUT, groups, np, plt):
+def _(
+    GSFRigidity,
+    R_CUT,
+    autoscale,
+    energy_exponent,
+    groups,
+    np,
+    plt,
+    show,
+    version,
+):
     rigidity = np.logspace(-1, 4, 500)  # 0.1 GV to 10 TV
-    rig_exponent = 2.6
-    gsf_r = GSFRigidity()
+    rig_exponent = energy_exponent
+    gsf_r = GSFRigidity(version=version.value)
     _fig, (_ax1, _ax2) = plt.subplots(1, 2, figsize=(16, 7))
     for _name, _color, _label in groups:
         _f0 = gsf_r.flux(rigidity, _name)
@@ -201,7 +280,7 @@ def _(GSFRigidity, R_CUT, groups, np, plt):
     _ax1.set_xlabel("Rigidity [GV]")
     _ax1.set_ylabel(f"Rigidity Flux x (R/GV)$^{{{rig_exponent}}}$ [1/(GV m² s sr)]")
     _ax1.set_xlim(rigidity[0], rigidity[-1])
-    _ax1.set_ylim(0.1, 100000.0)
+    autoscale(_ax1, _f0_tot * rigidity**rig_exponent)
     _ax1.legend(fontsize=9)
     _ax1.grid(True, alpha=0.3)
     _ax1.set_title(
@@ -227,7 +306,7 @@ def _(GSFRigidity, R_CUT, groups, np, plt):
     _ax2.set_title(f"Sharp cutoff at $R_{{cut}}$ = {R_CUT} GV")
     _ax2.axhline(1.0, color="gray", ls="--", alpha=0.5)
     plt.tight_layout()
-    plt.show()
+    show()
     return
 
 
@@ -242,10 +321,20 @@ def _(mo):
 
 
 @app.cell
-def _(GSFEnergyPerNucleon, R_CUT, groups, np, plt):
+def _(
+    GSFEnergyPerNucleon,
+    R_CUT,
+    autoscale,
+    energy_exponent,
+    groups,
+    np,
+    plt,
+    show,
+    version,
+):
     ekin = np.logspace(0, 3, 500)  # 1 GeV to 10 PeV per nucleon
-    en_exponent = 3.0
-    gsf_n = GSFEnergyPerNucleon()
+    en_exponent = energy_exponent
+    gsf_n = GSFEnergyPerNucleon(version=version.value)
     _fig, axes = plt.subplots(1, 2, figsize=(16, 7))
     for _name, _color, _label in groups:
         _f0 = gsf_n.flux(ekin, _name)
@@ -281,7 +370,7 @@ def _(GSFEnergyPerNucleon, R_CUT, groups, np, plt):
         f"Nucleon Flux x $(E_N/\\mathrm{{GeV}})^{{{en_exponent}}}$ [1/(GeV m² s sr)]"
     )
     axes[0].set_xlim(ekin[0], ekin[-1])
-    axes[0].set_ylim(500.0, 100000.0)
+    autoscale(axes[0], _f0_tot * ekin**en_exponent)
     axes[0].legend(fontsize=9)
     axes[0].grid(True, alpha=0.3)
     axes[0].set_title(
@@ -311,7 +400,7 @@ def _(GSFEnergyPerNucleon, R_CUT, groups, np, plt):
     axes[1].grid(True, alpha=0.3)
     axes[1].set_title("Relative Uncertainty (solid: no cutoff, dashed: with cutoff)")
     plt.tight_layout()
-    plt.show()
+    show()
     return
 
 
@@ -320,6 +409,41 @@ def _(mo):
     mo.md(r"""
     `rigidity_cutoff` is accepted by all flux and error methods.
     """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(NOTEBOOK, SITE, mo):
+    if SITE:  # running in the browser: link the sources published next to it
+        _py = f"{SITE}gallery/{NOTEBOOK}/{NOTEBOOK}.py"
+        _ipynb = f"{SITE}gallery/{NOTEBOOK}/{NOTEBOOK}.ipynb"
+    else:  # running locally: hand over the file on disk
+        _py = (mo.notebook_dir() / f"{NOTEBOOK}.py").read_bytes()
+        _ipynb = None
+
+    _buttons = [
+        mo.download(
+            _py,
+            filename=f"{NOTEBOOK}.py",
+            label="marimo notebook (.py)",
+            mimetype="text/x-python",
+        )
+    ]
+    if _ipynb is not None:
+        _buttons.append(
+            mo.download(
+                _ipynb,
+                filename=f"{NOTEBOOK}.ipynb",
+                label="Jupyter notebook (.ipynb)",
+                mimetype="application/x-ipynb+json",
+            )
+        )
+    mo.vstack(
+        [
+            mo.md(r"""### Take this notebook with you"""),
+            mo.hstack(_buttons, justify="start"),
+        ]
+    )
     return
 
 

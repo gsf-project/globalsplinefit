@@ -28,9 +28,9 @@ jobs:
     - name: Build documentation
       run: uv run mkdocs build --strict
 
-    # Tutorial gallery: each example notebook compiled to an editable,
-    # auto-running WASM page at /gallery/<name>/ (linked from
-    # docs/gallery.md); marimo runtime deduped across notebooks.
+    # Tutorial gallery: each example notebook compiled twice — the app view at
+    # /gallery/<name>/ and an in-browser editor at /gallery/<name>/edit/
+    # (linked from docs/gallery.md); marimo runtime deduped across notebooks.
     - name: Build tutorial gallery (marimo html-wasm)
       run: .github/scripts/build_gallery.sh
 
@@ -42,6 +42,17 @@ jobs:
         uv build --wheel
         mkdir -p site/wheels
         cp dist/globalsplinefit-*.whl site/wheels/
+
+    # The gallery pages are only "docs" if they land on figures rather than
+    # code and actually render — assert that in a real browser. Runs after the
+    # wheel step: the notebooks micropip-install it at boot.
+    - name: Install playwright + chromium
+      run: |
+        uv pip install playwright
+        uv run --no-sync playwright install --with-deps chromium
+
+    - name: Check the gallery in a headless browser
+      run: uv run --no-sync python .github/scripts/test_gallery.py --fast
 
     # Replace the docs/explorer.md placeholder with the real app, so every
     # docs deploy ships a current Explorer (release.yml's tag-time deploy to

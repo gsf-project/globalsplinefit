@@ -146,24 +146,36 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
     },
     "2025": {
         "status": "historical",
-        "role": "published release",
-        "covering": "see the GSF 2025 release notes",
-        "solar_modulation": "USO (shared Usoskin table)",
-        "description": "GSF 2025 published release.",
+        "role": "conference update",
+        "covering": "see the GSF 2025 proceedings",
+        "solar_modulation": (
+            "data demodulated with a single effective potential; "
+            "forward-modulated with the shared Usoskin table"
+        ),
+        "description": (
+            "GSF 2025, presented at UHECR 2024 and ICRC 2025 "
+            "(Fujisue:2025wnp, Dembinski:2025nmp)."
+        ),
     },
     "2019": {
         "status": "historical",
-        "role": "published release",
-        "covering": "see the GSF 2019 release notes",
-        "solar_modulation": "USO (shared Usoskin table)",
-        "description": "GSF 2019 published release.",
+        "role": "conference update",
+        "covering": "see the GSF 2019 proceedings",
+        "solar_modulation": (
+            "data demodulated with a single effective potential; "
+            "forward-modulated with the shared Usoskin table"
+        ),
+        "description": "GSF 2019 conference update.",
     },
     "2017": {
         "status": "historical",
-        "role": "published release",
+        "role": "original release",
         "covering": "see Dembinski et al. (2017)",
-        "solar_modulation": "USO (shared Usoskin table)",
-        "description": "Original GSF release (Dembinski et al. 2017).",
+        "solar_modulation": (
+            "treatment not recorded here -- see the ICRC 2017 proceedings; "
+            "forward-modulated with the shared Usoskin table"
+        ),
+        "description": "Original GSF release (Dembinski:2017zsh).",
     },
 }
 

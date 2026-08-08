@@ -1,7 +1,12 @@
 import marimo
 
 __generated_with = "0.23.15"
-app = marimo.App(width="full", auto_download=["ipynb", "html"])
+app = marimo.App(
+    width="full",
+    app_title="GSF — Reduced Model",
+    css_file="gallery.css",
+    html_head_file="gallery_head.html",
+)
 
 
 @app.cell(hide_code=True)
@@ -52,7 +57,11 @@ def _(mo):
 async def _():
     import sys
 
-    if "pyodide" in sys.modules:
+    NOTEBOOK = "reduced_model"  # used by the download buttons at the end
+    IN_WASM = "pyodide" in sys.modules
+    SITE = ""
+
+    if IN_WASM:
         # WASM (docs gallery): TEMPORARY until globalsplinefit is on PyPI —
         # install the wheel published under /wheels/ on the same site the
         # notebook is served from (also works on staging or local hosts).
@@ -62,16 +71,19 @@ async def _():
         import micropip
 
         # notebook_location() resolution depth differs between marimo export
-        # layouts — try site-root /wheels/ from both plausible depths
+        # layouts — try site-root /wheels/ from every plausible depth, and
+        # keep the depth that worked as the site root for other assets.
+        _base = str(_mo.notebook_location()) + "/"
         _err = None
-        for _up in ("../../", "../../../"):
+        for _up in ("", "../", "../../", "../../../"):
             try:
                 await micropip.install(
                     urljoin(
-                        str(_mo.notebook_location()) + "/",
+                        _base,
                         _up + "wheels/globalsplinefit-2.0.0a1-py3-none-any.whl",
                     )
                 )
+                SITE = urljoin(_base, _up)
                 _err = None
                 break
             except Exception as _e:  # noqa: BLE001 — 404 lands as generic error
@@ -83,36 +95,63 @@ async def _():
     import matplotlib.pyplot as plt
     import numpy as np
 
-    from globalsplinefit import GSFEnergyPerNucleon, ReducedGSF
+    from globalsplinefit import MODEL_VERSIONS, GSFEnergyPerNucleon, ReducedGSF
 
     plt.rcParams["figure.dpi"] = 110
 
-    # TEMPORARY pre-publication marker: stamp every figure this notebook
-    # shows with a diagonal PRELIMINARY watermark. Delete at the GSF 2026
-    # release (guarded so a cell re-run does not stack wrappers).
-    if not getattr(plt.show, "_gsf_preliminary", False):
-        _orig_show = plt.show
+    def show(fig=None):
+        """Stamp and return a figure as the cell output.
 
-        def _show_with_watermark(*args, **kwargs):
-            plt.gcf().text(
-                0.5,
-                0.5,
-                "PRELIMINARY",
-                ha="center",
-                va="center",
-                rotation=30,
-                fontsize=42,
-                fontweight="bold",
-                color="gray",
-                alpha=0.18,
-                zorder=1000,
-            )
-            return _orig_show(*args, **kwargs)
+        marimo renders a cell's last expression; `plt.show()` produces no
+        output at all in app view, so every plot cell ends with `show(fig)`.
+        """
+        fig = plt.gcf() if fig is None else fig
+        # TEMPORARY pre-publication marker (_gsf_preliminary): diagonal
+        # PRELIMINARY watermark on every figure. Delete this block at the
+        # GSF 2026 release — keep the `return fig`.
+        fig.text(
+            0.5,
+            0.5,
+            "PRELIMINARY",
+            ha="center",
+            va="center",
+            rotation=30,
+            fontsize=42,
+            fontweight="bold",
+            color="gray",
+            alpha=0.18,
+            zorder=1000,
+        )
+        return fig
 
-        _show_with_watermark._gsf_preliminary = True
-        plt.show = _show_with_watermark
+    def autoscale(ax, *series, pad=1.6):
+        """Fit the y-axis to the positive, finite values in `series`."""
+        _v = np.concatenate([np.asarray(s, float).ravel() for s in series])
+        _v = _v[np.isfinite(_v) & (_v > 0)]
+        if _v.size:
+            ax.set_ylim(_v.min() / pad, _v.max() * pad)
 
-    return GSFEnergyPerNucleon, ReducedGSF, mo, np, plt
+    return (
+        GSFEnergyPerNucleon,
+        MODEL_VERSIONS,
+        NOTEBOOK,
+        ReducedGSF,
+        SITE,
+        autoscale,
+        mo,
+        np,
+        plt,
+        show,
+    )
+
+
+@app.cell(hide_code=True)
+def _(MODEL_VERSIONS, mo):
+    version = mo.ui.dropdown(
+        options=list(MODEL_VERSIONS), value="2026.0", label="model version"
+    )
+    mo.hstack([version], justify="start")
+    return (version,)
 
 
 @app.cell(hide_code=True)
@@ -133,8 +172,14 @@ def _(mo):
 
 
 @app.cell
-def _(GSFEnergyPerNucleon, ReducedGSF):
-    gsf = GSFEnergyPerNucleon()  # 2026 default, Solar Cycle 24 average
+def _(
+    GSFEnergyPerNucleon,
+    ReducedGSF,
+    version,
+):
+    gsf = GSFEnergyPerNucleon(
+        version=version.value
+    )  # 2026 default, Solar Cycle 24 average
     red = ReducedGSF(gsf)  # published grid for "2026.0" -> 24 parameters
 
     print(f"pivots [GeV]: {red.pivot_energies}")
@@ -161,7 +206,14 @@ def _(mo):
 
 
 @app.cell
-def _(ReducedGSF, gsf, np, plt, red):
+def _(
+    ReducedGSF,
+    gsf,
+    np,
+    plt,
+    red,
+    show,
+):
     def exact_error(energy):
         """Exact total p/n error: sum group-pair covariance diagonals."""
         var_p = np.zeros(len(energy))
@@ -218,7 +270,7 @@ def _(ReducedGSF, gsf, np, plt, red):
     _ax2.legend(fontsize=8)
 
     plt.tight_layout()
-    plt.show()
+    show()
     return (exact_error,)
 
 
@@ -245,7 +297,11 @@ def _(mo):
 
 
 @app.cell
-def _(plt, red):
+def _(
+    plt,
+    red,
+    show,
+):
     _fig, _ax1 = plt.subplots(figsize=(7, 4.4))
 
     _n = len(red.pivot_energies)
@@ -257,7 +313,7 @@ def _(plt, red):
     _ax1.legend()
 
     plt.tight_layout()
-    plt.show()
+    show()
     return
 
 
@@ -274,7 +330,13 @@ def _(mo):
 
 
 @app.cell
-def _(exact_error, np, plt, red):
+def _(
+    exact_error,
+    np,
+    plt,
+    red,
+    show,
+):
     _E = np.logspace(0, 9, 250)
     _central = red.flux(_E)
     _sig = red.error(_E)
@@ -298,7 +360,7 @@ def _(exact_error, np, plt, red):
     _ax.set_title(r"reduced band (filled) vs exact $\pm1\sigma$ (dashed)")
     _ax.grid(True, alpha=0.3)
     _ax.legend()
-    plt.show()
+    show()
     return
 
 
@@ -318,7 +380,14 @@ def _(mo):
 
 
 @app.cell
-def _(ReducedGSF, gsf, np, plt, red):
+def _(
+    ReducedGSF,
+    gsf,
+    np,
+    plt,
+    red,
+    show,
+):
     red_hat = ReducedGSF(gsf, pivot_energies=red.pivot_energies, basis="hat")
 
     _pv = red.pivot_energies
@@ -363,7 +432,7 @@ def _(ReducedGSF, gsf, np, plt, red):
     for _ax in _axes[:, 0]:
         _ax.set_ylabel(r"$1 \pm \sigma_k H_k$")
 
-    plt.show()
+    show()
     return
 
 
@@ -388,7 +457,12 @@ def _(mo):
 
 
 @app.cell
-def _(np, plt, red):
+def _(
+    np,
+    plt,
+    red,
+    show,
+):
     _rng = np.random.default_rng(0)
     thetas = red.sample(2000, rng=_rng)
     _E = np.logspace(0, 9, 300)
@@ -433,7 +507,7 @@ def _(np, plt, red):
     _ax2.legend(fontsize=9)
 
     plt.tight_layout()
-    plt.show()
+    show()
     return (thetas,)
 
 
@@ -453,7 +527,13 @@ def _(mo):
 
 
 @app.cell
-def _(np, plt, red, thetas):
+def _(
+    np,
+    plt,
+    red,
+    show,
+    thetas,
+):
     _R = red.correlation
     _R_emp = np.corrcoef(thetas.T)
     _n = len(red.pivot_energies)
@@ -470,7 +550,7 @@ def _(np, plt, red, thetas):
         _ax.set_yticks([_n / 2, 1.5 * _n], ["p", "n"])
         _ax.set_title(_title)
     _fig.colorbar(_im, ax=_axes, fraction=0.03, label="correlation")
-    plt.show()
+    show()
     return
 
 
@@ -489,7 +569,12 @@ def _(mo):
 
 
 @app.cell
-def _(np, plt, red):
+def _(
+    np,
+    plt,
+    red,
+    show,
+):
     _rng = np.random.default_rng(1)
     _thetas = red.sample(2000, rng=_rng)
     _E = np.logspace(0, 9, 300)
@@ -509,7 +594,7 @@ def _(np, plt, red):
     _ax.set_ylabel("neutron / proton flux")
     _ax.grid(True, alpha=0.3)
     _ax.legend()
-    plt.show()
+    show()
     return
 
 
@@ -528,7 +613,13 @@ def _(mo):
 
 
 @app.cell
-def _(ReducedGSF, gsf, np, plt):
+def _(
+    ReducedGSF,
+    gsf,
+    np,
+    plt,
+    show,
+):
     red_g = ReducedGSF(gsf, n_pivots=6, energy_range=(2.0, 1e8), per_group=True)
     print(f"per-group parameters: {red_g.n_params}  species: {red_g.species}")
 
@@ -543,7 +634,7 @@ def _(ReducedGSF, gsf, np, plt):
     _ax.set_yticks(_ticks, red_g.species, fontsize=8)
     _ax.set_title("per-group component correlations")
     plt.colorbar(_im, ax=_ax, fraction=0.046)
-    plt.show()
+    show()
     return
 
 
@@ -553,6 +644,41 @@ def _(red):
 
     _d = red.to_dict()
     print(json.dumps(_d, indent=1)[:600] + "\n ...")
+    return
+
+
+@app.cell(hide_code=True)
+def _(NOTEBOOK, SITE, mo):
+    if SITE:  # running in the browser: link the sources published next to it
+        _py = f"{SITE}gallery/{NOTEBOOK}/{NOTEBOOK}.py"
+        _ipynb = f"{SITE}gallery/{NOTEBOOK}/{NOTEBOOK}.ipynb"
+    else:  # running locally: hand over the file on disk
+        _py = (mo.notebook_dir() / f"{NOTEBOOK}.py").read_bytes()
+        _ipynb = None
+
+    _buttons = [
+        mo.download(
+            _py,
+            filename=f"{NOTEBOOK}.py",
+            label="marimo notebook (.py)",
+            mimetype="text/x-python",
+        )
+    ]
+    if _ipynb is not None:
+        _buttons.append(
+            mo.download(
+                _ipynb,
+                filename=f"{NOTEBOOK}.ipynb",
+                label="Jupyter notebook (.ipynb)",
+                mimetype="application/x-ipynb+json",
+            )
+        )
+    mo.vstack(
+        [
+            mo.md(r"""### Take this notebook with you"""),
+            mo.hstack(_buttons, justify="start"),
+        ]
+    )
     return
 
 

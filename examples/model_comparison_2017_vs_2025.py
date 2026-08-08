@@ -1,7 +1,12 @@
 import marimo
 
 __generated_with = "0.23.15"
-app = marimo.App(width="full")
+app = marimo.App(
+    width="full",
+    app_title="GSF — Model Comparison",
+    css_file="gallery.css",
+    html_head_file="gallery_head.html",
+)
 
 
 @app.cell
@@ -25,7 +30,13 @@ def _(mo):
 async def _():
     import sys
 
-    if "pyodide" in sys.modules:
+    NOTEBOOK = (
+        "model_comparison_2017_vs_2025"  # used by the download buttons at the end
+    )
+    IN_WASM = "pyodide" in sys.modules
+    SITE = ""
+
+    if IN_WASM:
         # WASM (docs gallery): TEMPORARY until globalsplinefit is on PyPI —
         # install the wheel published under /wheels/ on the same site the
         # notebook is served from (also works on staging or local hosts).
@@ -35,16 +46,19 @@ async def _():
         import micropip
 
         # notebook_location() resolution depth differs between marimo export
-        # layouts — try site-root /wheels/ from both plausible depths
+        # layouts — try site-root /wheels/ from every plausible depth, and
+        # keep the depth that worked as the site root for other assets.
+        _base = str(_mo.notebook_location()) + "/"
         _err = None
-        for _up in ("../../", "../../../"):
+        for _up in ("", "../", "../../", "../../../"):
             try:
                 await micropip.install(
                     urljoin(
-                        str(_mo.notebook_location()) + "/",
+                        _base,
                         _up + "wheels/globalsplinefit-2.0.0a1-py3-none-any.whl",
                     )
                 )
+                SITE = urljoin(_base, _up)
                 _err = None
                 break
             except Exception as _e:  # noqa: BLE001 — 404 lands as generic error
@@ -55,39 +69,76 @@ async def _():
     import matplotlib.pyplot as plt
     import numpy as np
 
-    from globalsplinefit import GSFEnergy, GSFEnergyPerNucleon
+    from globalsplinefit import MODEL_VERSIONS, GSFEnergy, GSFEnergyPerNucleon
 
     plt.rcParams["figure.figsize"] = (8, 5)
     plt.rcParams["font.size"] = 11
     plt.rcParams["lines.linewidth"] = 1.2
     plt.rcParams["grid.alpha"] = 0.3
 
-    # TEMPORARY pre-publication marker: stamp every figure this notebook
-    # shows with a diagonal PRELIMINARY watermark. Delete at the GSF 2026
-    # release (guarded so a cell re-run does not stack wrappers).
-    if not getattr(plt.show, "_gsf_preliminary", False):
-        _orig_show = plt.show
+    def show(fig=None):
+        """Stamp and return a figure as the cell output.
 
-        def _show_with_watermark(*args, **kwargs):
-            plt.gcf().text(
-                0.5,
-                0.5,
-                "PRELIMINARY",
-                ha="center",
-                va="center",
-                rotation=30,
-                fontsize=42,
-                fontweight="bold",
-                color="gray",
-                alpha=0.18,
-                zorder=1000,
-            )
-            return _orig_show(*args, **kwargs)
+        marimo renders a cell's last expression; `plt.show()` produces no
+        output at all in app view, so every plot cell ends with `show(fig)`.
+        """
+        fig = plt.gcf() if fig is None else fig
+        # TEMPORARY pre-publication marker (_gsf_preliminary): diagonal
+        # PRELIMINARY watermark on every figure. Delete this block at the
+        # GSF 2026 release — keep the `return fig`.
+        fig.text(
+            0.5,
+            0.5,
+            "PRELIMINARY",
+            ha="center",
+            va="center",
+            rotation=30,
+            fontsize=42,
+            fontweight="bold",
+            color="gray",
+            alpha=0.18,
+            zorder=1000,
+        )
+        return fig
 
-        _show_with_watermark._gsf_preliminary = True
-        plt.show = _show_with_watermark
+    def autoscale(ax, *series, pad=1.6):
+        """Fit the y-axis to the positive, finite values in `series`."""
+        _v = np.concatenate([np.asarray(s, float).ravel() for s in series])
+        _v = _v[np.isfinite(_v) & (_v > 0)]
+        if _v.size:
+            ax.set_ylim(_v.min() / pad, _v.max() * pad)
 
-    return GSFEnergy, GSFEnergyPerNucleon, np, plt
+    return (
+        GSFEnergy,
+        GSFEnergyPerNucleon,
+        MODEL_VERSIONS,
+        NOTEBOOK,
+        SITE,
+        autoscale,
+        np,
+        plt,
+        show,
+    )
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    exponent = mo.ui.slider(
+        start=0.0,
+        stop=3.0,
+        step=0.1,
+        value=2.7,
+        label="flux scaling  E^k",
+        show_value=True,
+    )
+    mo.hstack([exponent], justify="start")
+    return (exponent,)
+
+
+@app.cell
+def _(exponent):
+    energy_exponent = exponent.value  # display scaling, driven by the slider
+    return (energy_exponent,)
 
 
 @app.cell
@@ -98,10 +149,9 @@ def _(GSFEnergy, GSFEnergyPerNucleon, np):
     models_e = {_v: GSFEnergy(version=_v) for _v in compared_versions}
     models_n = {_v: GSFEnergyPerNucleon(version=_v) for _v in compared_versions}
     groups = ["p", "He", "O*", "Fe*"]
-    group_labels = ["Proton", "Helium", "Oxygen*", "Iron*"]
+    group_labels = ["H*", "He*", "O*", "Fe*"]
     group_colors = ["red", "orange", "green", "blue"]
     line_styles = {"2017": "--", "2025": "-"}
-    energy_exponent = 2.7
 
     def collect(models, grid):
         _flux = {_v: {g: m.flux(grid, g) for g in groups} for _v, m in models.items()}
@@ -116,7 +166,6 @@ def _(GSFEnergy, GSFEnergyPerNucleon, np):
     return (
         energy,
         energy_errors,
-        energy_exponent,
         energy_fluxes,
         energy_per_nucleon,
         group_colors,
@@ -144,6 +193,7 @@ def _(mo):
 
 @app.cell
 def _(
+    autoscale,
     energy,
     energy_exponent,
     energy_fluxes,
@@ -152,6 +202,7 @@ def _(
     groups,
     line_styles,
     plt,
+    show,
 ):
     _fig, _ax = plt.subplots()
     for _group, _label, _color in zip(groups, group_labels, group_colors, strict=False):
@@ -181,9 +232,9 @@ def _(
     _ax.grid(True, alpha=0.3)
     _ax.legend(loc="lower center", ncol=2)
     _ax.set_xlim(energy[0], energy[-1])
-    _ax.set_ylim(8.0, 90000.0)
+    autoscale(_ax, *[_l.get_ydata() for _l in _ax.get_lines()])
     plt.tight_layout()
-    plt.show()
+    show()
     return
 
 
@@ -197,6 +248,7 @@ def _(
     groups,
     line_styles,
     plt,
+    show,
 ):
     _fig, _ax = plt.subplots()
     for _group, _label, _color in zip(groups, group_labels, group_colors, strict=False):
@@ -228,13 +280,13 @@ def _(
     _ax.set_xlim(energy[0], energy[-1])
     _ax.set_ylim(0.001, 0.98)
     plt.tight_layout()
-    plt.show()
+    show()
     return
-
 
 
 @app.cell
 def _(
+    autoscale,
     energy,
     energy_errors,
     energy_exponent,
@@ -244,6 +296,7 @@ def _(
     groups,
     line_styles,
     plt,
+    show,
 ):
     _fig, _ax = plt.subplots()
 
@@ -289,9 +342,9 @@ def _(
     _ax.grid(True, alpha=0.3)
     _ax.legend(loc="lower center", ncol=2)
     _ax.set_xlim(energy[0], energy[-1])
-    _ax.set_ylim(8.0, 90000.0)
+    autoscale(_ax, *[_l.get_ydata() for _l in _ax.get_lines()])
     plt.tight_layout()
-    plt.show()
+    show()
     return (plot_with_band,)
 
 
@@ -307,6 +360,7 @@ def _(mo):
 
 @app.cell
 def _(
+    autoscale,
     energy_exponent,
     energy_per_nucleon,
     group_colors,
@@ -315,6 +369,7 @@ def _(
     line_styles,
     nucleon_fluxes,
     plt,
+    show,
 ):
     _fig, _ax = plt.subplots()
     for _group, _label, _color in zip(groups, group_labels, group_colors, strict=False):
@@ -344,9 +399,9 @@ def _(
     _ax.grid(True, alpha=0.3)
     _ax.legend(loc="upper right", ncol=2)
     _ax.set_xlim(energy_per_nucleon[0], energy_per_nucleon[-1])
-    _ax.set_ylim(80.0, 90000.0)
+    autoscale(_ax, *[_l.get_ydata() for _l in _ax.get_lines()])
     plt.tight_layout()
-    plt.show()
+    show()
     return
 
 
@@ -360,6 +415,7 @@ def _(
     nucleon_errors,
     nucleon_fluxes,
     plt,
+    show,
 ):
     _fig, _ax = plt.subplots()
     for _group, _label, _color in zip(groups, group_labels, group_colors, strict=False):
@@ -391,12 +447,13 @@ def _(
     _ax.set_xlim(energy_per_nucleon[0], energy_per_nucleon[-1])
     _ax.set_ylim(0.003, 1)
     plt.tight_layout()
-    plt.show()
+    show()
     return
 
 
 @app.cell
 def _(
+    autoscale,
     energy_exponent,
     energy_per_nucleon,
     group_colors,
@@ -407,6 +464,7 @@ def _(
     nucleon_fluxes,
     plot_with_band,
     plt,
+    show,
 ):
     _fig, _ax = plt.subplots()
     for _group, _label, _color in zip(groups, group_labels, group_colors, strict=False):
@@ -443,9 +501,9 @@ def _(
     _ax.grid(True, alpha=0.3)
     _ax.legend(loc="lower center", ncol=2)
     _ax.set_xlim(energy_per_nucleon[0], energy_per_nucleon[-1])
-    _ax.set_ylim(8.0, 90000.0)
+    autoscale(_ax, *[_l.get_ydata() for _l in _ax.get_lines()])
     plt.tight_layout()
-    plt.show()
+    show()
     return
 
 
@@ -460,7 +518,13 @@ def _(mo):
 
 
 @app.cell
-def _(energy_per_nucleon, nucleon_errors, nucleon_fluxes, plt):
+def _(
+    energy_per_nucleon,
+    nucleon_errors,
+    nucleon_fluxes,
+    plt,
+    show,
+):
     _fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
     flux_2017 = nucleon_fluxes["2017"]["Total"]
     flux_2025 = nucleon_fluxes["2025"]["Total"]
@@ -496,7 +560,42 @@ def _(energy_per_nucleon, nucleon_errors, nucleon_fluxes, plt):
     ax2.grid(True, alpha=0.3)
     ax2.set_ylim(0.0, 5.5)
     plt.tight_layout()
-    plt.show()
+    show()
+    return
+
+
+@app.cell(hide_code=True)
+def _(NOTEBOOK, SITE, mo):
+    if SITE:  # running in the browser: link the sources published next to it
+        _py = f"{SITE}gallery/{NOTEBOOK}/{NOTEBOOK}.py"
+        _ipynb = f"{SITE}gallery/{NOTEBOOK}/{NOTEBOOK}.ipynb"
+    else:  # running locally: hand over the file on disk
+        _py = (mo.notebook_dir() / f"{NOTEBOOK}.py").read_bytes()
+        _ipynb = None
+
+    _buttons = [
+        mo.download(
+            _py,
+            filename=f"{NOTEBOOK}.py",
+            label="marimo notebook (.py)",
+            mimetype="text/x-python",
+        )
+    ]
+    if _ipynb is not None:
+        _buttons.append(
+            mo.download(
+                _ipynb,
+                filename=f"{NOTEBOOK}.ipynb",
+                label="Jupyter notebook (.ipynb)",
+                mimetype="application/x-ipynb+json",
+            )
+        )
+    mo.vstack(
+        [
+            mo.md(r"""### Take this notebook with you"""),
+            mo.hstack(_buttons, justify="start"),
+        ]
+    )
     return
 
 

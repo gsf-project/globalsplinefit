@@ -48,6 +48,14 @@ jobs:
         mkdir -p site/wheels
         cp dist/globalsplinefit-*.whl site/wheels/
 
+    - name: Install playwright + chromium
+      run: |
+        uv pip install playwright
+        uv run --no-sync playwright install --with-deps chromium
+
+    - name: Check the gallery in a headless browser
+      run: uv run --no-sync python .github/scripts/test_gallery.py --fast
+
     # unlike production (where release.yml owns /explorer/), the preview
     # bundles the Explorer so the watermark can be reviewed too
     - name: Assemble Explorer into the preview
