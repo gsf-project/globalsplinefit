@@ -18,14 +18,18 @@ Parametric model for cosmic ray flux and composition based on cubic B-spline fit
   (and its SVG export). Set false / delete.
 - `webapp/gsf_explorer.py` — `make_figure`: mirrored watermark on the
   publication-figure exports (PDF/SVG/PNG). Delete the marked `ax.text` block.
-- `examples/*.py` — watermark hook on `plt.show` in each import cell
-  (marked block, greps for `_gsf_preliminary`). Delete.
+- `examples/*.py` — the `fig.text(...)` watermark block inside the `show()`
+  helper in each import cell (marked, greps for `_gsf_preliminary`). Delete
+  the block, KEEP `show()` and its `return fig` — the figures do not render
+  in app view without it.
 - `examples/*.py` + `docs.yml` — pyodide/micropip wheel-install cells and the
   `site/wheels/` build step, obsolete once the package is on PyPI.
 
 ## Key Concepts
 
-- **4 element groups** (leaders): H (Z=1), He (Z=2), O* (Z=8), Fe* (Z=26). Subleading elements scale from their group leader.
+- **4 element groups** (leaders), written **H\*, He\*, O\*, Fe\*** since
+  2026-08-08 (the paper migrates to this nomenclature; the model's target keys
+  are still `"H*"`, `"He"`, `"O*"`, `"Fe*"`): H (Z=1), He (Z=2), O* (Z=8), Fe* (Z=26). Subleading elements scale from their group leader.
 - **Parameter covariance** stored as 10 block pairs between the 4 leaders.
 - **Parameter trimming**: When building Jacobians/covariances, boundary parameters are trimmed: `params[1:-7]`, `cov[1:-3, 1:-3]` per element.
 - **Nucleon flux**: `GSFEnergyPerNucleon.p_and_n_flux()` returns shape `(2, N)` for proton and neutron components. Each is summed over all 28 nuclei weighted by Z and A-Z.
@@ -35,20 +39,74 @@ Parametric model for cosmic ray flux and composition based on cubic B-spline fit
 ## Example Notebooks
 
 Located in `examples/` as **marimo notebooks** — plain `.py` files;
-`marimo export ipynb` produces Jupyter copies on demand. The docs workflow
-(docs.yml) compiles each one with
-`marimo export html-wasm` to a browser tutorial at `/gallery/<name>/` on the
-Pages site (cards in `docs/gallery.md`). Each notebook's import cell starts
-with a TEMPORARY pyodide/micropip block installing the wheel from `/wheels/`
-on the Pages site — remove these blocks (and the wheel step in docs.yml) once
-globalsplinefit is on PyPI. Open interactively with
-`uv run marimo edit examples/<name>.py`; running
+`marimo export ipynb` produces Jupyter copies on demand. Open interactively
+with `uv run marimo edit examples/<name>.py`; running
 `uv run python examples/<name>.py` executes the full cell DAG (that is the CI
-smoke test in test.yml).
+smoke test in test.yml). Each notebook's import cell starts with a TEMPORARY
+pyodide/micropip block installing the wheel from `/wheels/` on the Pages site
+— remove these blocks (and the wheel step in docs.yml) once globalsplinefit is
+on PyPI.
 
-- `model_deck.py` - Standard model summary deck (spectrum, fractions, ln A
-  moments, relative uncertainty, nucleon flux, flux correlation) plus a
-  back-to-back version comparison.
+**Gallery publishing** (`.github/scripts/build_gallery.sh`, run by docs.yml;
+cards in `docs/gallery.md`). Every notebook is exported twice — the app view
+at `/gallery/<name>/` and an editor at `/gallery/<name>/edit/` — plus its
+`.py`/`.ipynb` sources, which the notebook's own download buttons link to.
+Rules that keep the app view working; break one and the page renders blank or
+lands on raw code:
+
+- **A plot cell must END with the figure** (`show(fig)`, which stamps the
+  watermark and returns it). `plt.show()` renders NOTHING in app view.
+- The app export needs `--show-code` (that is what puts "Show code" in the ⋯
+  menu) and `examples/gallery_head.html` defaults marimo's `show-code` query
+  parameter to false so the page still lands in app view.
+- `--execute` is not optional: it bakes the figures into the export (no blank
+  page while pyodide boots) and, in marimo 0.23.15, it is the ONLY export path
+  that injects an app's `css_file`/`html_head_file`.
+- `examples/gallery.css` trims the editor sidebar to the file panel.
+- Controls (`mo.ui.dropdown` for the model version, `mo.ui.slider` for the
+  display scaling) belong in their own cell, and y-limits that depend on the
+  scaling must use the `autoscale()` helper, not fixed numbers.
+
+`.github/scripts/test_gallery.py` (headless chromium) asserts all of this and
+is the acceptance gate for gallery changes — the notebook counterpart of
+`webapp/test_ui.py`.
+
+- `paper_figures.py` - The GSF 2026 paper figures the model can draw on its
+  own (main Figs. 1, 2, 3, 5, 6, 8-12; SM S1, S2, S3, S4, S7, S8, S9, S14),
+  **without the measurements** (they belong to the publishing experiments).
+  Not a free reproduction: each cell is a port of the function that generates
+  that figure, keeping the figure size, spectral weighting, axis ranges, tick
+  locators, palette, line styles and legends. Generators, in gsf-fitter-2 and
+  the gsf-harness run dirs:
+  `gsf_apps/deck/` (1, 2, 3, 5, 6, 8, 11, S1, S7, S14) ·
+  `gsf_apps/paper_figures/massgroups.py` + `lv2024.py` (9) ·
+  `comparison.py` (10, 12) ·
+  `runs/2026-07-26_boron-toa-refit/inputs/` (S2, S3, S4) ·
+  `runs/2026-08-05_reduced-fidelity-figure/inputs/` (S8) ·
+  `runs/2026-08-06_reduced-sampling-nucleus/inputs/` (S9).
+  Three things are easy to get wrong and are load-bearing:
+  - **Every deck curve is the LIS.** The deck's `ModelAdapter` pins
+    `default_time_interval="LIS"` on all three model classes; calling `flux()`
+    without it applies the default modulation and is ~6x off at 2 GV. So
+    `gsf_r`/`gsf_k`/`gsf_kn` are LIS-defaulted here, while `gsf_e`/`gsf_en`
+    are not — matching `comparison.py`/`massgroups.py`/the SM scripts.
+  - **Two font families.** `deck/config.py` sets a Times-like serif at import;
+    the stand-alone SM run scripts don't and get DejaVu Sans. `paper_figures/*`
+    runs in the same process as the deck, so Figs. 9, 10, 12 are serif too.
+    Every plot cell opens its own `plt.rc_context(...)` so cell order cannot
+    leak a font. STIXGeneral stands in for Nimbus Roman (bundled with
+    matplotlib, so it works in pyodide).
+  - **Nomenclature is p, He, O\*, Fe\*** (the paper's). Model target keys stay
+    `"H*"`, `"He"`, `"O*"`, `"Fe*"`; note `flux(E, "p")` is the proton ELEMENT
+    and is what Fig. 9's "p" row uses.
+
+  Deliberate deviations from the printed figures: SM S1 draws the real
+  B-spline basis functions (the paper's shows none — the deck's frozen model
+  ignores the `par` argument `spline_plots` mutates); SM S4 has two of three
+  curves (the third needs a re-fit that is not in the released model);
+  data legends and in-panel notes about data are dropped. Fig. 3 spans each
+  species' direct-data rigidity range via the `DIRECT_RANGE_GV` table
+  (coverage intervals, not measurements). App-view-first; not a tutorial.
 - `cosmic_ray_flux.py` - Basic cosmic ray flux calculations and plotting.
 - `nucleon_flux.py` - Nucleon flux for atmospheric shower simulations.
 - `solar_modulation.py` - Solar modulation effects on flux.
