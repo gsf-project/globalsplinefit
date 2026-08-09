@@ -638,6 +638,25 @@ class GSFBase(ABC):
 
         return averaged_flux
 
+    def _subleading_scale(self, sid, leading, rigidity: np.ndarray):
+        """Local flux ratio Phi_sub/Phi_leader at ``rigidity`` (1.0 for a leader).
+
+        The fit freezes the sub-leading splines, so a sub-leading species has
+        no fitted uncertainty of its own and inherits the leader's RELATIVE
+        uncertainty at the same rigidity. Scaling the leader Jacobian by this
+        ratio is what makes ``sigma_s / Phi_s`` equal ``sigma_L / Phi_L``
+        there, in whichever abscissa the subclass works in — the conversion
+        happens here, not in user code. Above the species' top knot the local
+        ratio is the stored norm times its power-law tilt, so that region is
+        unchanged.
+        """
+        if sid == leading:
+            return 1.0
+        flux_sub = self._rigidity_flux_lis(sid, rigidity)
+        flux_leader = self._rigidity_flux_lis(leading, rigidity)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return np.where(flux_leader > 0.0, flux_sub / flux_leader, 0.0)
+
     def _element_flux_jacobian(
         self,
         sid,
@@ -647,7 +666,7 @@ class GSFBase(ABC):
         """Calculate Jacobian of flux for uncertainty propagation."""
         sid = self._as_sid(sid)
         energy = np.atleast_1d(energy)
-        leading, ratio = self.flux_ratio[sid]
+        leading, _ratio = self.flux_ratio[sid]
         time_interval = self._resolve_time_interval(time_interval)
         phis, weights = self._phi_list(time_interval)
 
@@ -664,17 +683,9 @@ class GSFBase(ABC):
         # Reshape to [n_energy, n_phi, n_params]
         jac = jac_flat.reshape(energy.shape[0], len(phis), -1)
 
-        # Apply factors (broadcasting over parameter dimension); above the
-        # sub-leading species' top knot the extrapolation carries the stored
-        # power-law tilt (clamped at xmax; below it the ratio*leader-Jacobian
-        # approximation applies).
-        slope = self.flux_slope[sid]
-        if slope != 0.0:
-            xmax = self.kx[sid][-1]
-            dx_sat = max(SUBLEADING_SAT_LNR - xmax, 0.0)
-            with np.errstate(divide="ignore"):
-                tilt = np.exp(slope * np.clip(np.log(rigidity) - xmax, 0.0, dx_sat))
-            factor = factor * tilt
+        if sid != leading:
+            scale = self._subleading_scale(sid, leading, rig_flat)
+            factor = factor * scale.reshape(rigidity.shape)
         jac_weighted = jac * factor[:, :, np.newaxis]
 
         # Weighted period average over the phi dimension
@@ -682,7 +693,7 @@ class GSFBase(ABC):
             jac_weighted, weights, axes=([1], [0])
         )
 
-        return ratio * jac_averaged
+        return jac_averaged
 
     def _rigidity_from_energy_vectorized(
         self, sid, energy: np.ndarray, phis: np.ndarray
@@ -1540,30 +1551,19 @@ class GSFRigidity(GSFBase):
         jac = 0.0
         for phi, w in zip(phis, phi_weights, strict=True):
             for sid in self._target_sids(zlist):
-                leading, ratio = self.flux_ratio[sid]
-                slope = self.flux_slope[sid]
-
-                def _tilt(R, slope=slope, sid=sid):
-                    # extrapolation tilt above the species' top knot
-                    # (clamped below xmax and saturated at R_sat;
-                    # 1.0 for slope 0)
-                    if slope == 0.0:
-                        return 1.0
-                    xmax = self.kx[sid][-1]
-                    dx_sat = max(SUBLEADING_SAT_LNR - xmax, 0.0)
-                    with np.errstate(divide="ignore"):
-                        return np.exp(slope * np.clip(np.log(R) - xmax, 0.0, dx_sat))
+                leading, _ratio = self.flux_ratio[sid]
 
                 if phi == 0.0:
-                    contrib = ratio * self._rigidity_flux_jacobian(leading, rigidity)
-                    if slope != 0.0:
-                        contrib = contrib * _tilt(rigidity)[:, None]
+                    scale = self._subleading_scale(sid, leading, rigidity)
+                    contrib = self._rigidity_flux_jacobian(leading, rigidity)
+                    if sid != leading:
+                        contrib = contrib * np.asarray(scale)[:, None]
                 else:
                     R_is, fac = self._rigidity_phi_transform(sid, rigidity, phi)
+                    scale = self._subleading_scale(sid, leading, R_is)
                     contrib = (
-                        ratio
-                        * self._rigidity_flux_jacobian(leading, R_is)
-                        * (fac * _tilt(R_is))[:, None]
+                        self._rigidity_flux_jacobian(leading, R_is)
+                        * (fac * scale)[:, None]
                     )
                 jac += w * contrib
         jac = np.asarray(jac)

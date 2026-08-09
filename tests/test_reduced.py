@@ -258,7 +258,11 @@ class TestPublishedGrid:
         "2026.0-USO": 1.27,
         "2026.0-SIB23e": 1.37,
         "2026.0-EPOSLHCR": 1.28,
-        "2025": 1.25,
+        # 2025's grid was re-optimized when sub-leading elements started
+        # inheriting their leader's relative uncertainty: the exact per-nucleon
+        # sigma gained structure in the direct-data region, and 12 pivots track
+        # it less well (1.24 -> 1.41). The other six grids were unaffected.
+        "2025": 1.43,
         "2019": 1.56,
         "2017": 1.22,
     }
