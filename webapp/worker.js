@@ -68,6 +68,10 @@ const call = {
     JSON.parse(py("import bridge; bridge.evaluate(params)",
                   { params: JSON.stringify(a.params) })),
 
+  fractionErrors: (a) =>
+    JSON.parse(py("import bridge; bridge.fraction_errors(params)",
+                  { params: JSON.stringify(a.params) })),
+
   csv: (a) =>
     py("import bridge; bridge.csv(params, include_cov)",
        { params: JSON.stringify(a.params), include_cov: a.includeCov }),

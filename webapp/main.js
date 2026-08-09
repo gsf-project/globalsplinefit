@@ -336,6 +336,7 @@ function App() {
     return () => clearTimeout(t);
   }, [paramsKey, meta]);
 
+
   /* element list follows the primary model (e.g. deuterium exists only in
      isotope-format sets like 2026) */
   useEffect(() => {
@@ -442,6 +443,32 @@ function App() {
   const quantityMeta = meta?.quantities?.[params.quantity];
   const isComposition = quantityMeta?.kind === "composition";
   const validBases = quantityMeta?.bases ?? Object.keys(BASIS_LABELS);
+
+  /* Exact fraction bands, in the background.
+     sigma_i/Phi_total (what the chart draws immediately) treats the total as
+     a constant although it contains Phi_i, so it overstates the band — by a
+     few percent typically and by a lot where a group approaches the whole
+     total. The covariance-aware fraction_error costs an order of magnitude
+     more, which is seconds in WASM, so it is fetched after the plot is up
+     and swapped in when it lands. The status pill says "refining bands…"
+     meanwhile, so the band visibly tightening is explained rather than
+     startling. */
+  const [fracErr, setFracErr] = useState(null);
+  const [refining, setRefining] = useState(false);
+  const fracKey = view.ratio && view.showBands && !isComposition
+    && !params.samples ? paramsKey : null;
+  useEffect(() => {
+    setFracErr(null);
+    if (!fracKey || !models) { setRefining(false); return; }
+    let cancelled = false;
+    setRefining(true);
+    rpc("fractionErrors", { params: evalParams(params.versions[0], true,
+                                               JSON.parse(fracKey)) })
+      .then((d) => { if (!cancelled) setFracErr(d.fractionErr); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setRefining(false); });
+    return () => { cancelled = true; };
+  }, [fracKey, models]);
   const chartView = useMemo(() => (basisMeta ? {
     ...view,
     xTitle: xTitle(basisMeta, params.basis),
@@ -607,6 +634,7 @@ function App() {
           <${Chart} models=${models} view=${chartView} theme=${T} mode=${mode}
             xWindow=${view.xWindow} hoverEnabled=${hoverOn}
             width=${size.w} height=${size.h} insets=${insets}
+            fractionErr=${fracErr}
             onWindow=${onWindow} onHome=${goHome} onHoverInfo=${setHover} />`}
         ${hover && html`
           <div class="hoverbox"
@@ -630,9 +658,11 @@ function App() {
             : "global spline fit"}</span>
         </div>
         <div class="topright">
-          <div class="statuspill ${busy ? "busy" : ""}" role="status" aria-live="polite">
+          <div class="statuspill ${busy || refining ? "busy" : ""}" role="status"
+               aria-live="polite">
             <span class="dot"></span>
             <span>${busy ? (models ? "computing…" : stage)
+              : refining ? "refining bands…"
               : `${params.versions[0]}${params.versions.length > 1 ? ` +${params.versions.length - 1}` : ""} · ${params.npts} pts · ${evalMs} ms`}</span>
           </div>
           <button class="iconbtn aboutbtn has-tooltip" title="About and citations"
@@ -734,11 +764,14 @@ function App() {
               <span class="switchtrack" aria-hidden="true"></span>
               <span>Compared</span>
             </label>`}
-          ${view.showBands && view.ratio && !isComposition && html`
-            <span class="docknote" title=${"Fraction bands use σᵢ/Φ_total; the "
-              + "correlation with the total is neglected. The covariance-aware "
-              + "fraction_error is too slow for a live control in WASM."}>
-              σᵢ/Φ_total, correlation neglected</span>`}
+          ${view.showBands && view.ratio && !isComposition && !params.samples
+            && html`
+            <span class="docknote" title=${fracErr
+              ? "Covariance-aware fraction_error, including the correlation "
+                + "with the total."
+              : "Approximate band (σᵢ/Φ_total): the correlation with the "
+                + "total is neglected until the exact one arrives."}>
+              ${fracErr ? "exact fraction band" : "σᵢ/Φ_total, refining…"}</span>`}
         </div>
         <div class="dockcontrol style-controls ${view.showBands ? "split" : ""}">
           <div class="lineweight-control">

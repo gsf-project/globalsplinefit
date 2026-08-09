@@ -10,6 +10,7 @@ import json
 import math
 
 import gsf_explorer as gx
+import numpy as np
 
 _models = {}
 
@@ -185,6 +186,28 @@ def evaluate(params_json):
             "modulation": gx.modulation_phrase(_ti(p["mod"])),
         }
     )
+
+
+def fraction_errors(params_json):
+    """Exact fraction uncertainties for the displayed groups.
+
+    The chart's fraction bands are sigma_i / Phi_total, which treats the
+    denominator as a constant although Phi_total contains Phi_i. The exact
+    form needs the covariance of the group with the total and costs about an
+    order of magnitude more, so the app draws the cheap band first and
+    refines with this call.
+    """
+    p = json.loads(params_json)
+    q = _params(p)
+    model = q.pop("model")
+    model.energy_scale = float(q["energy_scale"]) - 1.0
+    x = np.logspace(float(q["dmin"]), float(q["dmax"]), int(q["npts"]))
+    kw = {
+        "time_interval": q["time_interval"],
+        "rigidity_cutoff": q["rigidity_cutoff"],
+    }
+    out = {name: _numbers(model.fraction_error(x, name, **kw)) for name in q["groups"]}
+    return json.dumps({"x": _numbers(x), "fractionErr": out})
 
 
 def csv(params_json, include_cov):

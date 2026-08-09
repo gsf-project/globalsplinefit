@@ -396,6 +396,32 @@ def main() -> int:
                 page.click(".displaydock .seg button:text-is('Flux')")
                 settle(600)
 
+            with check("display: fraction bands refine to the exact form"):
+                # sigma_i/Phi_total goes up immediately, then the
+                # covariance-aware fraction_error replaces it; the pill says
+                # so while the worker computes it
+                bands = """() => [...document.querySelectorAll('svg.chart path')]
+                    .filter((e) => e.getAttribute('fill')
+                                   && e.getAttribute('fill') !== 'none')
+                    .map((e) => e.getAttribute('d')).join('|')"""
+                page.click(".displaydock .seg button:text-is('Fraction')")
+                naive = None
+                pill = ""
+                for _ in range(200):
+                    pill = page.text_content(".statuspill")
+                    if "refining" in pill and naive is None:
+                        naive = page.evaluate(bands)
+                    elif naive is not None and "refining" not in pill:
+                        break
+                    page.wait_for_timeout(50)
+                settle(1_000)
+                note = page.text_content(".band-control .docknote")
+                assert "exact fraction band" in note, note
+                exact = page.evaluate(bands)
+                assert exact and exact != naive, "band did not refine"
+                page.click(".displaydock .seg button:text-is('Flux')")
+                settle(600)
+
             with check("nav: hover on/off toolbar toggle"):
                 page.mouse.move(900, 420)
                 page.wait_for_timeout(300)

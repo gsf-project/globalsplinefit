@@ -29,9 +29,13 @@ nucleon; selecting it immediately constrains the axis selector to those two
 physical choices. Composition curves are nucleus-weighted and their bands use
 the package covariance propagation.
 
-Fraction view shows Φᵢ/Φ_total (the paper's fraction plots); its bands use
-σᵢ/Φ_total — the correlation with the total is neglected (labeled in the
-UI; proper `fraction_error` is ~10 s in WASM, too slow for a live toggle).
+Fraction view shows Φᵢ/Φ_total (the paper's fraction plots). Its band is
+drawn twice: σᵢ/Φ_total immediately, which neglects the correlation with the
+total and overstates the band (median 3-10%, more where a group approaches
+the whole total), then the covariance-aware `fraction_error` from the
+`fractionErrors` RPC, which replaces it. That call costs ~440 ms in WASM for
+480 points and 4 groups, so the status pill reads "refining bands…" while it
+runs and the dock note says which band is on screen.
 Figure/CSV exports honor the current window and produce one file per
 active model; the data-table modal lists all models and has its own CSV.
 

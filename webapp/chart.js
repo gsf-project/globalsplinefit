@@ -167,7 +167,8 @@ function linTicks(lo, hi, pxLen = 800) {
 /* ------------------------------------------------------------- component */
 
 export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
-                        width, height, insets, onWindow, onHome, onHoverInfo }) {
+                        width, height, insets, fractionErr, onWindow, onHome,
+                        onHoverInfo }) {
   const [hover, setHover] = useState(null);
   const [drag, setDrag] = useState(null);   // {x0,y0,x1,y1}
   const [legendOpen, setLegendOpen] = useState(true);
@@ -243,20 +244,31 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
         if (!view.visible[s.name]) { if (!isGroup) ei++; continue; }
         const color = isGroup ? theme.groups[s.name]
           : theme.elements[ei++ % theme.elements.length];
+        /* fraction view: the exact band arrives later (fractionErr) and is
+           applied to the fraction directly; until then the edges come from
+           weighing flux +- sigma_i, which neglects the correlation with the
+           total */
+        const exact = view.ratio && fractionErr?.[s.name];
+        const frac = exact ? s.flux.map((v, i) =>
+          (v > 0 && tot?.[i] > 0 ? v / tot[i] : NaN)) : null;
         rows.push({
           name: s.name, tag, mi, kind: isGroup ? "group" : "element", color,
           w: weigh(s.flux),
           draws: mi === 0 && s.samples ? s.samples.map(weighDraw) : null,
-          lo: withBand && isGroup && s.err
+          lo: withBand && isGroup && exact
+            ? frac.map((v, i) => Math.max(v - exact[i], 0))
+            : withBand && isGroup && s.err
             ? weigh(s.flux.map((v, i) => Math.max(v - s.err[i], 0))) : null,
-          hi: withBand && isGroup && s.err
+          hi: withBand && isGroup && exact
+            ? frac.map((v, i) => v + exact[i])
+            : withBand && isGroup && s.err
             ? weigh(s.flux.map((v, i) => v + s.err[i])) : null,
         });
       }
     }
     return { x, rows };
   }, [models, view.gamma, view.ratio, view.showTotal, view.visible,
-      view.overlayBands, theme]);
+      view.overlayBands, theme, fractionErr]);
 
   const scale = useMemo(() => {
     if (!built) return null;
