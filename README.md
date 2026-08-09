@@ -21,8 +21,8 @@ import numpy as np
 
 model = GSFEnergy()          # default 2026 fit
 model_uso = GSFEnergy(version="2026-USO")  # Usoskin 2017 modulation
-model_s23e = GSFEnergy(version="2026-S23e")  # SIBYLL-2.3e-only interpretation
-model_epos = GSFEnergy(version="2026-EPOS-LHCR")  # EPOS-LHC-R only (other half of the mixture)
+model_s23e = GSFEnergy(version="2026-SIB23e")  # SIBYLL-2.3e-only interpretation
+model_epos = GSFEnergy(version="2026-EPOSLHCR")  # EPOS-LHC-R only (other half of the mixture)
 model_2025 = GSFEnergy(version="2025")   # historical release
 energy = np.logspace(0, 3, 100)  # 1 GeV to 1 TeV total energy
 

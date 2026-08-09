@@ -1427,7 +1427,8 @@ class GSFRigidity(GSFBase):
         >>> import numpy as np
         >>> model = GSFRigidity()
         >>> rigidity = np.logspace(0, 3, 100)  # 1 GV to 1 TV
-        >>> proton_flux_lis = model.flux(rigidity, "p")  # LIS
+        >>> proton_flux = model.flux(rigidity, "p")  # Solar Cycle 24 average
+        >>> proton_flux_lis = model.flux(rigidity, "p", time_interval="LIS")
         >>> proton_flux_2009 = model.flux(rigidity, "p", time_interval=(200901, 201001))
         >>> total_flux = model.total_flux(rigidity)
     """

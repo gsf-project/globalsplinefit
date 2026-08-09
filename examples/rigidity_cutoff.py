@@ -177,7 +177,7 @@ def _(mo):
     mo.md(r"""
     ## Nucleus Flux (`GSFEnergy`)
 
-    At total energy $E$, a nucleus with charge $Z$ and mass $A$ has rigidity $R = \sqrt{E^2 - (A m_N)^2} / Z$. Protons ($A/Z = 1$) hit the cutoff at higher total energies than heavier nuclei ($A/Z \approx 2$). Left panel: absolute fluxes with (dashed) and without (solid) cutoff. Right panel: suppression ratio.
+    At total energy $E$, a nucleus with charge $Z$ and mass $A$ has rigidity $R = \sqrt{E^2 - (A m_N)^2} / Z$. A fixed rigidity cutoff therefore sits at a total energy $E_\text{cut} \simeq Z R_\text{cut}$, higher for heavier nuclei: at $R_\text{cut} = 20$ GV it falls at 20 GeV for p, 40 GeV for He, 161 GeV for O and 523 GeV for Fe. Left panel: absolute fluxes with (dashed) and without (solid) cutoff. Right panel: suppression ratio.
     """)
     return
 
@@ -250,7 +250,7 @@ def _(mo):
     mo.md(r"""
     ## Rigidity Flux (`GSFRigidity`)
 
-    In rigidity space the cutoff is a sharp vertical boundary at $R_\text{cut}$, identical for all species.
+    In rigidity space the cutoff sits at $R_\text{cut}$ for every species alike, as a sigmoid of width `cutoff_width` (1 GV by default) that models the geomagnetic penumbra: for a 20 GV cutoff the transmission runs 0.27 / 0.50 / 0.73 at 19 / 20 / 21 GV. Pass `cutoff_width=0` for a hard edge.
     """)
     return
 

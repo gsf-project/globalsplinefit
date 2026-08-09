@@ -194,10 +194,12 @@ def _(
     gsf_rigidity = GSFRigidity(version=version.value)
     gsf_nucleon = GSFEnergyPerNucleon(version=version.value)
 
+    # time_interval ends are EXCLUSIVE, so a calendar year runs to
+    # January of the next one
     time_periods = {
         "LIS": "LIS",
-        "Solar Minimum (2009)": (200901, 200912),
-        "Solar Maximum (1991)": (199101, 199112),
+        "Solar Minimum (2009)": (200901, 201001),
+        "Solar Maximum (1991)": (199101, 199201),
     }
     groups = ["p", "He", "O*", "Fe*"]
     group_colors = ["red", "orange", "green", "blue"]
@@ -397,21 +399,21 @@ def _(mo):
 
 
 @app.cell
-def _(gsf_energy):
-    total_months = (2024 - 2013) * 12 + 12
-    step = total_months // 16
+def _(gsf_energy, np):
+    # 17 points spanning 2013-01 to 2024-12. The end of a time_interval is
+    # exclusive, so a December point ends in January of the next year.
     time_points = []
     phi_values = []
     dates = []
-    month_idx = 0
-    for _ in range(17):
+    for _idx in np.linspace(0, (2024 - 2013 + 1) * 12 - 1, 17):
+        month_idx = int(round(_idx))
         year = 2013 + month_idx // 12
         month = (month_idx % 12) + 1
         if year in gsf_energy.phi:
-            time_points.append((year * 100 + month, year * 100 + month + 1))
+            end_year, end_month = (year + 1, 1) if month == 12 else (year, month + 1)
+            time_points.append((year * 100 + month, end_year * 100 + end_month))
             phi_values.append(float(gsf_energy.phi[year][month - 1]))
             dates.append(f"{year}-{month:02d}")
-        month_idx += step
 
     print(
         f"{len(time_points)} time points, φ range: {min(phi_values):.3f}–{max(phi_values):.3f} GV"

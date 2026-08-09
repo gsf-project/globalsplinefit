@@ -734,6 +734,11 @@ function App() {
               <span class="switchtrack" aria-hidden="true"></span>
               <span>Compared</span>
             </label>`}
+          ${view.showBands && view.ratio && !isComposition && html`
+            <span class="docknote" title=${"Fraction bands use σᵢ/Φ_total; the "
+              + "correlation with the total is neglected. The covariance-aware "
+              + "fraction_error is too slow for a live control in WASM."}>
+              σᵢ/Φ_total, correlation neglected</span>`}
         </div>
         <div class="dockcontrol style-controls ${view.showBands ? "split" : ""}">
           <div class="lineweight-control">

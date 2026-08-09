@@ -692,10 +692,12 @@ def main() -> int:
                     assert scroller.evaluate("e => e.scrollTop") > 0
                     p3.click(f"{selector} .closebtn")
                 p3.click(".commandbtn:text-is('Settings')")
+                p3.wait_for_timeout(300)      # sheet-in animation
                 sheet = p3.locator(".overlay-surface")
                 assert sheet.is_visible()
                 assert sheet.bounding_box()["y"] > 100
                 p3.click(".settings-popover .closebtn")
+                p3.wait_for_timeout(300)
 
             # The dock reflows to three or four rows on a narrow viewport.
             # Every label has to stay whole ("Samples", not "Sam…"), every
@@ -722,6 +724,10 @@ def main() -> int:
                 assert state["clear"] > 0, state["clear"]
 
             with check("responsive: 420px y title clears the tick labels"):
+                # a sheet left open by an earlier failure covers the dock
+                if p3.locator(".overlay-surface").count():
+                    p3.keyboard.press("Escape")
+                    p3.wait_for_timeout(300)
                 p3.click(".displaydock .seg button:text-is('Linear')")
                 p3.wait_for_timeout(1_200)
                 g = axis_gutter(p3)

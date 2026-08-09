@@ -362,6 +362,11 @@ svg.chart .axistitle {
 }
 .gamma-control.disabled .sliderrow { opacity: .34; pointer-events: none; }
 .gamma-control.disabled .docknote { display: block; }
+/* the notes that stand in for a control (composition mode) or qualify one
+   (fraction-view bands) are shown wherever they are rendered */
+.quantity-control .docknote,
+.scale-control .docknote,
+.band-control .docknote { display: block; }
 
 /* -------------------------------------------------------------- overlays */
 
