@@ -339,6 +339,8 @@ def _(mo):
     ## Relative uncertainties
 
     A few percent in the well-measured 10 GeV – 100 TeV per nucleon range, growing toward the boundaries.
+
+    Each curve stops where $\sigma$ exceeds $10\,\Phi$, the point beyond which the group carries no information; once its flux underflows to zero the ratio diverges outright. Fe\* is the first to go, just below $3\times10^9$ GeV/nucleon, which is $1.7\times10^{11}$ GeV of total energy, past the end of the fitted range.
     """)
     return
 
@@ -361,26 +363,37 @@ def _(
     total_error,
     total_flux,
 ):
-    # Plot nucleon relative uncertainties
+    # Plot nucleon relative uncertainties.
+    #
+    # Past the end of its fitted range a group's flux falls off a cliff and
+    # eventually underflows to exactly zero, while its error stays finite, so
+    # sigma/flux runs away to 1e60 and flattens every real curve into a line.
+    # Cut the curve where it stops carrying information.
+    UNINFORMATIVE = 10.0
+
+    def rel_uncertainty(_flux, _error):
+        with np.errstate(divide="ignore", invalid="ignore"):
+            _rel = np.where(_flux > 0, _error / _flux, np.inf)
+        return np.where(np.isfinite(_rel) & (_rel <= UNINFORMATIVE), _rel, np.nan)
+
     plt.figure(figsize=(12, 8))
     error_components = [
-        (proton_error / np.maximum(proton_flux, 1e-90), "r", "H*"),
-        (helium_error / np.maximum(helium_flux, 1e-90), "orange", "He*"),
-        (oxygen_error / np.maximum(oxygen_flux, 1e-90), "g", "O*"),
-        (iron_error / np.maximum(iron_flux, 1e-90), "b", "Fe*"),
-        (total_error / np.maximum(total_flux, 1e-90), "k", "Total"),
+        (rel_uncertainty(proton_flux, proton_error), "r", "H*"),
+        (rel_uncertainty(helium_flux, helium_error), "orange", "He*"),
+        (rel_uncertainty(oxygen_flux, oxygen_error), "g", "O*"),
+        (rel_uncertainty(iron_flux, iron_error), "b", "Fe*"),
+        (rel_uncertainty(total_flux, total_error), "k", "Total"),
     ]
     for rel_error, _color, _label in error_components:
-        valid_mask = np.isfinite(rel_error) & (rel_error > 0)
-        if np.any(valid_mask):
-            plt.plot(
-                energy_per_nucleon[valid_mask],
-                rel_error[valid_mask],
-                "-",
-                color=_color,
-                label=_label,
-                lw=2,
-            )
+        # NaN-gapped rather than index-filtered, so a break stays a break
+        plt.plot(
+            energy_per_nucleon,
+            rel_error,
+            "-",
+            color=_color,
+            label=_label,
+            lw=2,
+        )
     plt.loglog()
     plt.xlabel("$E_N$ [GeV/nucleon]")
     plt.ylabel("Relative Uncertainty (σ/flux)")

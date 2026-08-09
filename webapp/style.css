@@ -1074,10 +1074,17 @@ table.data tr:nth-child(2n) td { background: var(--row-alt); }
     gap: 10px;
     border-left: 0;
   }
+  /* the Band/Samples toggle sizes to its labels; stretched to the column,
+     it ellipsises "Samples" */
+  .band-control .seg { flex: 0 0 auto; width: auto; }
+  .band-control .seg button { flex: 0 0 auto; padding-inline: 11px; }
   .style-controls {
     grid-column: 2;
     grid-row: 3;
     padding-right: 3px;
+  }
+  .style-controls .sliderrow {
+    grid-template-columns: minmax(48px, 1fr) 42px;
   }
   .sheet-scrim {
     position: fixed;
@@ -1114,6 +1121,22 @@ table.data tr:nth-child(2n) td { background: var(--row-alt); }
   svg.chart .legendtitle,
   svg.chart .legendlabel { font-size: 11px; }
   .hoverbox { display: none; }
+}
+
+/* Below ~700 px the uncertainty row and the style sliders each take a full
+   row: side by side in half columns the slider tracks collapse to a stub.
+   The chart gives up the height for it (its bottom inset follows the dock). */
+@media (max-width: 700px) {
+  .band-control { grid-column: 1 / -1; }
+  .style-controls {
+    grid-column: 1 / -1;
+    grid-row: 4;
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+  }
+  .style-controls .sliderrow {
+    grid-template-columns: minmax(60px, 1fr) 44px;
+  }
 }
 
 @media (max-width: 430px) {

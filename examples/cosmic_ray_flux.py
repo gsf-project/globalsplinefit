@@ -364,6 +364,104 @@ def _(
 
 
 @app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Pseudo-experiments
+
+    `sample()` draws whole flux realizations from the parameter covariance. The flux is linear in the spline amplitudes, so each draw is an exact model realization, correlated across energy and across groups. For a nonlinear analysis, run it on each realization and take the spread of the results.
+
+    One shared amplitude draw underlies every target: seed the generator identically and the per-group draws sum to the all-particle draw.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    n_draws = mo.ui.slider(
+        start=10,
+        stop=200,
+        step=10,
+        value=60,
+        label="pseudo-experiments",
+        show_value=True,
+    )
+    mo.hstack([n_draws], justify="start")
+    return (n_draws,)
+
+
+@app.cell
+def _(energy, gsf, n_draws, np):
+    # Fixed seed: the same draws on every re-run, and the same draws for
+    # every target — that is what makes the group samples add up to the
+    # all-particle one.
+    total_draws = gsf.sample(
+        energy, None, n_samples=n_draws.value, rng=np.random.default_rng(20260809)
+    )
+    return (total_draws,)
+
+
+@app.cell
+def _(
+    autoscale,
+    energy,
+    exponent,
+    np,
+    plt,
+    show,
+    total_draws,
+    total_error,
+    total_flux,
+):
+    _fig, (_ax1, _ax2) = plt.subplots(1, 2, figsize=(12, 5))
+    _scale = energy**exponent.value
+
+    for _draw in total_draws:
+        _ax1.plot(energy, _draw * _scale, "-", color="C0", lw=0.5, alpha=0.35)
+    _ax1.plot(energy, total_flux * _scale, "k-", lw=2, label="central value")
+    _ax1.fill_between(
+        energy,
+        (total_flux - total_error) * _scale,
+        (total_flux + total_error) * _scale,
+        facecolor="k",
+        alpha=0.15,
+        label="1-sigma band",
+    )
+    _ax1.loglog()
+    _ax1.set_xlabel("Energy [GeV]")
+    _ax1.set_ylabel(f"Flux × (E/GeV)^{exponent.value:g} [1/(GeV m² s sr)]")
+    _ax1.set_xlim(energy[0], energy[-1])
+    autoscale(_ax1, total_flux * _scale, (total_flux + total_error) * _scale)
+    _ax1.set_title(f"{len(total_draws)} all-particle realizations")
+    _ax1.legend()
+    _ax1.grid(True, alpha=0.3)
+
+    # The draws carry the same covariance the analytic error comes from, so
+    # their scatter reproduces it — up to the 1/sqrt(2N) noise on an
+    # N-sample standard deviation.
+    _ratio = total_draws / total_flux
+    for _r in _ratio:
+        _ax2.semilogx(energy, _r, "-", color="C0", lw=0.5, alpha=0.35)
+    _rel = total_error / total_flux
+    _ax2.semilogx(energy, 1 + _rel, "k--", lw=1.5, label="analytic ±1σ")
+    _ax2.semilogx(energy, 1 - _rel, "k--", lw=1.5)
+    _ax2.semilogx(
+        energy, 1 + _ratio.std(axis=0), "-", color="crimson", lw=1.5, label="sample ±1σ"
+    )
+    _ax2.semilogx(energy, 1 - _ratio.std(axis=0), "-", color="crimson", lw=1.5)
+    _ax2.set_xlabel("Energy [GeV]")
+    _ax2.set_ylabel("Realization / central value")
+    _ax2.set_xlim(energy[0], energy[-1])
+    _ax2.set_ylim(1 - 2.2 * np.max(_rel), 1 + 2.2 * np.max(_rel))
+    _ax2.set_title("Scatter vs. propagated uncertainty")
+    _ax2.legend()
+    _ax2.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    show(_fig)
+    return
+
+
+@app.cell(hide_code=True)
 def _(NOTEBOOK, SITE, mo):
     if SITE:  # running in the browser: link the sources published next to it
         _py = f"{SITE}gallery/{NOTEBOOK}/{NOTEBOOK}.py"

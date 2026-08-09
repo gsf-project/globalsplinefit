@@ -67,7 +67,9 @@ export function sciLabel(v) {
   if (!Number.isFinite(v)) return "—";
   if (v === 0) return "0";
   const e = Math.floor(log10(Math.abs(v)));
-  if (e >= -2 && e <= 3) return v.toPrecision(3).replace(/\.?0+$/, "");
+  /* near unity: plain decimal. Number() keeps toPrecision's exponent form
+     out of the axis, so 5000 reads as "5000" below a "1.50×10⁴" tick */
+  if (e >= -2 && e <= 3) return String(+v.toPrecision(3));
   return `${(v / 10 ** e).toFixed(2)}×10${sup(e)}`;
 }
 
@@ -171,27 +173,11 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
   const [legendOpen, setLegendOpen] = useState(true);
   const svgRef = useRef(null);
 
-  const m = {
-    l: insets.l + 74,
-    r: insets.r + 26,
-    t: insets.t + 18, b: insets.b + 58,
-  };
-  const pw = Math.max(width - m.l - m.r, 40);
-  const ph = Math.max(height - m.t - m.b, 40);
-
-  /* The legend first tightens its metrics, then collapses when the actual
-     plot area (not merely the browser viewport) becomes narrow. Crossing
-     back into a wider layout restores it; users can still toggle either
-     state explicitly at the current size. */
-  const compactLegend = pw < 700;
-  const autoCollapseLegend = pw < 460 || ph < 300;
-  const prevAutoCollapse = useRef(false);
-  useEffect(() => {
-    if (autoCollapseLegend !== prevAutoCollapse.current) {
-      setLegendOpen(!autoCollapseLegend);
-      prevAutoCollapse.current = autoCollapseLegend;
-    }
-  }, [autoCollapseLegend]);
+  /* Vertical metrics first: the left gutter is measured from the y tick
+     labels, which need ph to be known. */
+  const mt = insets.t + 18;
+  const mb = insets.b + 58;
+  const ph = Math.max(height - mt - mb, 40);
 
   const built = useMemo(() => {
     if (!models?.length || !models[0].data) return null;
@@ -267,7 +253,6 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
        up asynchronously (re-grid refines resolution, display never waits) */
     const lgx0 = xWindow ? xWindow[0] : log10(built.x[0]);
     const lgx1 = xWindow ? xWindow[1] : log10(built.x[built.x.length - 1]);
-    const X = (v) => m.l + ((log10(v) - lgx0) / (lgx1 - lgx0)) * pw;
 
     let ylo, yhi;
     if (view.yRange) {
@@ -291,19 +276,58 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
         yhi = log10(Math.max(...pool) * 2.2);
       } else { ylo = 0; yhi = Math.max(...pool) * 1.06; }
     }
-    const Y = view.ylog
-      ? (v) => (v > 0 ? m.t + ph - ((log10(v) - ylo) / (yhi - ylo)) * ph : NaN)
-      : (v) => m.t + ph - ((v - ylo) / (yhi - ylo)) * ph;
-    const Yinv = view.ylog
-      ? (py) => 10 ** (ylo + ((m.t + ph - py) / ph) * (yhi - ylo))
-      : (py) => ylo + ((m.t + ph - py) / ph) * (yhi - ylo);
-    return { X, Y, Yinv, lgx0, lgx1, ylo, yhi };
-  }, [built, view.ylog, view.yRange, xWindow, pw, ph, m.l, m.t]);
+    return { lgx0, lgx1, ylo, yhi };
+  }, [built, view.ylog, view.yRange, xWindow]);
+
+  /* ------------------------------------------------------- left gutter --
+     Sized from the labels about to be drawn: they are set in the monospace
+     face (13.5 px, ~8.1 px per character) and right-anchored Y_TICK_GAP
+     left of the axis, and the rotated title takes Y_TITLE_W beyond them.
+     Width varies 3x with the view — "10ⁿ" on a log decade, "1.50×10⁴" on a
+     linear axis, "2×10¹²" on a deep-zoom minor tick — and at the wide end
+     a fixed inset puts the labels through the title. */
+  const Y_TICK_GAP = 10;      // axis line -> right edge of the labels
+  const Y_TITLE_CLEAR = 8;    // labels -> title box
+  const Y_TITLE_W = 21;       // width of the rotated title box
+  const yAxis = scale
+    ? (view.ylog ? logTicks(scale.ylo, scale.yhi, ph, 25)
+                 : linTicks(scale.ylo, scale.yhi, ph))
+    : null;
+  const yLabelW = yAxis ? Math.max(
+    0,
+    ...yAxis.ticks.map((t) =>
+      (view.ylog ? `10${sup(t)}` : sciLabel(t)).length * 8.1),
+    ...yAxis.minorLabels.map((L) => L.text.length * 6.9)) : 0;
+  const yGutter = Math.max(74, Y_TICK_GAP + yLabelW + Y_TITLE_CLEAR + Y_TITLE_W);
+
+  const m = { l: insets.l + yGutter, r: insets.r + 26, t: mt, b: mb };
+  const pw = Math.max(width - m.l - m.r, 40);
+
+  /* The legend first tightens its metrics, then collapses when the actual
+     plot area (not merely the browser viewport) becomes narrow. Crossing
+     back into a wider layout restores it; users can still toggle either
+     state explicitly at the current size. */
+  const compactLegend = pw < 700;
+  const autoCollapseLegend = pw < 460 || ph < 300;
+  const prevAutoCollapse = useRef(false);
+  useEffect(() => {
+    if (autoCollapseLegend !== prevAutoCollapse.current) {
+      setLegendOpen(!autoCollapseLegend);
+      prevAutoCollapse.current = autoCollapseLegend;
+    }
+  }, [autoCollapseLegend]);
 
   if (!built || !scale)
     return html`<svg width=${width} height=${height} class="chart"></svg>`;
 
-  const { X, Y, Yinv, lgx0, lgx1, ylo, yhi } = scale;
+  const { lgx0, lgx1, ylo, yhi } = scale;
+  const X = (v) => m.l + ((log10(v) - lgx0) / (lgx1 - lgx0)) * pw;
+  const Y = view.ylog
+    ? (v) => (v > 0 ? m.t + ph - ((log10(v) - ylo) / (yhi - ylo)) * ph : NaN)
+    : (v) => m.t + ph - ((v - ylo) / (yhi - ylo)) * ph;
+  const Yinv = view.ylog
+    ? (py) => 10 ** (ylo + ((m.t + ph - py) / ph) * (yhi - ylo))
+    : (py) => ylo + ((m.t + ph - py) / ph) * (yhi - ylo);
   const px = built.x.map(X);
   const bottomY = m.t + ph;
   const lineWeight = Math.max(0.4, view.lineWeight ?? 1);
@@ -346,11 +370,11 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
     setLegendOpen((open) => !open);
   };
 
-  /* axes */
+  /* axes (yAxis was computed above — it sets the left gutter) */
   const xt = logTicks(lgx0, lgx1, pw, 44);
-  const yAxis = view.ylog ? logTicks(ylo, yhi, ph, 25)
-                          : linTicks(ylo, yhi, ph);
   const yTickY = (t) => (view.ylog ? Y(10 ** t) : Y(t));
+  /* +4: the rotated title's baseline sits that far right of its own box */
+  const yTitleX = m.l - (Y_TICK_GAP + yLabelW + Y_TITLE_CLEAR + 4);
 
   /* pointer handling */
   const rel = (e) => {
@@ -675,10 +699,11 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
         <text x=${X(10 ** L.v)} y=${bottomY + 22} text-anchor="middle"
               class="tickminor">${L.text}</text>`)}
       ${yAxis.ticks.map((t) => html`
-        <text x=${m.l - 10} y=${yTickY(t) + 4} text-anchor="end" class="tick">
+        <text x=${m.l - Y_TICK_GAP} y=${yTickY(t) + 4} text-anchor="end"
+              class="tick">
           ${view.ylog ? `10${sup(t)}` : sciLabel(t)}</text>`)}
       ${yAxis.minorLabels.map((L) => html`
-        <text x=${m.l - 10} y=${yTickY(L.v) + 3.5} text-anchor="end"
+        <text x=${m.l - Y_TICK_GAP} y=${yTickY(L.v) + 3.5} text-anchor="end"
               class="tickminor">${L.text}</text>`)}
 
       <!-- legend -->
@@ -729,7 +754,7 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
       <!-- axis titles -->
       <text x=${m.l + pw / 2} y=${bottomY + 44} text-anchor="middle"
             class="axistitle">${view.xTitle}</text>
-      <text transform="translate(${m.l - 52},${m.t + ph / 2}) rotate(-90)"
+      <text transform="translate(${yTitleX},${m.t + ph / 2}) rotate(-90)"
             text-anchor="middle" class="axistitle">${view.yTitle}</text>
     </svg>`;
 }

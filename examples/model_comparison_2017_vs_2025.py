@@ -101,12 +101,30 @@ async def _():
         )
         return fig
 
-    def autoscale(ax, *series, pad=1.6):
-        """Fit the y-axis to the positive, finite values in `series`."""
+    def autoscale(ax, *series, pad=1.6, decades=None):
+        """Fit the y-axis to the positive, finite values in `series`.
+
+        With `decades`, the lower limit is that many decades below the top
+        instead of the smallest value: every group here ends in a cutoff
+        tail that falls another eight decades, and letting those set the
+        bottom of the axis flattens the entire comparison into a strip.
+        """
         _v = np.concatenate([np.asarray(s, float).ravel() for s in series])
         _v = _v[np.isfinite(_v) & (_v > 0)]
         if _v.size:
-            ax.set_ylim(_v.min() / pad, _v.max() * pad)
+            _top = _v.max() * pad
+            ax.set_ylim(_top / 10**decades if decades else _v.min() / pad, _top)
+
+    def relative(flux, error, cap=3.0):
+        """sigma/flux up to `cap`, blank above it.
+
+        Past the end of a group's fitted range the flux collapses (and
+        eventually underflows to exactly zero) while its error stays finite,
+        so the ratio runs away.
+        """
+        with np.errstate(divide="ignore", invalid="ignore"):
+            _r = np.where(flux > 0, error / flux, np.inf)
+        return np.where(np.isfinite(_r) & (_r <= cap), _r, np.nan)
 
     return (
         GSFEnergy,
@@ -117,6 +135,7 @@ async def _():
         autoscale,
         np,
         plt,
+        relative,
         show,
     )
 
@@ -160,7 +179,9 @@ def _(exponent):
 
 @app.cell
 def _(GSFEnergy, GSFEnergyPerNucleon, np):
-    energy = np.logspace(np.log10(0.5), np.log10(100000000000.0), 500)
+    # 200 points is plenty on a log grid, and the browser runtime pays for
+    # every one of them twice over (two versions x flux + covariance error)
+    energy = np.logspace(np.log10(0.5), np.log10(100000000000.0), 200)
     energy_per_nucleon = energy
     compared_versions = ["2017", "2025"]
     models_e = {_v: GSFEnergy(version=_v) for _v in compared_versions}
@@ -249,7 +270,7 @@ def _(
     _ax.grid(True, alpha=0.3)
     _ax.legend(loc="lower center", ncol=2)
     _ax.set_xlim(energy[0], energy[-1])
-    autoscale(_ax, *[_l.get_ydata() for _l in _ax.get_lines()])
+    autoscale(_ax, *[_l.get_ydata() for _l in _ax.get_lines()], decades=3)
     plt.tight_layout()
     show()
     return
@@ -265,12 +286,13 @@ def _(
     groups,
     line_styles,
     plt,
+    relative,
     show,
 ):
     _fig, _ax = plt.subplots()
     for _group, _label, _color in zip(groups, group_labels, group_colors, strict=False):
         for _v in ("2017", "2025"):
-            _rel = energy_errors[_v][_group] / energy_fluxes[_v][_group]
+            _rel = relative(energy_fluxes[_v][_group], energy_errors[_v][_group])
             _ax.loglog(
                 energy,
                 _rel,
@@ -280,7 +302,7 @@ def _(
                 label=f"{_label} ({_v})" if _v == "2025" else None,
             )
     for _v in ("2017", "2025"):
-        _rel = energy_errors[_v]["Total"] / energy_fluxes[_v]["Total"]
+        _rel = relative(energy_fluxes[_v]["Total"], energy_errors[_v]["Total"])
         _ax.loglog(
             energy,
             _rel,
@@ -295,7 +317,7 @@ def _(
     _ax.grid(True, alpha=0.3)
     _ax.legend(loc="lower right", ncol=2)
     _ax.set_xlim(energy[0], energy[-1])
-    _ax.set_ylim(0.001, 0.98)
+    _ax.set_ylim(0.003, 3)
     plt.tight_layout()
     show()
     return
@@ -359,7 +381,7 @@ def _(
     _ax.grid(True, alpha=0.3)
     _ax.legend(loc="lower center", ncol=2)
     _ax.set_xlim(energy[0], energy[-1])
-    autoscale(_ax, *[_l.get_ydata() for _l in _ax.get_lines()])
+    autoscale(_ax, *[_l.get_ydata() for _l in _ax.get_lines()], decades=3)
     plt.tight_layout()
     show()
     return (plot_with_band,)
@@ -416,7 +438,7 @@ def _(
     _ax.grid(True, alpha=0.3)
     _ax.legend(loc="upper right", ncol=2)
     _ax.set_xlim(energy_per_nucleon[0], energy_per_nucleon[-1])
-    autoscale(_ax, *[_l.get_ydata() for _l in _ax.get_lines()])
+    autoscale(_ax, *[_l.get_ydata() for _l in _ax.get_lines()], decades=3)
     plt.tight_layout()
     show()
     return
@@ -432,12 +454,13 @@ def _(
     nucleon_errors,
     nucleon_fluxes,
     plt,
+    relative,
     show,
 ):
     _fig, _ax = plt.subplots()
     for _group, _label, _color in zip(groups, group_labels, group_colors, strict=False):
         for _v in ("2017", "2025"):
-            _rel = nucleon_errors[_v][_group] / nucleon_fluxes[_v][_group]
+            _rel = relative(nucleon_fluxes[_v][_group], nucleon_errors[_v][_group])
             _ax.loglog(
                 energy_per_nucleon,
                 _rel,
@@ -447,7 +470,7 @@ def _(
                 label=f"{_label} ({_v})" if _v == "2025" else None,
             )
     for _v in ("2017", "2025"):
-        _rel = nucleon_errors[_v]["Total"] / nucleon_fluxes[_v]["Total"]
+        _rel = relative(nucleon_fluxes[_v]["Total"], nucleon_errors[_v]["Total"])
         _ax.loglog(
             energy_per_nucleon,
             _rel,
@@ -462,7 +485,7 @@ def _(
     _ax.grid(True, alpha=0.3)
     _ax.legend(loc="lower right", ncol=2)
     _ax.set_xlim(energy_per_nucleon[0], energy_per_nucleon[-1])
-    _ax.set_ylim(0.003, 1)
+    _ax.set_ylim(0.003, 3)
     plt.tight_layout()
     show()
     return
@@ -518,7 +541,7 @@ def _(
     _ax.grid(True, alpha=0.3)
     _ax.legend(loc="lower center", ncol=2)
     _ax.set_xlim(energy_per_nucleon[0], energy_per_nucleon[-1])
-    autoscale(_ax, *[_l.get_ydata() for _l in _ax.get_lines()])
+    autoscale(_ax, *[_l.get_ydata() for _l in _ax.get_lines()], decades=3)
     plt.tight_layout()
     show()
     return
@@ -537,16 +560,20 @@ def _(mo):
 @app.cell
 def _(
     energy_per_nucleon,
+    np,
     nucleon_errors,
     nucleon_fluxes,
     plt,
     show,
 ):
     _fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
-    flux_2017 = nucleon_fluxes["2017"]["Total"]
-    flux_2025 = nucleon_fluxes["2025"]["Total"]
-    err_2017 = nucleon_errors["2017"]["Total"]
-    err_2025 = nucleon_errors["2025"]["Total"]
+    # NaN out the underflowed tail (both totals reach zero past the fitted
+    # range) to keep the ratios finite; the axis stops well below it anyway
+    _pos = (nucleon_fluxes["2017"]["Total"] > 0) & (nucleon_fluxes["2025"]["Total"] > 0)
+    flux_2017 = np.where(_pos, nucleon_fluxes["2017"]["Total"], np.nan)
+    flux_2025 = np.where(_pos, nucleon_fluxes["2025"]["Total"], np.nan)
+    err_2017 = np.where(_pos, nucleon_errors["2017"]["Total"], np.nan)
+    err_2025 = np.where(_pos, nucleon_errors["2025"]["Total"], np.nan)
     flux_ratio = flux_2017 / flux_2025
     err_ratio = err_2017 / err_2025
     ax1.semilogx(energy_per_nucleon, flux_ratio, "b-", label="GSF2017")

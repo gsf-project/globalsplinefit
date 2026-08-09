@@ -76,6 +76,16 @@ def check_notebook(browser, base, name, fast):
     controls = page.locator("select, input[type=range], [role=slider]").count()
     check(f"{name}: controls present", controls > 0, f"{controls} controls")
 
+    # One declared width for every figure (gallery.css), whatever the notebook's
+    # figsize: paper_figures draws at 3.4 in paper columns and rigidity_cutoff
+    # at 16 in, and left alone the gallery reads as randomly-sized plots.
+    widths = page.eval_on_selector_all(
+        "img[src^='data:image/png']",
+        "els => els.map(e => Math.round(e.getBoundingClientRect().width))",
+    )
+    off = [w for w in widths if abs(w - 900) > 1]
+    check(f"{name}: figures at the gallery width", not off, f"900px; off: {off}")
+
     # download buttons must point at files that exist
     # A download control is in the pre-rendered snapshot, but that snapshot is
     # of a LOCAL run: SITE is empty when the export executes, so the cell hands
@@ -114,10 +124,14 @@ def check_notebook(browser, base, name, fast):
 
         # Compare EVERY figure, not just the first: on the deck the first
         # figure is the mass-group schematic, which the scaling slider does
-        # not touch.
+        # not touch. Compare the rendered width alongside the raster: the
+        # first slider is the plot-size one in paper_figures and
+        # reduced_model, and that one drives a CSS variable, not the figure.
         def _srcs():
             return page.eval_on_selector_all(
-                "img", "els => els.map(e => e.src.slice(-64))"
+                "img",
+                "els => els.map(e => e.src.slice(-64) + '@'"
+                " + Math.round(e.getBoundingClientRect().width))",
             )
 
         before = _srcs()

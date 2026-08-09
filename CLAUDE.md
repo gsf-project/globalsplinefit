@@ -10,7 +10,7 @@ Parametric model for cosmic ray flux and composition based on cubic B-spline fit
 - `src/globalsplinefit/data_management.py` - `Parameters` class loads spline knots, coefficients, covariances, nuclear data, and solar modulation from `data/{version}/` directories.
 - `src/globalsplinefit/reduced.py` - `ReducedGSF`: pivot-based flux nuisance parameters for downstream fits. The all-default constructor uses the published per-version grid `data/<version>/reduced_pivots.dat` (via `model.params.reduced_pivots`; theta components are defined at version-specific energies). A custom bundle without a pivot table raises; `optimize_pivots` derives one, and grids are regenerated on version promotion.
 - `src/globalsplinefit/data/` - Data files, one directory per model version, named by year (`2026.0`, `2026.0-USO`, ...). Current sets, regenerated together after every promotion: `2026.0` (default; mixture + GMD), `2026.0-USO`, `2026.0-SIB23e`, `2026.0-EPOSLHCR`. Historical (static): `2025`, `2019`, `2017`. Each version has `parameters.dat`, `covariance.dat`, `knots.dat`, `nuclei.dat`, `reduced_pivots.dat` (current sets add `subleading.dat`, `fit_result.json`, and their own `solar_modulation.dat`). Shared Usoskin `solar_modulation.dat` in the parent `data/` directory (historical fallback). The `MODEL_VERSIONS` registry in `data_management.py` is the allow-list.
-- `webapp/` - GSF Explorer (Pyodide + Preact). The **"Liquid Canvas" UI design is final** (maintainer-approved 2026-07-31): the plot is the content plane; Series/Settings/Export command panes, bottom display dock, dark+light tokens in `style.css`. Extend it — do not restyle or rebuild. `test_ui.py` (55 checks, incl. an iPad-size touch section: tap readout, pinch zoom, double-tap home, pane fit) asserts its invariants and is the acceptance gate for any webapp change. iPad/touch is a SUPPORTED target (maintainer, 2026-08-02) — touch regressions are release blockers.
+- `webapp/` - GSF Explorer (Pyodide + Preact). The **"Liquid Canvas" UI design is final** (maintainer-approved 2026-07-31): the plot is the content plane; Series/Settings/Export command panes, bottom display dock, dark+light tokens in `style.css`. Extend it — do not restyle or rebuild. `test_ui.py` (64 checks, incl. an iPad-size touch section: tap readout, pinch zoom, double-tap home, pane fit; plus the narrow-viewport dock and axis-gutter checks) asserts its invariants and is the acceptance gate for any webapp change. iPad/touch is a SUPPORTED target (maintainer, 2026-08-02) — touch regressions are release blockers.
 
 ## TEMPORARY pre-publication markers (strip at the GSF 2026 release)
 
@@ -107,7 +107,8 @@ is the acceptance gate for gallery changes — the notebook counterpart of
   data legends and in-panel notes about data are dropped. Fig. 3 spans each
   species' direct-data rigidity range via the `DIRECT_RANGE_GV` table
   (coverage intervals, not measurements). App-view-first; not a tutorial.
-- `cosmic_ray_flux.py` - Basic cosmic ray flux calculations and plotting.
+- `cosmic_ray_flux.py` - Basic cosmic ray flux calculations and plotting,
+  ending with pseudo-experiment draws from `sample()`.
 - `nucleon_flux.py` - Nucleon flux for atmospheric shower simulations.
 - `solar_modulation.py` - Solar modulation effects on flux.
 - `rigidity_cutoff.py` - Geomagnetic rigidity cutoff effects.

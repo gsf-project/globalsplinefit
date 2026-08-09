@@ -127,13 +127,46 @@ def main() -> int:
                     "svg.chart text[text-anchor='end']",
                     "els => els.map(e => e.textContent).join(' ')")
 
-            def plot_frame():
-                """Plot-area frame in page coords (mirrors chart.js insets)."""
-                bb = page.locator("svg.chart").bounding_box()
-                return {"l": bb["x"] + 14 + 74,
-                        "r": bb["x"] + bb["width"] - 44,
-                        "t": bb["y"] + 72 + 18,
-                        "b": bb["y"] + bb["height"] - 140}
+            def plot_frame(pg=None):
+                """Plot-area frame in page coords, read off the drawn axes.
+
+                Measured rather than mirrored from chart.js: the left gutter
+                grows with the width of the y tick labels.
+                """
+                return (pg or page).evaluate("""() => {
+                    const svg = document.querySelector('svg.chart');
+                    const r = svg.getBoundingClientRect();
+                    const v = [...svg.querySelectorAll('line')].filter(
+                        (e) => +e.getAttribute('x1') === +e.getAttribute('x2')
+                            && Math.abs(+e.getAttribute('y1')
+                                        - +e.getAttribute('y2')) > 40);
+                    const h = [...svg.querySelectorAll('line')].filter(
+                        (e) => +e.getAttribute('y1') === +e.getAttribute('y2')
+                            && Math.abs(+e.getAttribute('x1')
+                                        - +e.getAttribute('x2')) > 40);
+                    const l = Math.min(...v.map((e) => +e.getAttribute('x1')));
+                    const b = Math.max(...h.map((e) => +e.getAttribute('y1')));
+                    const t = Math.min(...v.map((e) => +e.getAttribute('y1')));
+                    return {l: r.x + l, r: r.x + r.width - 44,
+                            t: r.y + t, b: r.y + b};
+                }""")
+
+            def axis_gutter(pg=None):
+                """Clearance between the y tick labels and the axis title."""
+                return (pg or page).evaluate("""() => {
+                    const svg = document.querySelector('svg.chart');
+                    const title = [...svg.querySelectorAll('text.axistitle')]
+                        .find((t) => (t.getAttribute('transform') || '')
+                                     .includes('rotate(-90)'));
+                    const labels = [...svg.querySelectorAll(
+                        "text.tick[text-anchor='end'],"
+                        + "text.tickminor[text-anchor='end']")];
+                    const sb = svg.getBoundingClientRect();
+                    const left = Math.min(...labels.map(
+                        (e) => e.getBoundingClientRect().left));
+                    const tb = title.getBoundingClientRect();
+                    return {clear: left - tb.right, offStage: sb.left - tb.left};
+                }""")
 
             # ------------------------------------------------------- boot
             with check("boot: pyodide + first evaluation"):
@@ -312,6 +345,16 @@ def main() -> int:
                 page.wait_for_timeout(300)
                 page.click(".displaydock .seg button:text-is('Log')")
                 settle(600)
+
+            with check("display: y title clears the tick labels in both scales"):
+                # linear labels ("1.50×10⁴") are twice the width of "10ⁿ" and
+                # used to be drawn straight through the rotated axis title
+                for scale in ("Linear", "Log"):
+                    page.click(f".displaydock .seg button:text-is('{scale}')")
+                    settle(800)
+                    g = axis_gutter()
+                    assert g["clear"] > 2, (scale, g)
+                    assert g["offStage"] < 0, (scale, g)
 
             with check("display: ratio-to-total view"):
                 page.click(".displaydock .seg button:text-is('Fraction')")
@@ -652,6 +695,38 @@ def main() -> int:
                 sheet = p3.locator(".overlay-surface")
                 assert sheet.is_visible()
                 assert sheet.bounding_box()["y"] > 100
+                p3.click(".settings-popover .closebtn")
+
+            # The dock reflows to three or four rows on a narrow viewport.
+            # Every label has to stay whole ("Samples", not "Sam…"), every
+            # slider needs a usable track, and the chart has to end above it.
+            with check("responsive: 420px dock is legible, not clipped"):
+                state = p3.evaluate("""() => {
+                    const dock = document.querySelector('.displaydock');
+                    const svg = document.querySelector('svg.chart');
+                    const title = [...svg.querySelectorAll('text.axistitle')]
+                        .find((t) => !(t.getAttribute('transform') || '')
+                                     .includes('rotate'));
+                    return {
+                      clipped: [...dock.querySelectorAll('button, span, label')]
+                        .filter((e) => e.scrollWidth > e.clientWidth + 1)
+                        .map((e) => e.textContent.trim()),
+                      tracks: [...dock.querySelectorAll('input[type=range]')]
+                        .map((e) => Math.round(e.getBoundingClientRect().width)),
+                      clear: dock.getBoundingClientRect().top
+                             - title.getBoundingClientRect().bottom,
+                    };
+                }""")
+                assert not state["clipped"], state["clipped"]
+                assert min(state["tracks"]) > 90, state["tracks"]
+                assert state["clear"] > 0, state["clear"]
+
+            with check("responsive: 420px y title clears the tick labels"):
+                p3.click(".displaydock .seg button:text-is('Linear')")
+                p3.wait_for_timeout(1_200)
+                g = axis_gutter(p3)
+                assert g["clear"] > 2, g
+                assert g["offStage"] < 0, g
                 c3.close()
 
             # -------------------------------------------------------- touch

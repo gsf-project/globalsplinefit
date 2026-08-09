@@ -1,16 +1,16 @@
 # Tutorial gallery
 
 Interactive [marimo](https://marimo.io) notebooks running in your browser.
-Each opens as an app — figures and controls, no code — and the figures are
-already on screen while the Python runtime boots in the background (give it
-half a minute before the controls respond).
+Each opens as an app showing figures and controls. The figures are on screen
+at once; the Python runtime boots in the background, so the controls respond
+after about half a minute (longer on a phone or tablet).
 
-The code is never far: **Show code** in the ⋯ menu reveals it, **edit in
-browser** opens the same notebook in a full editor, and every notebook ends
-with download buttons for the marimo (`.py`) and Jupyter (`.ipynb`) versions.
-The sources live in
+The code is available four ways: **Show code** in the ⋯ menu reveals it in
+place, **edit in browser** opens the notebook in a full editor, the download
+buttons at the end of each notebook give the marimo (`.py`) and Jupyter
+(`.ipynb`) files, and the sources are in
 [`examples/`](https://github.com/gsf-project/globalsplinefit/tree/main/examples),
-or [run them locally](getting_started.md#run-a-tutorial-locally).
+which you can also [run locally](getting_started.md#run-a-tutorial-locally).
 
 <div class="grid cards" markdown>
 
@@ -31,7 +31,8 @@ or [run them locally](getting_started.md#run-a-tutorial-locally).
     ---
 
     Differential fluxes for the four GSF mass groups with 1-sigma error
-    bands propagated from the parameter covariance.
+    bands propagated from the parameter covariance, plus pseudo-experiment
+    draws for nonlinear error propagation.
 
     [:octicons-arrow-right-24: Open](cosmic_ray_flux/) ·
     [edit in browser](cosmic_ray_flux/edit/)

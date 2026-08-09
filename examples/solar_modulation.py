@@ -102,12 +102,17 @@ async def _():
         )
         return fig
 
-    def autoscale(ax, *series, pad=1.6):
-        """Fit the y-axis to the positive, finite values in `series`."""
+    def autoscale(ax, *series, pad=1.6, lift=1.0):
+        """Fit the y-axis to the positive, finite values in `series`.
+
+        `lift` raises the lower limit by that factor — the decades a steeply
+        falling group spends near the bottom carry no information and only
+        compress the part of the plot that does.
+        """
         _v = np.concatenate([np.asarray(s, float).ravel() for s in series])
         _v = _v[np.isfinite(_v) & (_v > 0)]
         if _v.size:
-            ax.set_ylim(_v.min() / pad, _v.max() * pad)
+            ax.set_ylim(_v.min() / pad * lift, _v.max() * pad)
 
     return (
         GSFEnergy,
@@ -302,7 +307,7 @@ def _(
     rigidity,
     show,
 ):
-    _fig, axes = plt.subplots(1, 3, figsize=(20, 6))
+    _fig, axes = plt.subplots(3, 1, figsize=(9, 12))
     plot_groups(
         axes[0],
         "GSFEnergy",
@@ -325,7 +330,7 @@ def _(
         f"Nucleon flux × $E^{{{energy_exponent}}}$",
     )
     for _ax in axes:
-        autoscale(_ax, *[_l.get_ydata() for _l in _ax.get_lines()])
+        autoscale(_ax, *[_l.get_ydata() for _l in _ax.get_lines()], lift=10)
     plt.tight_layout()
     show()
     return
@@ -375,7 +380,7 @@ def _(
     _ax.set_ylabel(f"Total flux × $X^{{{energy_exponent}}}$ (units vary by model)")
     _ax.grid(True, alpha=0.3)
     _ax.legend(loc="lower right")
-    autoscale(_ax, *[_l.get_ydata() for _l in _ax.get_lines()])
+    autoscale(_ax, *[_l.get_ydata() for _l in _ax.get_lines()], lift=10)
     plt.tight_layout()
     show()
     return
@@ -528,7 +533,7 @@ def _(mo):
 
     The weighted mean $\phi$ is exact at every setting, so the first-order
     suppression is always right and only the curvature is approximated. At 1 GeV,
-    1 bin is off by 5.2% from the full monthly average, the default 6 by 0.5%, and 12 by 0.1%; all are below 0.3% above
+    1 bin is off by 5.2% from the full monthly average, 6 bins by 0.5%, and the default 12 by 0.1%; all are below 0.3% above
     10 GeV. `None` averages every month explicitly.
     """)
     return
@@ -542,22 +547,16 @@ def _(
     plt,
     show,
 ):
-    import time as _time
-
     gsf_one = GSFEnergy(solar_cycle_average_bins=1)
-    gsf_six = GSFEnergy(solar_cycle_average_bins=6)
+    gsf_def = GSFEnergy(solar_cycle_average_bins=12)  # the default
     gsf_exact = GSFEnergy(solar_cycle_average_bins=None)
     energy_subset = np.logspace(0, 1, 500)
 
-    def _timed(model):
-        _t0 = _time.time()
-        return model.total_flux(energy_subset), _time.time() - _t0
-
-    flux_one, t_one = _timed(gsf_one)
-    flux_six, t_six = _timed(gsf_six)
-    flux_exact, t_exact = _timed(gsf_exact)
+    flux_one = gsf_one.total_flux(energy_subset)
+    flux_def = gsf_def.total_flux(energy_subset)
+    flux_exact = gsf_exact.total_flux(energy_subset)
     rel_one = 100 * np.abs(flux_one - flux_exact) / flux_exact
-    rel_six = 100 * np.abs(flux_six - flux_exact) / flux_exact
+    rel_def = 100 * np.abs(flux_def - flux_exact) / flux_exact
 
     _fig, (ax1, _ax2) = plt.subplots(2, 1, sharex=True, figsize=(7, 5))
     ax1.loglog(
@@ -569,11 +568,11 @@ def _(
     )
     ax1.loglog(
         energy_subset,
-        energy_subset**energy_exponent * flux_six,
+        energy_subset**energy_exponent * flux_def,
         "-",
         color="C2",
         lw=2,
-        label="6 bins (default)",
+        label="12 bins (default)",
     )
     ax1.loglog(
         energy_subset,
@@ -586,24 +585,12 @@ def _(
     ax1.legend()
     ax1.grid(True, alpha=0.3)
     _ax2.semilogx(energy_subset, rel_one, "r-", lw=2, label="1 bin")
-    _ax2.semilogx(energy_subset, rel_six, "-", color="C2", lw=2, label="6 bins")
+    _ax2.semilogx(energy_subset, rel_def, "-", color="C2", lw=2, label="12 bins")
     _ax2.set_xlabel("Energy [GeV]")
     _ax2.set_ylabel("Deviation from full average [%]")
     _ax2.grid(True, alpha=0.3)
     _ax2.legend(fontsize=8, loc="upper right")
     _ax2.set_ylim(0, rel_one.max() * 1.1)
-    _ax2.text(
-        0.05,
-        0.95,
-        f"1 bin:  {t_one:.3f} s, max {rel_one.max():.2f}%\n"
-        f"6 bins: {t_six:.3f} s, max {rel_six.max():.2f}%\n"
-        f"full:   {t_exact:.3f} s ({len(gsf_exact._phi_list(None)[0])} months)",
-        transform=_ax2.transAxes,
-        va="top",
-        bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.8},
-        fontfamily="monospace",
-        fontsize=9,
-    )
     plt.tight_layout()
     show()
     return

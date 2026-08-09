@@ -194,7 +194,7 @@ def _(
     show,
     version,
 ):
-    energy = np.logspace(0, 3, 500)  # 1 GeV to 10 PeV
+    energy = np.logspace(0, 3, 500)  # 1 GeV to 1 TeV
     gsf = GSFEnergy(version=version.value)
     _fig, (_ax1, _ax2) = plt.subplots(1, 2, figsize=(16, 7))
     for _name, _color, _label in groups:
@@ -349,7 +349,7 @@ def _(
     show,
     version,
 ):
-    ekin = np.logspace(0, 3, 500)  # 1 GeV to 10 PeV per nucleon
+    ekin = np.logspace(0, 3, 500)  # 1 GeV to 1 TeV per nucleon
     en_exponent = energy_exponent
     gsf_n = GSFEnergyPerNucleon(version=version.value)
     _fig, axes = plt.subplots(1, 2, figsize=(16, 7))

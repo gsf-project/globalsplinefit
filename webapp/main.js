@@ -360,10 +360,26 @@ function App() {
     return () => ro.disconnect();
   }, []);
   const wide = size.w > 980;
+
+  /* The dock's height varies: it reflows to two, three or four rows with
+     the viewport and grows one when the sampling or comparison controls
+     appear, so the chart's bottom inset is measured from it. The dock is
+     laid out independently of the chart, so this cannot loop. */
+  const dockRef = useRef(null);
+  const [dockH, setDockH] = useState(0);
+  useEffect(() => {
+    /* border box: the dock's own padding is part of what the chart clears */
+    const ro = new ResizeObserver(([e]) =>
+      setDockH(e.target.getBoundingClientRect().height));
+    ro.observe(dockRef.current);
+    return () => ro.disconnect();
+  }, []);
+
   /* These insets are stable while overlays open and close: the chart never
      resizes or recomputes merely because a command surface is visible. */
-  const insets = wide ? { l: 14, r: 18, t: 72, b: 82 }
-                      : { l: 0, r: 2, t: 126, b: 230 };
+  const insets = wide
+    ? { l: 14, r: 18, t: 72, b: Math.max(82, dockH + 14) }
+    : { l: 0, r: 2, t: 126, b: Math.max(230, dockH + 14) };
 
   /* Command surfaces close consistently with Escape or an outside press.
      Their DOM is overlaid, never inserted into the chart's sizing flow. */
@@ -668,7 +684,7 @@ function App() {
           </button>`)}
       </nav>
 
-      <section class="displaydock" aria-label="Display controls">
+      <section ref=${dockRef} class="displaydock" aria-label="Display controls">
         <div class="dockcontrol quantity-control">
           <span class="docklabel">Normalization</span>
           ${isComposition
