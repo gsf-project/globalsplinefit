@@ -628,7 +628,12 @@ class Parameters:
         V2 rows contain ``i j Z1 A1 Z2 A2 value``; v1 rows contain
         ``i j Z1 Z2 value``.
 
-        Keyed by species-id pairs ``((Z1,A1), (Z2,A2))``.
+        Keyed by species-id pairs ``((Z1,A1), (Z2,A2))``, group leaders only.
+        The fit freezes the sub-leading splines, so uncertainty propagation
+        resolves every target to its group leader (:meth:`_covariance_block`)
+        and a sub-leading species inherits the leader's uncertainty. The 2026
+        sets still carry per-species blocks for all 28 charges; they are read
+        and dropped here rather than kept as an attractive nuisance.
         """
         cov_file = self.data_path / "covariance.dat"
         if not cov_file.exists():
@@ -662,6 +667,8 @@ class Parameters:
                 raise ValueError(
                     f"covariance references unknown species {s1!r}, {s2!r}"
                 )
+            if s1 not in self._leaders or s2 not in self._leaders:
+                continue
             local_i = i - self.offset[s1]
             local_j = j - self.offset[s2]
             if not 0 <= local_i < self.npar[s1] or not 0 <= local_j < self.npar[s2]:

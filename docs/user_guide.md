@@ -156,6 +156,39 @@ carbon_err = gsf.error(energy, 6)
 leader, ratio = gsf.flux_ratio[(6, 12.011)]   # -> ((8, 15.999), 1.1487)
 ```
 
+The fit varies the four leader splines and holds the sub-leading ones fixed,
+so a sub-leading species has no fitted uncertainty of its own: whatever error
+you quote for it is inherited from its group leader. Two recipes are
+available, and they are not the same below the species' top knot:
+
+```python
+from globalsplinefit import GSFRigidity
+
+gsf_r = GSFRigidity()
+rigidity = np.logspace(1, 6, 200)
+
+# (a) what error() returns: the leader's spline covariance contracted through
+#     ratio x d(leader flux), divided by the species' own central flux
+sigma_a = gsf_r.error(rigidity, 6)
+
+# (b) the leader's RELATIVE uncertainty carried onto the species' flux at the
+#     SAME RIGIDITY — "the group's normalisation is uncertain, the frozen
+#     composition ratio is not"
+leader_z = 8
+sigma_b = gsf_r.flux(rigidity, 6) * (
+    gsf_r.error(rigidity, leader_z) / gsf_r.flux(rigidity, leader_z)
+)
+```
+
+Above the species' top knot (8.3e4 GV for carbon) its flux *is* `ratio x` the
+leader's, and the two agree to machine precision. Below it the flux comes
+from the species' own frozen spline while the Jacobian still uses
+`ratio x` the leader's, so they part company — 1.28x at 1e3 GV for carbon,
+and between 0.1x and 2.5x across the group members. Recipe (b) is the one
+that keeps a sub-leading band consistent with its group's; whichever you use,
+say so. Note that both must be compared at fixed rigidity: at fixed energy
+per nucleus, leader and member sit at different rigidities.
+
 For the current sets these per-element parameters are in
 `data/<version>/subleading.dat` (columns `Z A norm slope`). Without the file
 (`2017`, `2019`, `2025`), or with a zero slope, the ratio is constant above
