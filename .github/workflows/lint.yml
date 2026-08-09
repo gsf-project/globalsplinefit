@@ -1,0 +1,29 @@
+# Runs the same hooks as the local pre-commit install, so a commit that
+# passes on a developer machine passes here. Both sides call the project's
+# own ruff (uv.lock) rather than a separately pinned mirror.
+name: Lint
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ "*" ]
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        python-version: "3.12"
+        enable-cache: true
+
+    - name: Install dependencies
+      run: uv sync --extra dev
+
+    - name: Run pre-commit
+      run: uv run pre-commit run --all-files --show-diff-on-failure

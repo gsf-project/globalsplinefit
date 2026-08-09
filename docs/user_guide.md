@@ -162,10 +162,12 @@ For the current sets these per-element parameters are in
 $R_{\text{max}}$.
 
 !!! note
-    The norm and slope are best-fit point estimates; their uncertainty is not
-    propagated (`covariance.dat` stores the four group leaders only), so a
-    sub-leading flux carries the leader's uncertainty and nothing extra. The
-    saturation constant is exposed as
+    The norm and slope are best-fit point estimates, and uncertainty
+    propagation uses the four group-leader blocks alone, so a sub-leading
+    flux carries the leader's uncertainty and nothing extra. The 2026 sets
+    do ship covariance blocks for all 28 charges — each species' own short
+    spline over its direct-data range, mostly pinned — which the model loads
+    but never propagates. The saturation constant is exposed as
     `globalsplinefit.model.SUBLEADING_SAT_LNR`.
 
 ## Uncertainty Quantification

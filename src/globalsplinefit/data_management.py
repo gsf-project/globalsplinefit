@@ -179,6 +179,7 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
     },
 }
 
+
 def resolve_version(version: str | None = None) -> str:
     """Resolve a version request to a registered ``<line>.<revision>`` name.
 
@@ -201,8 +202,7 @@ def resolve_version(version: str | None = None) -> str:
     if revisions:
         return max(revisions)[1]
     raise ValueError(
-        f"Version {name!r} not found. Available versions: "
-        f"{get_available_versions()}"
+        f"Version {name!r} not found. Available versions: {get_available_versions()}"
     )
 
 
@@ -275,8 +275,10 @@ def version_info(version: str | None = None) -> dict[str, str]:
 
 
 class Parameters:
-    """Immutable bundle of loaded GSF model data: knots, spline parameters,
-    covariance, nuclei and solar-modulation table.
+    """Immutable bundle of loaded GSF model data.
+
+    Holds knots, spline parameters, covariance, nuclei and the
+    solar-modulation table.
 
     Parameters
     ----------

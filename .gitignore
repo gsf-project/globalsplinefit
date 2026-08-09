@@ -42,3 +42,6 @@ examples/*.pdf
 webapp/globalsplinefit-*.whl
 __marimo__/
 .cache/
+
+# wrangler (Cloudflare Pages deploy) local cache
+.wrangler/

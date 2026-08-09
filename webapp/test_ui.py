@@ -40,6 +40,7 @@ console_errors = []
 
 def check(name):
     """Decorator-ish context: run fn, record PASS/FAIL, keep going."""
+
     class _Ctx:
         def __enter__(self):
             self.t0 = time.time()
@@ -48,42 +49,54 @@ def check(name):
 
         def __exit__(self, exc_type, exc, tb):
             dt = time.time() - self.t0
-            new_errs = console_errors[self.err0:]
+            new_errs = console_errors[self.err0 :]
             if exc is None and not new_errs:
                 results.append((name, "PASS", f"{dt:.1f}s"))
             else:
-                msg = (f"{type(exc).__name__}: {str(exc)[:120]}" if exc
-                       else f"console: {new_errs[0][:120]}")
+                msg = (
+                    f"{type(exc).__name__}: {str(exc)[:120]}"
+                    if exc
+                    else f"console: {new_errs[0][:120]}"
+                )
                 results.append((name, "FAIL", msg))
-            return True   # swallow, keep testing
+            return True  # swallow, keep testing
+
     return _Ctx()
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--fast", action="store_true",
-                    help="skip matplotlib figure exports")
+    ap.add_argument(
+        "--fast", action="store_true", help="skip matplotlib figure exports"
+    )
     args = ap.parse_args()
 
     srv = subprocess.Popen(
         [sys.executable, "-m", "http.server", str(PORT), "-d", str(WEBAPP)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch()
             ctx = browser.new_context(
                 viewport={"width": 1680, "height": 1000},
-                permissions=["clipboard-read", "clipboard-write"])
+                permissions=["clipboard-read", "clipboard-write"],
+            )
             page = ctx.new_page()
-            page.on("console", lambda m: m.type == "error"
-                    and console_errors.append(m.text[:200]))
-            page.on("pageerror",
-                    lambda e: console_errors.append(str(e)[:200]))
+            page.on(
+                "console",
+                lambda m: m.type == "error" and console_errors.append(m.text[:200]),
+            )
+            page.on("pageerror", lambda e: console_errors.append(str(e)[:200]))
 
             # ---------------------------------------------------- helpers
             def toast():
-                return (page.text_content(".toast")[:150]
-                        if page.query_selector(".toast") else None)
+                return (
+                    page.text_content(".toast")[:150]
+                    if page.query_selector(".toast")
+                    else None
+                )
 
             def settle(ms=2500):
                 page.wait_for_timeout(ms)
@@ -101,10 +114,12 @@ def main() -> int:
                     "Export": "Export",
                 }.get(title)
                 if command and not page.query_selector(
-                        f".panel:has(h2:text-is('{title}'))"):
+                    f".panel:has(h2:text-is('{title}'))"
+                ):
                     page.click(f".commandbtn:text-is('{command}')")
                     page.wait_for_selector(
-                        f".panel:has(h2:text-is('{title}'))", timeout=5_000)
+                        f".panel:has(h2:text-is('{title}'))", timeout=5_000
+                    )
                 if title == "Display":
                     return
                 sel = f".panel:has(h2:text-is('{title}'))"
@@ -116,8 +131,7 @@ def main() -> int:
                 return page.locator(f"label.field:has-text('{label}')")
 
             def el_chip(sym):
-                return page.locator(".elgrid button",
-                                    has_text=re.compile(f"^{sym}$"))
+                return page.locator(".elgrid button", has_text=re.compile(f"^{sym}$"))
 
             def header_tag():
                 return page.text_content(".wordmark .tag")
@@ -125,7 +139,8 @@ def main() -> int:
             def yticks():
                 return page.eval_on_selector_all(
                     "svg.chart text[text-anchor='end']",
-                    "els => els.map(e => e.textContent).join(' ')")
+                    "els => els.map(e => e.textContent).join(' ')",
+                )
 
             def plot_frame(pg=None):
                 """Plot-area frame in page coords, read off the drawn axes.
@@ -183,8 +198,11 @@ def main() -> int:
             with check("about: 3 BibTeX records + TBD + copy works"):
                 assert page.locator(".cite").count() == 4
                 assert page.locator(".cite button").count() == 3
-                for key in ("Dembinski:2017zsh", "Fujisue:2025wnp",
-                            "Dembinski:2025nmp"):
+                for key in (
+                    "Dembinski:2017zsh",
+                    "Fujisue:2025wnp",
+                    "Dembinski:2025nmp",
+                ):
                     assert key in page.text_content(".modal"), key
                 page.click(".cite button >> nth=0")
                 page.wait_for_timeout(250)
@@ -199,18 +217,17 @@ def main() -> int:
             with check("model: add overlay (2026.0-USO)"):
                 open_panel("Model")
                 page.select_option(
-                    "label.field:has-text('Add model') select", "2026.0-USO")
+                    "label.field:has-text('Add model') select", "2026.0-USO"
+                )
                 settle(3_500)
                 assert page.locator(".modelrow").count() == 2
                 assert "2026.0 vs 2026.0-USO" in header_tag()
 
             with check("model: add third (2017), cap reached"):
-                page.select_option(
-                    "label.field:has-text('Add model') select", "2017")
+                page.select_option("label.field:has-text('Add model') select", "2017")
                 settle(4_000)
                 assert page.locator(".modelrow").count() == 3
-                assert not page.query_selector(
-                    "label.field:has-text('Add model')")
+                assert not page.query_selector("label.field:has-text('Add model')")
 
             with check("model: drag-reorder promotes new primary"):
                 page.drag_and_drop(".modelrow >> nth=1", ".modelrow >> nth=0")
@@ -230,8 +247,10 @@ def main() -> int:
                 assert toggle.get_attribute("aria-expanded") == "true"
 
             with check("model: remove overlays"):
-                while page.locator(".modelrow .mdel").count() > 0 \
-                        and page.locator(".modelrow").count() > 1:
+                while (
+                    page.locator(".modelrow .mdel").count() > 0
+                    and page.locator(".modelrow").count() > 1
+                ):
                     page.click(".modelrow .mdel >> nth=-1")
                     page.wait_for_timeout(1_500)
                 settle(2_500)
@@ -243,11 +262,14 @@ def main() -> int:
                     open_panel("Abscissa")
                     page.select_option(
                         ".panel:has(h2:text-is('Abscissa')) "
-                        "label.field:has-text('Horizontal axis') select", basis)
+                        "label.field:has-text('Horizontal axis') select",
+                        basis,
+                    )
                     settle(3_000)
                     open_panel("Components")
-                    assert not el_chip("D").is_disabled(), \
+                    assert not el_chip("D").is_disabled(), (
                         "D chip should be enabled on " + basis
+                    )
                     if basis == "rig":
                         # regression: D was gated off non-energy abscissas
                         # before globalsplinefit accepted "D" as a target
@@ -261,33 +283,38 @@ def main() -> int:
             with check("quantity: nucleon flux restricts abscissa"):
                 open_panel("Abscissa")
                 quantity = page.locator(
-                    ".settings-popover label.field:has-text('Plot') select")
+                    ".settings-popover label.field:has-text('Plot') select"
+                )
                 axis = page.locator(
                     ".panel:has(h2:text-is('Abscissa')) "
-                    "label.field:has-text('Horizontal axis') select")
+                    "label.field:has-text('Horizontal axis') select"
+                )
                 quantity.select_option("nucleon")
                 settle(5_000)
                 assert axis.input_value() == "en"
                 assert axis.locator("option").evaluate_all(
-                    "opts => opts.map(o => o.value)") == ["en", "ekn"]
+                    "opts => opts.map(o => o.value)"
+                ) == ["en", "ekn"]
                 assert "Nucleon Flux" in header_tag()
 
             with check("quantity: lnA moments expose every abscissa"):
                 open_panel("Abscissa")
                 quantity = page.locator(
-                    ".settings-popover label.field:has-text('Plot') select")
+                    ".settings-popover label.field:has-text('Plot') select"
+                )
                 axis = page.locator(
                     ".panel:has(h2:text-is('Abscissa')) "
-                    "label.field:has-text('Horizontal axis') select")
-                for value, title in (("mean_lna", "⟨ln A⟩"),
-                                     ("var_lna", "σ²(ln A)")):
+                    "label.field:has-text('Horizontal axis') select"
+                )
+                for value, title in (("mean_lna", "⟨ln A⟩"), ("var_lna", "σ²(ln A)")):
                     quantity.select_option(value)
                     settle(12_000)
                     assert axis.locator("option").count() == 5
                     assert title in page.text_content("svg.chart")
                 open_panel("Components")
                 assert "include every nucleus" in page.text_content(
-                    ".panel:has(h2:text-is('Components'))")
+                    ".panel:has(h2:text-is('Components'))"
+                )
 
             with check("quantity: nucleus flux restores every abscissa"):
                 open_panel("Abscissa")
@@ -297,7 +324,8 @@ def main() -> int:
                 settle(5_000)
                 axis = page.locator(
                     ".panel:has(h2:text-is('Abscissa')) "
-                    "label.field:has-text('Horizontal axis') select")
+                    "label.field:has-text('Horizontal axis') select"
+                )
                 assert axis.locator("option").count() == 5
                 assert "Nucleus Flux" in header_tag()
 
@@ -305,12 +333,16 @@ def main() -> int:
             with check("components: toggle all-particle + each group"):
                 open_panel("Components")
                 assert page.query_selector(
-                    ".series-popover .panel:has(h2:text-is('Model'))")
+                    ".series-popover .panel:has(h2:text-is('Model'))"
+                )
                 for name in ("all-particle", "p", "He", "O*", "Fe*"):
-                    row = page.locator(".seriesrow",
-                                       has_text=re.compile(f"^{re.escape(name)}$"))
-                    row.click(); page.wait_for_timeout(120)
-                    row.click(); page.wait_for_timeout(120)
+                    row = page.locator(
+                        ".seriesrow", has_text=re.compile(f"^{re.escape(name)}$")
+                    )
+                    row.click()
+                    page.wait_for_timeout(120)
+                    row.click()
+                    page.wait_for_timeout(120)
                 settle(1_200)
 
             with check("components: deuterium selectable on E basis"):
@@ -326,7 +358,7 @@ def main() -> int:
                 for i in range(n):
                     page.locator(".elgrid button:not(:disabled)").nth(i).click()
                     page.wait_for_timeout(40)
-                settle(12_000)   # all-elements evaluation is the heaviest
+                settle(12_000)  # all-elements evaluation is the heaviest
                 assert page.locator(".elgrid button.on").count() == n
                 page.click(".resetbtn")
                 settle(6_000)
@@ -337,7 +369,8 @@ def main() -> int:
             with check("display: gamma slider (0, 3.2, 2.7)"):
                 slider = page.locator(".displaydock input[type=range]").first
                 for v in ("0", "3.2", "2.7"):
-                    slider.fill(v); page.wait_for_timeout(150)
+                    slider.fill(v)
+                    page.wait_for_timeout(150)
                 settle(800)
 
             with check("display: log/linear"):
@@ -364,10 +397,12 @@ def main() -> int:
                 settle(600)
 
             with check("nav: hover on/off toolbar toggle"):
-                page.mouse.move(900, 420); page.wait_for_timeout(300)
+                page.mouse.move(900, 420)
+                page.wait_for_timeout(300)
                 assert page.query_selector(".hoverbox")
                 page.click(".plottools button[title*='Hover']")
-                page.mouse.move(880, 420); page.wait_for_timeout(300)
+                page.mouse.move(880, 420)
+                page.wait_for_timeout(300)
                 assert not page.query_selector(".hoverbox"), "hover not disabled"
                 page.click(".plottools button[title*='Hover']")
                 page.mouse.move(20, 20)
@@ -375,22 +410,23 @@ def main() -> int:
             with check("display: line weight is immediate"):
                 line = page.locator("svg.chart path[fill='none']").first
                 before = float(line.get_attribute("stroke-width"))
-                weight = page.locator(
-                    ".lineweight-control input[type=range]")
+                weight = page.locator(".lineweight-control input[type=range]")
                 weight.fill("1.6")
                 page.wait_for_timeout(180)
                 after = float(line.get_attribute("stroke-width"))
                 assert after > before * 1.5
-                assert "busy" not in (
-                    page.get_attribute(".statuspill", "class") or "")
+                assert "busy" not in (page.get_attribute(".statuspill", "class") or "")
                 weight.fill("1")
                 settle(500)
 
             with check("display: bands off/on + opacity"):
                 bands = page.locator(
-                    ".band-control .switchcheck:has-text('Uncertainty')")
-                bands.click(); page.wait_for_timeout(200)
-                bands.click(); page.wait_for_timeout(200)
+                    ".band-control .switchcheck:has-text('Uncertainty')"
+                )
+                bands.click()
+                page.wait_for_timeout(200)
+                bands.click()
+                page.wait_for_timeout(200)
                 page.locator(".opacity-control input[type=range]").fill("0.4")
                 settle(600)
 
@@ -400,8 +436,9 @@ def main() -> int:
                 paths = page.locator("svg.chart g.samples path")
                 # default 100 trials x (4 groups + total) coherent draws
                 assert paths.count() == 500, f"{paths.count()} sample paths"
-                alpha = float(page.get_attribute(
-                    "svg.chart g.samples", "stroke-opacity"))
+                alpha = float(
+                    page.get_attribute("svg.chart g.samples", "stroke-opacity")
+                )
                 assert 0.05 < alpha < 0.08, f"alpha {alpha} at 100 trials"
                 page.click(".band-control .seg button:text-is('Band')")
                 settle(2_000)
@@ -410,19 +447,20 @@ def main() -> int:
             with check("display: trials slider rescales the alpha"):
                 page.click(".band-control .seg button:text-is('Samples')")
                 settle(4_000)
-                trials = page.locator(
-                    ".opacity-control input[type=range]")
+                trials = page.locator(".opacity-control input[type=range]")
                 trials.fill("20")
                 settle(3_000)
                 assert page.locator("svg.chart g.samples path").count() == 100
-                alpha = float(page.get_attribute(
-                    "svg.chart g.samples", "stroke-opacity"))
+                alpha = float(
+                    page.get_attribute("svg.chart g.samples", "stroke-opacity")
+                )
                 assert abs(alpha - 0.10) < 0.005, f"alpha {alpha} at 20 trials"
                 trials.fill("200")
                 settle(4_000)
                 assert page.locator("svg.chart g.samples path").count() == 1000
-                alpha = float(page.get_attribute(
-                    "svg.chart g.samples", "stroke-opacity"))
+                alpha = float(
+                    page.get_attribute("svg.chart g.samples", "stroke-opacity")
+                )
                 assert abs(alpha - 0.02) < 0.005, f"alpha {alpha} at 200 trials"
                 page.click(".band-control .seg button:text-is('Band')")
                 settle(2_000)
@@ -447,14 +485,13 @@ def main() -> int:
             with check("display: overlay hatch bands (needs 2nd model)"):
                 open_panel("Model")
                 page.select_option(
-                    "label.field:has-text('Add model') select", "2026.0-USO")
+                    "label.field:has-text('Add model') select", "2026.0-USO"
+                )
                 settle(3_500)
-                page.locator(
-                    ".band-control .switchcheck:has-text('Compared')").click()
+                page.locator(".band-control .switchcheck:has-text('Compared')").click()
                 settle(800)
                 assert page.query_selector("svg.chart pattern"), "no hatch"
-                page.locator(
-                    ".band-control .switchcheck:has-text('Compared')").click()
+                page.locator(".band-control .switchcheck:has-text('Compared')").click()
                 open_panel("Model")
                 page.click(".modelrow .mdel >> nth=-1")
                 settle(2_500)
@@ -489,15 +526,18 @@ def main() -> int:
                 open_panel("Advanced")
                 inp = by_label("Energy-scale").locator("input")
                 for v in ("0.8", "1.2", "1.0"):
-                    inp.fill(v); inp.dispatch_event("change")
+                    inp.fill(v)
+                    inp.dispatch_event("change")
                     page.wait_for_timeout(400)
                 settle(2_500)
 
             with check("advanced: rigidity cutoff 30 / 0"):
                 inp = by_label("Rigidity cutoff").locator("input")
-                inp.fill("30"); inp.dispatch_event("change")
+                inp.fill("30")
+                inp.dispatch_event("change")
                 settle(3_000)
-                inp.fill("0"); inp.dispatch_event("change")
+                inp.fill("0")
+                inp.dispatch_event("change")
                 settle(2_500)
 
             with check("advanced: grid points 240 / 960 / 480"):
@@ -508,12 +548,15 @@ def main() -> int:
 
             # ---------------------------------------------- plot navigation
             with check("nav: box-zoom sets window + custom y"):
-                page.mouse.move(700, 300); page.mouse.down()
-                page.mouse.move(1200, 650, steps=6); page.mouse.up()
+                page.mouse.move(700, 300)
+                page.mouse.down()
+                page.mouse.move(1200, 650, steps=6)
+                page.mouse.up()
                 settle(3_000)
                 assert "10⁻¹–10¹¹" not in header_tag()
                 assert not page.locator(
-                    ".plottools button[title*='Reset']").is_disabled()
+                    ".plottools button[title*='Reset']"
+                ).is_disabled()
 
             with check("nav: home button resets"):
                 page.click(".plottools button[title*='Reset']")
@@ -523,7 +566,7 @@ def main() -> int:
             with check("nav: x-axis drag zooms x only (y frozen)"):
                 f = plot_frame()
                 t0 = yticks()
-                yax = f["b"] + 25          # on the x-axis tick strip
+                yax = f["b"] + 25  # on the x-axis tick strip
                 page.mouse.move(f["l"] + 0.45 * (f["r"] - f["l"]), yax)
                 page.mouse.down()
                 page.mouse.move(f["l"] + 0.75 * (f["r"] - f["l"]), yax, steps=5)
@@ -537,7 +580,7 @@ def main() -> int:
             with check("nav: y-axis drag zooms y only (x frozen)"):
                 f = plot_frame()
                 t0 = yticks()
-                xax = f["l"] - 30          # on the y-axis tick strip
+                xax = f["l"] - 30  # on the y-axis tick strip
                 page.mouse.move(xax, f["t"] + 0.30 * (f["b"] - f["t"]))
                 page.mouse.down()
                 page.mouse.move(xax, f["t"] + 0.65 * (f["b"] - f["t"]), steps=5)
@@ -553,8 +596,10 @@ def main() -> int:
                 # to AUTO; the auto range must come from the means INSIDE the
                 # window, so it differs from the full-domain auto range at
                 # the same gamma
-                page.mouse.move(900, 300); page.mouse.down()
-                page.mouse.move(1250, 700, steps=6); page.mouse.up()
+                page.mouse.move(900, 300)
+                page.mouse.down()
+                page.mouse.move(1250, 700, steps=6)
+                page.mouse.up()
                 settle(3_000)
                 gamma = page.locator(".displaydock input[type=range]").first
                 gamma.fill("2")
@@ -568,12 +613,17 @@ def main() -> int:
 
             with check("nav: pan drags the window"):
                 page.click(".plottools button[title*='Pan']")
-                page.mouse.move(1000, 500); page.mouse.down()
-                page.mouse.move(850, 540, steps=5); page.mouse.up()
+                page.mouse.move(1000, 500)
+                page.mouse.down()
+                page.mouse.move(850, 540, steps=5)
+                page.mouse.up()
                 settle(3_000)
                 assert not page.locator(
-                    ".plottools button[title*='Reset']").is_disabled()
-                page.click(".plottools button[title*='Zoom'], .plottools button[title*='Box']")
+                    ".plottools button[title*='Reset']"
+                ).is_disabled()
+                page.click(
+                    ".plottools button[title*='Zoom'], .plottools button[title*='Box']"
+                )
 
             with check("nav: double-click = home"):
                 page.dblclick("svg.chart", position={"x": 900, "y": 500})
@@ -617,7 +667,8 @@ def main() -> int:
             with check("export: CSV per model (2 active -> 2 files)"):
                 open_panel("Model")
                 page.select_option(
-                    "label.field:has-text('Add model') select", "2026.0-USO")
+                    "label.field:has-text('Add model') select", "2026.0-USO"
+                )
                 settle(4_500)
                 open_panel("Export")
                 with page.expect_download(timeout=90_000) as dl:
@@ -655,13 +706,13 @@ def main() -> int:
                 page.click(".iconbtn[title='Switch theme']")
 
             with check("theme: fresh browser follows prefers-color-scheme"):
-                c2 = browser.new_context(color_scheme="light",
-                                         viewport={"width": 1200, "height": 800})
+                c2 = browser.new_context(
+                    color_scheme="light", viewport={"width": 1200, "height": 800}
+                )
                 p2 = c2.new_page()
                 p2.goto(URL, timeout=60_000)
                 p2.wait_for_timeout(1_000)
-                assert p2.evaluate(
-                    "document.documentElement.dataset.theme") == "light"
+                assert p2.evaluate("document.documentElement.dataset.theme") == "light"
                 c2.close()
 
             # ---------------------------------------------------- responsive
@@ -676,23 +727,27 @@ def main() -> int:
                 legend.click()
                 assert legend.get_attribute("aria-expanded") == "true"
                 for command, selector in (
-                        ("Series", ".series-popover"),
-                        ("Settings", ".settings-popover"),
-                        ("Export", ".export-popover")):
+                    ("Series", ".series-popover"),
+                    ("Settings", ".settings-popover"),
+                    ("Export", ".export-popover"),
+                ):
                     p3.click(f".commandbtn:text-is('{command}')")
                     pane = p3.locator(selector)
                     scroller = pane.locator(".panescroll")
-                    assert scroller.evaluate(
-                        "e => getComputedStyle(e).overflowY") == "auto"
+                    assert (
+                        scroller.evaluate("e => getComputedStyle(e).overflowY")
+                        == "auto"
+                    )
                     dims = scroller.evaluate(
-                        "e => ({h:e.clientHeight, sh:e.scrollHeight})")
+                        "e => ({h:e.clientHeight, sh:e.scrollHeight})"
+                    )
                     assert dims["sh"] > dims["h"], (command, dims)
                     assert pane.locator(".scrollrail.active").count() == 1
                     scroller.evaluate("e => { e.scrollTop = e.scrollHeight; }")
                     assert scroller.evaluate("e => e.scrollTop") > 0
                     p3.click(f"{selector} .closebtn")
                 p3.click(".commandbtn:text-is('Settings')")
-                p3.wait_for_timeout(300)      # sheet-in animation
+                p3.wait_for_timeout(300)  # sheet-in animation
                 sheet = p3.locator(".overlay-surface")
                 assert sheet.is_visible()
                 assert sheet.bounding_box()["y"] > 100
@@ -738,13 +793,13 @@ def main() -> int:
             # -------------------------------------------------------- touch
             # iPad-class device (short viewport + touch): chart gestures and
             # pane fit — regression guard for the 2026-08 touch support.
-            c4 = browser.new_context(viewport={"width": 1024, "height": 700},
-                                     has_touch=True, is_mobile=True)
+            c4 = browser.new_context(
+                viewport={"width": 1024, "height": 700}, has_touch=True, is_mobile=True
+            )
             p4 = c4.new_page()
 
             def p4_window():
-                return p4.evaluate(
-                    "() => document.querySelector('header').innerText")
+                return p4.evaluate("() => document.querySelector('header').innerText")
 
             with check("touch: boots on iPad-size viewport"):
                 p4.goto(URL, timeout=60_000)
@@ -759,15 +814,22 @@ def main() -> int:
                 p4.touchscreen.tap(tx, ty)
                 p4.wait_for_timeout(600)
                 assert p4.evaluate(
-                    "() => document.body.innerText.includes('all-particle')")
+                    "() => document.body.innerText.includes('all-particle')"
+                )
 
             with check("touch: pinch zooms the x-window"):
                 w0 = p4_window()
                 cdp = c4.new_cdp_session(p4)
-                cdp.send("Input.synthesizePinchGesture",
-                         {"x": tx, "y": ty, "scaleFactor": 2.5,
-                          "relativeSpeed": 400,
-                          "gestureSourceType": "touch"})
+                cdp.send(
+                    "Input.synthesizePinchGesture",
+                    {
+                        "x": tx,
+                        "y": ty,
+                        "scaleFactor": 2.5,
+                        "relativeSpeed": 400,
+                        "gestureSourceType": "touch",
+                    },
+                )
                 p4.wait_for_timeout(1000)
                 assert p4_window() != w0, "window unchanged after pinch"
 
@@ -781,9 +843,10 @@ def main() -> int:
 
             with check("touch: panes fit and scroll to the bottom"):
                 for command, selector in (
-                        ("Series", ".series-popover"),
-                        ("Settings", ".settings-popover"),
-                        ("Export", ".export-popover")):
+                    ("Series", ".series-popover"),
+                    ("Settings", ".settings-popover"),
+                    ("Export", ".export-popover"),
+                ):
                     p4.click(f".commandbtn:text-is('{command}')")
                     p4.wait_for_timeout(300)
                     state = p4.locator(selector).evaluate("""pane => {
@@ -802,8 +865,14 @@ def main() -> int:
 
             # ----------------------------------------------- panel collapse
             with check("panels: every header expands and collapses"):
-                for t in ("Model", "Components", "Abscissa",
-                          "Solar modulation", "Advanced", "Export"):
+                for t in (
+                    "Model",
+                    "Components",
+                    "Abscissa",
+                    "Solar modulation",
+                    "Advanced",
+                    "Export",
+                ):
                     open_panel(t)
                     sel = f".panel:has(h2:text-is('{t}'))"
                     page.click(f"{sel} > header")

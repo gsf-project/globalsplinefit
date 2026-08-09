@@ -49,7 +49,6 @@ from .model import (
 
 _NUCLEON_MODELS = (GSFEnergyPerNucleon, GSFKineticEnergyPerNucleon)
 _GROUPS = ("H", "He", "O*", "Fe*")
-_JACOBIAN_TRIM = slice(1, -3)
 
 
 def _build_stacked_system(model, energy_grid, **kwargs):
@@ -60,9 +59,11 @@ def _build_stacked_system(model, energy_grid, **kwargs):
         _charges, leader = model._resolve_z(group)
         leader_sids.append(model._leader_by_charge[leader])
         jac_p, jac_n = model.p_and_n_jacobian(energy_grid, group, **kwargs)
-        jac_blocks.append(
-            np.vstack([jac_p[:, _JACOBIAN_TRIM], jac_n[:, _JACOBIAN_TRIM]])
-        )
+        # Full amplitude range: the fit pins a coefficient by zeroing its
+        # covariance row and column (NNLS-zero coefficients, and free ones
+        # whose relative sigma exceeds 50 in the data-free extrapolation),
+        # so pinned parameters contribute nothing to the contraction.
+        jac_blocks.append(np.vstack([jac_p, jac_n]))
 
     widths = [block.shape[1] for block in jac_blocks]
     rows = sum(block.shape[0] for block in jac_blocks)
@@ -82,9 +83,7 @@ def _build_stacked_system(model, energy_grid, **kwargs):
         for sid2, width2 in zip(leader_sids, widths, strict=True):
             block = model.cov.get((sid1, sid2))
             if block is not None:
-                covariance[col1 : col1 + width1, col2 : col2 + width2] = block[
-                    _JACOBIAN_TRIM, _JACOBIAN_TRIM
-                ]
+                covariance[col1 : col1 + width1, col2 : col2 + width2] = block
             col2 += width2
         col1 += width1
 
@@ -203,6 +202,10 @@ class ReducedGSF:
         neutron flux — sufficient for atmospheric-cascade applications, and
         much lower-dimensional.  If True, every mass group contributes its
         own p and n species (8 species; for composition-sensitive users).
+        The eight species come from four leader amplitude blocks, so their
+        component covariance is rank-deficient (68 of 96 on the default
+        grid) and :meth:`penalty` leaves that nullspace unconstrained.  Use
+        it to inspect composition correlations, not as a fit prior.
     basis : {"spline", "hat"}, optional
         Interpolation between pivots (in log-energy).  ``"spline"``
         (default) is a local cubic (Catmull-Rom) spline: smooth (C1)
@@ -379,8 +382,9 @@ class ReducedGSF:
     # ------------------------------------------------------------------
 
     def basis(self, energy: ArrayLike) -> np.ndarray:
-        """Interpolation basis H, shape (n_E, N); see the ``basis``
-        constructor parameter.
+        """Interpolation basis H, shape (n_E, N).
+
+        See the ``basis`` constructor parameter.
         """
         energy = self.model._as_1d_values(energy, "energy", positive=True)
         log_e = np.log(energy)
@@ -511,7 +515,9 @@ class ReducedGSF:
         """Gaussian penalty ``theta^T cov^-1 theta`` for a fit.
 
         Add this to the fit's chi-square to constrain the components to the
-        GSF uncertainty.
+        GSF uncertainty.  The default (p, n) covariance is full rank.  With
+        ``per_group=True`` it is not, and the pseudo-inverse charges nothing
+        along the nullspace, so a fit is free to move there.
         """
         theta = np.asarray(theta, dtype=float)
         if (

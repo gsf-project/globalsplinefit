@@ -214,13 +214,24 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
         ? (f) => f.map((v, i) =>
             (v > 0 && tot?.[i] > 0 ? v / tot[i] : NaN))
         : (f) => f.map((v, i) => (v > 0 ? v * x[i] ** g : NaN));
+      /* A pseudo-experiment is one coherent realization: draw k of the total
+         is the sum of draw k of the groups (one shared amplitude draw), so a
+         sampled fraction divides by ITS OWN total and the four group
+         fractions of a draw sum to 1. */
+      const totDraws = data.total?.samples;
+      const weighDraw = view.ratio
+        ? (f, k) => f.map((v, i) => {
+            const t = totDraws?.[k]?.[i];
+            return v > 0 && t > 0 ? v / t : NaN;
+          })
+        : (f) => weigh(f);
       if (view.showTotal && data.total && !view.ratio) {
         const { flux, err, samples } = data.total;
         rows.push({
           name: data.quantity === "nucleon" ? "all-nucleon" : "all-particle",
           tag, mi, kind: "total", color: theme.ink,
           w: weigh(flux),
-          draws: mi === 0 && samples ? samples.map(weigh) : null,
+          draws: mi === 0 && samples ? samples.map(weighDraw) : null,
           lo: withBand && err ? weigh(flux.map((v, i) => v - err[i])) : null,
           hi: withBand && err ? weigh(flux.map((v, i) => v + err[i])) : null,
         });
@@ -235,7 +246,7 @@ export function Chart({ models, view, theme, mode, xWindow, hoverEnabled = true,
         rows.push({
           name: s.name, tag, mi, kind: isGroup ? "group" : "element", color,
           w: weigh(s.flux),
-          draws: mi === 0 && s.samples ? s.samples.map(weigh) : null,
+          draws: mi === 0 && s.samples ? s.samples.map(weighDraw) : null,
           lo: withBand && isGroup && s.err
             ? weigh(s.flux.map((v, i) => Math.max(v - s.err[i], 0))) : null,
           hi: withBand && isGroup && s.err

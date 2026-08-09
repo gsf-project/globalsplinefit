@@ -618,40 +618,12 @@ def _(
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## Per-group variant and export
+    ## Export
 
-    Composition-sensitive applications can request one p/n pair per mass
-    group (`per_group=True`, $8 \times N$ parameters; `optimize_pivots`
-    accepts the same flag). And `to_dict()` emits a JSON-serializable record —
-    pivots, species, basis, central flux at the pivots, covariance — so a
-    fitter can consume it with only a JSON reader.
+    `to_dict()` emits a JSON-serializable record — pivots, species, basis,
+    central flux at the pivots, covariance — so a fitter can consume it with
+    only a JSON reader.
     """)
-    return
-
-
-@app.cell
-def _(
-    ReducedGSF,
-    gsf,
-    np,
-    plt,
-    show,
-):
-    red_g = ReducedGSF(gsf, n_pivots=6, energy_range=(2.0, 1e8), per_group=True)
-    print(f"per-group parameters: {red_g.n_params}  species: {red_g.species}")
-
-    _fig, _ax = plt.subplots(figsize=(6.5, 5.2))
-    _im = _ax.imshow(red_g.correlation, cmap="RdBu_r", vmin=-1, vmax=1)
-    _n = len(red_g.pivot_energies)
-    _ticks = np.arange(len(red_g.species)) * _n + _n / 2
-    for _b in range(1, len(red_g.species)):
-        _ax.axhline(_b * _n - 0.5, color="k", lw=0.5)
-        _ax.axvline(_b * _n - 0.5, color="k", lw=0.5)
-    _ax.set_xticks(_ticks, red_g.species, fontsize=8)
-    _ax.set_yticks(_ticks, red_g.species, fontsize=8)
-    _ax.set_title("per-group component correlations")
-    plt.colorbar(_im, ax=_ax, fraction=0.046)
-    show()
     return
 
 

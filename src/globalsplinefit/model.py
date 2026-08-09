@@ -603,7 +603,12 @@ class GSFBase(ABC):
                         slope * np.clip(x_ex - max_log_rigidity, 0.0, dx_sat)
                     )
 
-        return result
+        # A reported flux is non-negative. Past the top knot the terminal
+        # cubic keeps going and can dip below zero (He and O* around
+        # 5e11 GV), which is outside the fitted range in any case. The
+        # Jacobian is deliberately NOT clamped: gradients stay exact there,
+        # so error propagation and sampling see the true spline response.
+        return np.maximum(result, 0.0)
 
     def _element_flux(
         self,
@@ -804,8 +809,9 @@ class GSFBase(ABC):
         time_interval: tuple[int, int] | str | None = None,
         rigidity_cutoff: float | None = None,
     ) -> np.ndarray:
-        """1-sigma uncertainty of the total flux, including cross-group
-        correlations.
+        """1-sigma uncertainty of the total flux.
+
+        Includes the cross-group correlations.
 
         Parameters
         ----------
@@ -1165,15 +1171,13 @@ class GSFBase(ABC):
                 for j, sid2 in enumerate(sids):
                     block = self.cov.get((sid1, sid2))
                     if block is not None:
-                        stacked[
-                            edges[i] : edges[i + 1], edges[j] : edges[j + 1]
-                        ] = block
+                        stacked[edges[i] : edges[i + 1], edges[j] : edges[j + 1]] = (
+                            block
+                        )
             stacked = 0.5 * (stacked + stacked.T)
             eigenvalues, eigenvectors = np.linalg.eigh(stacked)
             factor = eigenvectors * np.sqrt(np.clip(eigenvalues, 0.0, None))
-            slices = {
-                sid: slice(edges[i], edges[i + 1]) for i, sid in enumerate(sids)
-            }
+            slices = {sid: slice(edges[i], edges[i + 1]) for i, sid in enumerate(sids)}
             self._sample_factor_cache = (slices, factor)
         return self._sample_factor_cache
 

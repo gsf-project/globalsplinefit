@@ -27,7 +27,7 @@ def _entry(e):
 def _bibtex_block(cit):
     if not cit.get("bibtex"):
         return f'!!! note "{cit["label"]}"\n\n    {cit.get("note", "")}\n'
-    link = f' — [InspireHEP]({cit["url"]})' if cit.get("url") else ""
+    link = f" — [InspireHEP]({cit['url']})" if cit.get("url") else ""
     return (
         f'??? quote "{cit["label"]} — `{cit["key"]}`{link}"\n\n'
         + "    ```bibtex\n"
@@ -41,7 +41,7 @@ def _recommended(data):
     cit = cits[data["recommended"]]
     out = [data.get("recommended_note", ""), "", "```bibtex", cit["bibtex"], "```"]
     if cit.get("url"):
-        out += ["", f'InspireHEP record: [{cit["key"]}]({cit["url"]})']
+        out += ["", f"InspireHEP record: [{cit['key']}]({cit['url']})"]
     return "\n".join(out)
 
 
@@ -57,11 +57,11 @@ def _potentials(data):
     }
     for p in data["solar_modulation_potentials"]:
         rows.append(
-            f'| {p["label"]} | [`{p["key"]}`]({p["url"]}) | {used.get(p["key"], "")} |'
+            f"| {p['label']} | [`{p['key']}`]({p['url']}) | {used.get(p['key'], '')} |"
         )
     rows += ["", ""]
     for p in data["solar_modulation_potentials"]:
-        rows.append(f'- **{p["label"]}** — {p["note"]}')
+        rows.append(f"- **{p['label']}** — {p['note']}")
     return "\n".join(rows)
 
 
@@ -72,7 +72,7 @@ def _versions(data):
         refs = []
         for k in keys:
             c = cits[k]
-            refs.append(f'[`{c["key"]}`]({c["url"]})' if c.get("url") else c["label"])
+            refs.append(f"[`{c['key']}`]({c['url']})" if c.get("url") else c["label"])
         rows.append(f'| `"{ver}"` | {", ".join(refs)} |')
     return "\n".join(rows)
 

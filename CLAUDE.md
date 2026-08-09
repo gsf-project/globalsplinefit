@@ -30,8 +30,19 @@ Parametric model for cosmic ray flux and composition based on cubic B-spline fit
 - **4 element groups** (leaders), written **H\*, He\*, O\*, Fe\*** since
   2026-08-08 (the paper migrates to this nomenclature; the model's target keys
   are still `"H*"`, `"He"`, `"O*"`, `"Fe*"`): H (Z=1), He (Z=2), O* (Z=8), Fe* (Z=26). Subleading elements scale from their group leader.
-- **Parameter covariance** stored as 10 block pairs between the 4 leaders.
-- **Parameter trimming**: When building Jacobians/covariances, boundary parameters are trimmed: `params[1:-7]`, `cov[1:-3, 1:-3]` per element.
+- **Parameter covariance** stored as block pairs, keyed by species `(Z, A)`.
+  The 2026 sets carry blocks for all 28 charges, not only the four leaders:
+  a sub-leading species has its own (short) spline over its direct-data range
+  with its own fitted block, mostly pinned above that range.
+- **Pinned parameters**: the fit pins a spline coefficient by zeroing its
+  covariance row and column, so every consumer contracts the FULL amplitude
+  range and the pinned parameters drop out on their own. gsf-fitter-2
+  (`gsffit/fit/separable.py`) scatters the Hessian inverse into a zero matrix
+  over the free indices, then zeroes any free coefficient whose relative sigma
+  exceeds 50 (the data-free de Boor extrapolation knots). The pinned indices
+  are NOT a slice — He pins index 17, Fe\* pins 15, 16 and 20-23 — so a
+  positional trim removes data-constrained coefficients.
+  `tests/test_reduced.py::TestPinningConvention` guards this.
 - **Nucleon flux**: `GSFEnergyPerNucleon.p_and_n_flux()` returns shape `(2, N)` for proton and neutron components. Each is summed over all 28 nuclei weighted by Z and A-Z.
 - **Uncertainty propagation**: `Cov_flux = J @ Cov_params @ J.T` where J is the spline Jacobian.
 - **Solar modulation**: Default is Solar Cycle 24 average (Dec 2008 - Dec 2019). Use `time_interval="LIS"` for unmodulated local interstellar spectrum.
@@ -131,14 +142,17 @@ uv run pytest tests/ -m "not slow"  # Skip slow tests
 - Linting: ruff (line-length 88)
 - Tests: pytest with markers (slow, unit, integration, regression)
 
-## Pre-commit checklist
+## Pre-commit
 
-Before committing any changes, always run the following and fix any issues:
+The hooks are the checklist. Install them once per clone:
 
 ```bash
-uv run ruff check src tests examples     # Linting (must pass with zero errors)
-uv run ruff format --check src tests examples  # Formatting check
+uv run pre-commit install        # then every commit runs the hooks
+uv run pre-commit run --all-files    # the whole tree, as CI runs it
 ```
 
-This matches the CI Code Quality workflow and prevents lint/format failures on
-push.
+`lint.yml` runs `pre-commit run --all-files` on every push and PR, so the two
+sides agree by construction. The ruff hooks are `repo: local` and call the
+project's own `uv run ruff` — a hook pinned to a different ruff produces
+commits that pass locally and fail in CI. Scope is the whole repository
+(`src`, `tests`, `examples`, `webapp`, `scripts`), not a hand-typed path list.

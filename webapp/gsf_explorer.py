@@ -56,38 +56,72 @@ GROUP_COLORS = {
 ELEMENT_COLORS = ["#8c564b", "#9467bd", "#7f7f7f", "#bcbd22", "#17becf", "#e377c2"]
 
 ELEMENT_SYMBOLS = {
-    1: "H", 2: "He", 3: "Li", 4: "Be", 5: "B", 6: "C", 7: "N", 8: "O",
-    9: "F", 10: "Ne", 11: "Na", 12: "Mg", 13: "Al", 14: "Si", 15: "P",
-    16: "S", 17: "Cl", 18: "Ar", 19: "K", 20: "Ca", 21: "Sc", 22: "Ti",
-    23: "V", 24: "Cr", 25: "Mn", 26: "Fe", 27: "Co", 28: "Ni",
+    1: "H",
+    2: "He",
+    3: "Li",
+    4: "Be",
+    5: "B",
+    6: "C",
+    7: "N",
+    8: "O",
+    9: "F",
+    10: "Ne",
+    11: "Na",
+    12: "Mg",
+    13: "Al",
+    14: "Si",
+    15: "P",
+    16: "S",
+    17: "Cl",
+    18: "Ar",
+    19: "K",
+    20: "Ca",
+    21: "Sc",
+    22: "Ti",
+    23: "V",
+    24: "Cr",
+    25: "Mn",
+    26: "Fe",
+    27: "Co",
+    28: "Ni",
 }
 
 BASES = {
-    "etot": dict(
-        cls=GSFEnergy, unit="GeV", sym="E",
-        label=r"Total energy per nucleus $E$",
-        phrase="total energy per nucleus",
-    ),
-    "ekin": dict(
-        cls=GSFKineticEnergy, unit="GeV", sym=r"E_{\mathrm{kin}}",
-        label=r"Kinetic energy per nucleus $E_{\mathrm{kin}}$",
-        phrase="kinetic energy per nucleus",
-    ),
-    "rig": dict(
-        cls=GSFRigidity, unit="GV", sym="R",
-        label=r"Rigidity $R$",
-        phrase="rigidity",
-    ),
-    "en": dict(
-        cls=GSFEnergyPerNucleon, unit="GeV", sym=r"E_{N}",
-        label=r"Total energy per nucleon $E_{N}$",
-        phrase="total energy per nucleon",
-    ),
-    "ekn": dict(
-        cls=GSFKineticEnergyPerNucleon, unit="GeV", sym=r"E_{\mathrm{kin},N}",
-        label=r"Kinetic energy per nucleon $E_{\mathrm{kin},N}$",
-        phrase="kinetic energy per nucleon",
-    ),
+    "etot": {
+        "cls": GSFEnergy,
+        "unit": "GeV",
+        "sym": "E",
+        "label": r"Total energy per nucleus $E$",
+        "phrase": "total energy per nucleus",
+    },
+    "ekin": {
+        "cls": GSFKineticEnergy,
+        "unit": "GeV",
+        "sym": r"E_{\mathrm{kin}}",
+        "label": r"Kinetic energy per nucleus $E_{\mathrm{kin}}$",
+        "phrase": "kinetic energy per nucleus",
+    },
+    "rig": {
+        "cls": GSFRigidity,
+        "unit": "GV",
+        "sym": "R",
+        "label": r"Rigidity $R$",
+        "phrase": "rigidity",
+    },
+    "en": {
+        "cls": GSFEnergyPerNucleon,
+        "unit": "GeV",
+        "sym": r"E_{N}",
+        "label": r"Total energy per nucleon $E_{N}$",
+        "phrase": "total energy per nucleon",
+    },
+    "ekn": {
+        "cls": GSFKineticEnergyPerNucleon,
+        "unit": "GeV",
+        "sym": r"E_{\mathrm{kin},N}",
+        "label": r"Kinetic energy per nucleon $E_{\mathrm{kin},N}$",
+        "phrase": "kinetic energy per nucleon",
+    },
 }
 
 VERSION_NOTES = {
@@ -164,7 +198,7 @@ def _nucleus_flux_jacobian(model, x, target, time_interval, rigidity_cutoff):
     intensity directly.
     """
     if not isinstance(model, (GSFEnergyPerNucleon, GSFKineticEnergyPerNucleon)):
-        kw = dict(time_interval=time_interval, rigidity_cutoff=rigidity_cutoff)
+        kw = {"time_interval": time_interval, "rigidity_cutoff": rigidity_cutoff}
         return (
             np.asarray(model.flux(x, target, **kw), float),
             np.asarray(model.jacobian(x, target, **kw), float),
@@ -181,9 +215,10 @@ def _nucleus_flux_jacobian(model, x, target, time_interval, rigidity_cutoff):
         energy = energy_per_nucleon * mass_scale
         mask = model._rigidity_cutoff_mask(sid, energy, cutoff)
         flux += model._element_flux(sid, energy, ti) * mass_scale * mask
-        jacobian += model._element_flux_jacobian(sid, energy, ti) * (
-            mass_scale * mask
-        )[:, np.newaxis]
+        jacobian += (
+            model._element_flux_jacobian(sid, energy, ti)
+            * (mass_scale * mask)[:, np.newaxis]
+        )
     return flux, np.asarray(jacobian)
 
 
@@ -246,9 +281,7 @@ def _composition(model, x, quantity, time_interval, rigidity_cutoff, with_errors
     else:
         value = second - mean**2
         weights = ((ln_a**2 - second) - 2.0 * mean * (ln_a - mean)) / denominator
-    error = (
-        model._derived_error(weights, jacobians, leaders) if with_errors else None
-    )
+    error = model._derived_error(weights, jacobians, leaders) if with_errors else None
     return value, error
 
 
@@ -271,8 +304,16 @@ def _sample_delta(model, n_samples: int, seed: int):
 
 
 def _flux_samples(
-    model, x, named_targets, time_interval, rigidity_cutoff, quantity,
-    n_samples, seed, nucleus_cache, with_total,
+    model,
+    x,
+    named_targets,
+    time_interval,
+    rigidity_cutoff,
+    quantity,
+    n_samples,
+    seed,
+    nucleus_cache,
+    with_total,
 ):
     """Pseudo-experiment draws per displayed series, plus the total.
 
@@ -281,7 +322,7 @@ def _flux_samples(
     evaluation already computed for the nucleus quantity.
     """
     slices, delta = _sample_delta(model, n_samples, seed)
-    kw = dict(time_interval=time_interval, rigidity_cutoff=rigidity_cutoff)
+    kw = {"time_interval": time_interval, "rigidity_cutoff": rigidity_cutoff}
     draws_by_target = {}
 
     def draws_for(target):
@@ -366,7 +407,7 @@ def evaluate(
     # The Explorer exposes a multiplicative factor (1 = unchanged), whereas
     # the package property stores a fractional shift (0 = unchanged).
     model.energy_scale = energy_scale - 1.0
-    kw = dict(time_interval=time_interval, rigidity_cutoff=rigidity_cutoff)
+    kw = {"time_interval": time_interval, "rigidity_cutoff": rigidity_cutoff}
     x = np.logspace(float(dmin), float(dmax), int(npts))
     out = {"x": x, "series": {}, "total": None, "quantity": quantity}
 
@@ -375,10 +416,17 @@ def evaluate(
             model, x, quantity, time_interval, rigidity_cutoff, with_errors
         )
         if n_samples:
-            out["samples"] = {quantity: _composition_samples(
-                model, x, quantity, time_interval, rigidity_cutoff,
-                int(n_samples), int(sample_seed),
-            )}
+            out["samples"] = {
+                quantity: _composition_samples(
+                    model,
+                    x,
+                    quantity,
+                    time_interval,
+                    rigidity_cutoff,
+                    int(n_samples),
+                    int(sample_seed),
+                )
+            }
         return out
 
     nucleus_cache = {}
@@ -414,14 +462,25 @@ def evaluate(
         named_targets.append((name, z if z == "D" else int(z)))
     if n_samples:
         out["samples"] = _flux_samples(
-            model, x, named_targets, time_interval, rigidity_cutoff,
-            quantity, int(n_samples), int(sample_seed), nucleus_cache,
+            model,
+            x,
+            named_targets,
+            time_interval,
+            rigidity_cutoff,
+            quantity,
+            int(n_samples),
+            int(sample_seed),
+            nucleus_cache,
             with_total,
         )
     if with_total:
         if quantity == "nucleus":
             out["total"] = _total_from_groups(
-                model, x, time_interval, rigidity_cutoff, with_errors,
+                model,
+                x,
+                time_interval,
+                rigidity_cutoff,
+                with_errors,
                 nucleus_cache,
             )
         else:
@@ -437,7 +496,7 @@ def total_covariance(
     """Covariance matrix of the total nucleus or nucleon flux on grid ``x``."""
     if quantity not in {"nucleus", "nucleon"}:
         raise ValueError("total covariance is defined only for flux quantities")
-    kw = dict(time_interval=time_interval, rigidity_cutoff=rigidity_cutoff)
+    kw = {"time_interval": time_interval, "rigidity_cutoff": rigidity_cutoff}
     n = len(x)
     cov = np.zeros((n, n))
     jacobians = (
@@ -469,6 +528,7 @@ def total_covariance(
 
 # ---------------------------------------------------------------- figure
 
+
 def _weighted(x, y, gamma):
     y = np.asarray(y, float)
     w = np.where(y > 0, y * x**gamma, np.nan)
@@ -480,9 +540,7 @@ def _gfmt(v: float) -> str:
     return f"{v:g}"
 
 
-def axis_labels(
-    basis: str, gamma: float, quantity: str = "nucleus"
-) -> tuple[str, str]:
+def axis_labels(basis: str, gamma: float, quantity: str = "nucleus") -> tuple[str, str]:
     b = BASES[basis]
     xlab = f"{b['label']} [{b['unit']}]"
     if quantity == "mean_lna":
@@ -530,22 +588,34 @@ def make_figure(
         if is_composition:
             value, error = result["series"][quantity]
             label = QUANTITIES[quantity]["label"]
-            ax.plot(x, value, color=GROUP_COLORS["all"], lw=1.9, label=label,
-                    zorder=6)
+            ax.plot(x, value, color=GROUP_COLORS["all"], lw=1.9, label=label, zorder=6)
             if show_bands and error is not None:
                 ax.fill_between(
-                    x, value - error, value + error,
-                    color=GROUP_COLORS["all"], alpha=band_alpha, lw=0, zorder=2)
+                    x,
+                    value - error,
+                    value + error,
+                    color=GROUP_COLORS["all"],
+                    alpha=band_alpha,
+                    lw=0,
+                    zorder=2,
+                )
 
         if not is_composition and show_total and result["total"] is not None:
             tf, te = result["total"]
             w = _weighted(x, tf, gamma)
-            ax.plot(x, w, color=GROUP_COLORS["all"], lw=1.9, label="all-particle",
-                    zorder=6)
+            ax.plot(
+                x, w, color=GROUP_COLORS["all"], lw=1.9, label="all-particle", zorder=6
+            )
             if show_bands and te is not None:
                 ax.fill_between(
-                    x, _weighted(x, tf - te, gamma), _weighted(x, tf + te, gamma),
-                    color=GROUP_COLORS["all"], alpha=band_alpha, lw=0, zorder=2)
+                    x,
+                    _weighted(x, tf - te, gamma),
+                    _weighted(x, tf + te, gamma),
+                    color=GROUP_COLORS["all"],
+                    alpha=band_alpha,
+                    lw=0,
+                    zorder=2,
+                )
 
         ecolors = iter(ELEMENT_COLORS * 4)
         for name, (f, e) in result["series"].items() if not is_composition else ():
@@ -553,12 +623,19 @@ def make_figure(
                 c, ls, lw, z = GROUP_COLORS[name], "-", 1.5, 5
             else:
                 c, ls, lw, z = next(ecolors), "--", 1.1, 4
-            ax.plot(x, _weighted(x, f, gamma), color=c, ls=ls, lw=lw,
-                    label=name, zorder=z)
+            ax.plot(
+                x, _weighted(x, f, gamma), color=c, ls=ls, lw=lw, label=name, zorder=z
+            )
             if show_bands and e is not None and name in GROUP_COLORS:
                 ax.fill_between(
-                    x, _weighted(x, f - e, gamma), _weighted(x, f + e, gamma),
-                    color=c, alpha=band_alpha, lw=0, zorder=1)
+                    x,
+                    _weighted(x, f - e, gamma),
+                    _weighted(x, f + e, gamma),
+                    color=c,
+                    alpha=band_alpha,
+                    lw=0,
+                    zorder=1,
+                )
 
         ax.set_xscale("log")
         # Anchor limits to the MEANS of the solid series (total + groups):
@@ -566,13 +643,15 @@ def make_figure(
         # bands (sigma reaches ~65x flux at the highest energies) and faint
         # element curves; paper-style tightness.
         solid = [result["total"][0]] if (show_total and result["total"]) else []
-        solid += [f for n, (f, _) in result["series"].items()
-                  if n in GROUP_COLORS]
+        solid += [f for n, (f, _) in result["series"].items() if n in GROUP_COLORS]
         if is_composition:
             vals = np.asarray(result["series"][quantity][0], float)
         else:
-            vals = np.concatenate([_weighted(x, f, gamma) for f in solid]) \
-                if solid else np.array([np.nan])
+            vals = (
+                np.concatenate([_weighted(x, f, gamma) for f in solid])
+                if solid
+                else np.array([np.nan])
+            )
         vals = vals[np.isfinite(vals) & (vals > 0)]
         if ylog:
             ax.set_yscale("log")
@@ -588,13 +667,28 @@ def make_figure(
             ax.grid(alpha=0.25, lw=0.5, which="major")
         nser = len(result["series"]) + (1 if show_total and result["total"] else 0)
         if nser:
-            ax.legend(ncol=2 if nser > 4 else 1, handlelength=1.9,
-                      labelspacing=0.35, columnspacing=1.3)
+            ax.legend(
+                ncol=2 if nser > 4 else 1,
+                handlelength=1.9,
+                labelspacing=0.35,
+                columnspacing=1.3,
+            )
         # TEMPORARY pre-publication marker (mirrors PRELIMINARY in chart.js).
         # Delete at the GSF 2026 release.
-        ax.text(0.5, 0.5, "PRELIMINARY", transform=ax.transAxes,
-                ha="center", va="center", rotation=30, fontsize=34,
-                fontweight="bold", color="gray", alpha=0.18, zorder=100)
+        ax.text(
+            0.5,
+            0.5,
+            "PRELIMINARY",
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            rotation=30,
+            fontsize=34,
+            fontweight="bold",
+            color="gray",
+            alpha=0.18,
+            zorder=100,
+        )
         fig.tight_layout(pad=0.4)
     return fig
 
@@ -604,7 +698,7 @@ def figure_svg(fig) -> str:
     buf = io.StringIO()
     fig.savefig(buf, format="svg", bbox_inches="tight", pad_inches=0.04)
     svg = buf.getvalue()
-    svg = svg[svg.find("<svg"):]
+    svg = svg[svg.find("<svg") :]
     svg = re.sub(r'(<svg[^>]*?)\swidth="[^"]*"', r"\1", svg, count=1)
     svg = re.sub(r'(<svg[^>]*?)\sheight="[^"]*"', r"\1", svg, count=1)
     return svg
@@ -618,6 +712,7 @@ def figure_bytes(fig, fmt: str, dpi: int = 300) -> bytes:
 
 # ---------------------------------------------------------------- export
 
+
 def modulation_phrase(ti) -> str:
     if ti is None:
         return "Solar Cycle 24 average (Dec 2008 – Dec 2019)"
@@ -627,16 +722,25 @@ def modulation_phrase(ti) -> str:
     return f"averaged over {a // 100}-{a % 100:02d} to {b // 100}-{b % 100:02d}"
 
 
-def caption(version: str, basis: str, gamma: float, ti, elements: list[int],
-            show_bands: bool, rigidity_cutoff: float | None,
-            quantity: str = "nucleus") -> str:
+def caption(
+    version: str,
+    basis: str,
+    gamma: float,
+    ti,
+    elements: list[int],
+    show_bands: bool,
+    rigidity_cutoff: float | None,
+    quantity: str = "nucleus",
+) -> str:
     b = BASES[basis]
     name = version if version.startswith("GSF") else f"GSF {version}"
-    sym = {"etot": "E", "ekin": "E_kin", "rig": "R",
-           "en": "E_N", "ekn": "E_kin,N"}[basis]
+    sym = {"etot": "E", "ekin": "E_kin", "rig": "R", "en": "E_N", "ekn": "E_kin,N"}[
+        basis
+    ]
     if QUANTITIES[quantity]["kind"] == "composition":
         observable = (
-            "Mean logarithmic mass <ln A>" if quantity == "mean_lna"
+            "Mean logarithmic mass <ln A>"
+            if quantity == "mean_lna"
             else "Logarithmic-mass variance sigma^2(ln A)"
         )
         parts = [
@@ -660,9 +764,16 @@ def caption(version: str, basis: str, gamma: float, ti, elements: list[int],
     return " ".join(parts)
 
 
-def build_csv(model, result: dict, basis: str, version: str, ti,
-              rigidity_cutoff, include_cov: bool,
-              quantity: str = "nucleus") -> str:
+def build_csv(
+    model,
+    result: dict,
+    basis: str,
+    version: str,
+    ti,
+    rigidity_cutoff,
+    include_cov: bool,
+    quantity: str = "nucleus",
+) -> str:
     """CSV export: provenance header, flux table, optional covariance block."""
     b = BASES[basis]
     x = result["x"]
@@ -675,7 +786,11 @@ def build_csv(model, result: dict, basis: str, version: str, ti,
         "var_lna": "var_lnA",
     }[quantity]
     for name, (f, e) in result["series"].items():
-        suffix = "" if quantity in {"mean_lna", "var_lna"} else f"_{name.replace('*', 'star')}"
+        suffix = (
+            ""
+            if quantity in {"mean_lna", "var_lna"}
+            else f"_{name.replace('*', 'star')}"
+        )
         cols.append(f"{prefix}{suffix}")
         arrs.append(f)
         if e is not None:
@@ -720,17 +835,34 @@ def build_csv(model, result: dict, basis: str, version: str, ti,
     if include_cov and QUANTITIES[quantity]["kind"] == "flux":
         cov = total_covariance(model, x, ti, rigidity_cutoff, quantity)
         lines.append("#")
-        lines.append(f"# covariance of {prefix}_total on the grid above "
-                     f"({len(x)}x{len(x)}, row-major)")
+        lines.append(
+            f"# covariance of {prefix}_total on the grid above "
+            f"({len(x)}x{len(x)}, row-major)"
+        )
         lines += [",".join(f"{v:.4e}" for v in row) for row in cov]
     return "\n".join(lines) + "\n"
 
 
 __all__ = [
-    "BASES", "QUANTITIES", "NUCLEON_BASES", "GROUPS", "GROUP_COLORS",
-    "ELEMENT_SYMBOLS", "VERSION_NOTES",
-    "MODEL_VERSIONS", "version_info", "make_model", "phi_year_range",
-    "validate_quantity_basis", "evaluate", "total_covariance", "make_figure",
+    "BASES",
+    "QUANTITIES",
+    "NUCLEON_BASES",
+    "GROUPS",
+    "GROUP_COLORS",
+    "ELEMENT_SYMBOLS",
+    "VERSION_NOTES",
+    "MODEL_VERSIONS",
+    "version_info",
+    "make_model",
+    "phi_year_range",
+    "validate_quantity_basis",
+    "evaluate",
+    "total_covariance",
+    "make_figure",
     "figure_svg",
-    "figure_bytes", "axis_labels", "caption", "modulation_phrase", "build_csv",
+    "figure_bytes",
+    "axis_labels",
+    "caption",
+    "modulation_phrase",
+    "build_csv",
 ]

@@ -389,3 +389,56 @@ class TestExport:
         assert len(d2["cov"]) == red.n_params
         assert np.allclose(d2["cov"], red.cov)
         assert d2["model_version"] == red.model.version
+
+
+class TestPinningConvention:
+    """The fit pins a spline coefficient by zeroing its covariance row and
+    column, so every consumer contracts the FULL amplitude range and the
+    pinned parameters drop out on their own.
+
+    gsf-fitter-2 does this in two places (``gsffit/fit/separable.py``): the
+    covariance is scattered into a zero matrix over the free indices only,
+    and any free coefficient whose relative sigma exceeds 50 (the data-free
+    de Boor extrapolation knots) has its rows and columns zeroed afterwards.
+    A positional trim is the pre-2026 way of expressing the same thing and
+    does not survive contact with these files: the pinned indices are not a
+    slice.
+    """
+
+    @pytest.mark.parametrize("version", ["2026.0", "2026.0-USO", "2025", "2017"])
+    def test_pinned_parameters_are_zero_rows(self, version):
+        model = GSFEnergyPerNucleon(version=version)
+        for group in model.active_groups:
+            _charges, leader = model._resolve_z(group)
+            sid = model._leader_by_charge[leader]
+            block = model.cov[(sid, sid)]
+            pinned = np.flatnonzero(np.diag(block) == 0.0)
+            # a zero-variance parameter must not correlate with anything
+            assert np.count_nonzero(block[pinned]) == 0
+            assert np.count_nonzero(block[:, pinned]) == 0
+
+    def test_pinned_indices_are_not_a_slice(self):
+        """Guard against reintroducing a positional trim."""
+        model = GSFEnergyPerNucleon()
+        interior = {}
+        for group in model.active_groups:
+            _charges, leader = model._resolve_z(group)
+            sid = model._leader_by_charge[leader]
+            diag = np.diag(model.cov[(sid, sid)])
+            pinned = np.flatnonzero(diag == 0.0)
+            interior[group] = [int(i) for i in pinned if 0 < i < len(diag) - 3]
+        assert interior["He"], "He pins an interior coefficient"
+        assert interior["Fe*"], "Fe* pins interior coefficients"
+
+    def test_reduced_system_keeps_every_free_parameter(self, gsf):
+        """The stacked system carries the full amplitude range of each leader."""
+        from globalsplinefit.reduced import _build_stacked_system
+
+        energy = np.logspace(0, 9, 40)
+        _jac, cov = _build_stacked_system(gsf, energy)
+        expected = 0
+        for group in ("H", "He", "O*", "Fe*"):
+            _charges, leader = gsf._resolve_z(group)
+            sid = gsf._leader_by_charge[leader]
+            expected += gsf.cov[(sid, sid)].shape[0]
+        assert cov.shape == (expected, expected)

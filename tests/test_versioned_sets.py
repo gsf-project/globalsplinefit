@@ -34,12 +34,12 @@ def test_new_sets_available():
 
 
 def test_unrevisioned_names_resolve_to_newest_revision():
-    """"2026" / "2026-USO" float to the newest registered revision; the
+    """ "2026" / "2026-USO" float to the newest registered revision; the
     revisioned name pins one. Unknown names fail loudly."""
     assert resolve_version("2026") == "2026.0"
     assert resolve_version("2026-USO") == "2026.0-USO"
-    assert resolve_version("2026.0") == "2026.0"        # exact pin
-    assert resolve_version("2025") == "2025"            # pre-scheme release
+    assert resolve_version("2026.0") == "2026.0"  # exact pin
+    assert resolve_version("2025") == "2025"  # pre-scheme release
     assert resolve_version(None) == resolve_version(DEFAULT_VERSION)
     with pytest.raises(ValueError, match="not found"):
         resolve_version("2026.9")
@@ -84,7 +84,10 @@ def test_only_registered_versions_are_offered():
         assert name in MODEL_VERSIONS, f"{name} is offered but not registered"
     current = get_available_versions(include_historical=False)
     assert set(current) == {
-        "2026.0", "2026.0-USO", "2026.0-SIB23e", "2026.0-EPOSLHCR",
+        "2026.0",
+        "2026.0-USO",
+        "2026.0-SIB23e",
+        "2026.0-EPOSLHCR",
     }
     for name in current:
         assert MODEL_VERSIONS[name]["status"] == "current"
@@ -147,7 +150,9 @@ def test_historical_sets_are_marked_historical():
         assert MODEL_VERSIONS[name]["status"] == "historical"
 
 
-@pytest.mark.parametrize("version", ["2026", "2026-USO", "2026-SIB23e", "2026-EPOSLHCR"])
+@pytest.mark.parametrize(
+    "version", ["2026", "2026-USO", "2026-SIB23e", "2026-EPOSLHCR"]
+)
 def test_set_loads_and_is_positive(version):
     m = GSFEnergy(version=version)
     E = np.logspace(0, 6, 80)

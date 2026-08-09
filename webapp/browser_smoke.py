@@ -25,23 +25,28 @@ PORT = 8123
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--shots", metavar="DIR",
-                    help="also save desktop + mobile screenshots into DIR")
+    ap.add_argument(
+        "--shots", metavar="DIR", help="also save desktop + mobile screenshots into DIR"
+    )
     args = ap.parse_args()
 
     srv = subprocess.Popen(
         [sys.executable, "-m", "http.server", str(PORT), "-d", str(WEBAPP)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
     errors = []
     try:
         with sync_playwright() as p:
             b = p.chromium.launch()
             page = b.new_page(viewport={"width": 1680, "height": 1000})
-            page.on("console", lambda m: m.type == "error"
-                    and errors.append(f"[console] {m.text[:300]}"))
-            page.on("pageerror",
-                    lambda e: errors.append(f"[page] {str(e)[:300]}"))
+            page.on(
+                "console",
+                lambda m: (
+                    m.type == "error" and errors.append(f"[console] {m.text[:300]}")
+                ),
+            )
+            page.on("pageerror", lambda e: errors.append(f"[page] {str(e)[:300]}"))
             page.goto(f"http://localhost:{PORT}/", timeout=60_000)
             page.wait_for_selector("svg.chart path", timeout=300_000)
             page.wait_for_timeout(1_000)
@@ -57,15 +62,18 @@ def main() -> int:
             page.click(".elgrid button:has-text('Fe')")
             page.click(".commandbtn:text-is('Settings')")
             page.select_option(
-                ".settings-popover label.field:has-text('Plot') select",
-                value="nucleon")
-            assert page.locator(
-                ".settings-popover label.field:has-text('Horizontal axis') "
-                "select option"
-            ).count() == 2
+                ".settings-popover label.field:has-text('Plot') select", value="nucleon"
+            )
+            assert (
+                page.locator(
+                    ".settings-popover label.field:has-text('Horizontal axis') "
+                    "select option"
+                ).count()
+                == 2
+            )
             page.select_option(
-                ".settings-popover label.field:has-text('Plot') select",
-                value="nucleus")
+                ".settings-popover label.field:has-text('Plot') select", value="nucleus"
+            )
             page.click(".settings-popover .seg button:has-text('LIS')")
             page.click(".aboutbtn")
             page.wait_for_timeout(600)
@@ -75,16 +83,21 @@ def main() -> int:
             # second model overlay
             page.click(".commandbtn:text-is('Series')")
             page.select_option(
-                "label.field:has-text('Add model') select", value="2026.0-USO")
+                "label.field:has-text('Add model') select", value="2026.0-USO"
+            )
             page.wait_for_timeout(3_000)
 
             # toolbar: box zoom, pan, home
-            page.mouse.move(760, 300); page.mouse.down()
-            page.mouse.move(1200, 650, steps=6); page.mouse.up()
+            page.mouse.move(760, 300)
+            page.mouse.down()
+            page.mouse.move(1200, 650, steps=6)
+            page.mouse.up()
             page.wait_for_timeout(2_000)
             page.click(".plottools button[title*='Pan']")
-            page.mouse.move(1000, 500); page.mouse.down()
-            page.mouse.move(900, 540, steps=4); page.mouse.up()
+            page.mouse.move(1000, 500)
+            page.mouse.down()
+            page.mouse.move(900, 540, steps=4)
+            page.mouse.up()
             page.wait_for_timeout(2_000)
             page.click(".plottools button[title*='Reset']")
             page.wait_for_timeout(2_000)
@@ -93,13 +106,18 @@ def main() -> int:
             page.click(".iconbtn[title='Switch theme']")
             page.wait_for_timeout(400)
             assert page.evaluate("localStorage.getItem('gsfTheme')") in (
-                "light", "dark"), "theme not persisted"
+                "light",
+                "dark",
+            ), "theme not persisted"
             print("interactions: ok")
 
             # exports: CSV (worker), publication PDF (lazy matplotlib), SVG
             page.click(".commandbtn:text-is('Export')")
-            for label, timeout in (("CSV", 60_000), ("Download", 300_000),
-                                   ("View → SVG", 30_000)):
+            for label, timeout in (
+                ("CSV", 60_000),
+                ("Download", 300_000),
+                ("View → SVG", 30_000),
+            ):
                 with page.expect_download(timeout=timeout) as dl:
                     page.click(f"button:has-text('{label}')")
                 print(f"export {label!r}: {dl.value.suggested_filename}")
