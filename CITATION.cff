@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software, please cite the GSF 2026 paper (preferred
+  citation below) together with the software version you used.
+title: globalsplinefit
+type: software
+version: 2.0.0
+date-released: 2026-09-26
+authors:
+  - family-names: Dembinski
+    given-names: Hans
+    email: hans.dembinski@gmail.com
+  - family-names: Fedynitch
+    given-names: Anatoli
+    email: afedynitch@gmail.com
+repository-code: https://github.com/gsf-project/globalsplinefit
+url: https://gsf-project.github.io/globalsplinefit/
+license: BSD-3-Clause
+keywords:
+  - cosmic rays
+  - flux model
+  - mass composition
+  - astroparticle physics
+preferred-citation:
+  type: article
+  title: >-
+    Global Spline Fit: A unified data-driven view of the cosmic-ray
+    spectrum and mass composition from GeV to the highest energies
+  authors:
+    - family-names: Fedynitch
+      given-names: Anatoli
+    - family-names: Fujisue
+      given-names: Kozo
+    - family-names: Dembinski
+      given-names: Hans
+    - family-names: Engel
+      given-names: Ralph
+  year: 2026

@@ -1,0 +1,3 @@
+include CITATION.cff CHANGELOG.md CONTRIBUTING.md AGENTS.md LICENSE README.md
+include src/globalsplinefit/data/README.md
+recursive-include tests *.py *.dat

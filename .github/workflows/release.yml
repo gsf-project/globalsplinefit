@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        python-version: "3.11"
+        enable-cache: true
+
+    - name: Install dependencies
+      run: uv sync --extra test
+
+    - name: Run tests
+      run: |
+        uv run pytest tests/ -v
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        python-version: "3.11"
+
+    - name: Build package
+      run: uv build
+
+    - name: Check package
+      run: uvx twine check dist/*
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist/
+
+  # Trusted Publishing (OIDC): no API tokens. Register this repository,
+  # workflow file `release.yml` and the environment name as a trusted
+  # publisher on TestPyPI and PyPI once, before the first tag.
+  publish-testpypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist/
+
+    - name: Publish to TestPyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        repository-url: https://test.pypi.org/legacy/
+
+  publish-pypi:
+    needs: publish-testpypi
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: write
+
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist/
+
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        generate_release_notes: true
+
+  # GSF Explorer -> GitHub Pages at /explorer/, redeployed on release tags
+  # only (docs redeploy on every main push; docs.yml sets keep_files so it
+  # cannot wipe this directory).
+  explorer:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        python-version: "3.12"
+
+    - name: Build wheel + assemble site
+      run: |
+        webapp/update_wheel.sh
+        mkdir -p _site
+        rsync -a webapp/ _site/ \
+          --exclude __pycache__ \
+          --exclude browser_smoke.py --exclude test_ui.py \
+          --exclude update_wheel.sh --exclude serve.py
+        WHL=$(basename webapp/globalsplinefit-*.whl)
+        sed -i "s|globalsplinefit-[^\"]*\.whl|$WHL|" _site/main.js
+
+    - name: Deploy to GitHub Pages (explorer/)
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./_site
+        destination_dir: explorer

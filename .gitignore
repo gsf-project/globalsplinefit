@@ -1,0 +1,56 @@
+# Python
+*.pyc
+__pycache__/
+*.egg-info/
+dist/
+build/
+
+# Testing / linting
+.coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.benchmarks/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Build artifacts
+site/
+WIP/
+html/
+
+# Virtual environments
+venv/
+.venv/
+
+# Example outputs
+examples/*.dat
+examples/*.pkl
+examples/*.pdf
+
+# Misc
+.cache/
+
+
+# GSF Explorer webapp: the wheel is built by update_wheel.sh / CI, not committed
+webapp/globalsplinefit-*.whl
+__marimo__/
+.cache/
+
+# wrangler (Cloudflare Pages deploy) local cache
+.wrangler/
+
+# Example outputs written to the repo root when examples run from there
+/gsf_*.dat
+
+# Agent tool state and maintainer-local agent notes
+.agents/
+.codex/
+.claude/
+CLAUDE.md

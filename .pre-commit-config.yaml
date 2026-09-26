@@ -1,0 +1,53 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+    # The model data and the marimo layouts are generated artifacts: their
+    # bytes are provenance, so the whitespace hooks stay off them.
+    -   id: trailing-whitespace
+        exclude: ^(src/globalsplinefit/data/|examples/layouts/|\.wrangler/)
+    -   id: end-of-file-fixer
+        exclude: ^(src/globalsplinefit/data/|examples/layouts/|\.wrangler/|src/globalsplinefit/py\.typed$)
+    -   id: check-yaml
+        exclude: ^mkdocs\.yml$
+    -   id: check-toml
+    -   id: check-added-large-files
+    -   id: check-merge-conflict
+    -   id: debug-statements
+
+# ruff runs from the project's own environment (uv.lock), not a pinned
+# mirror: a hook on a different ruff than `uv run ruff check` produces
+# commits that pass locally and fail in CI, or the reverse.
+-   repo: local
+    hooks:
+    -   id: ruff
+        name: ruff (lint, autofix)
+        entry: uv run ruff check --fix --exit-non-zero-on-fix
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+    -   id: ruff-format
+        name: ruff (format)
+        entry: uv run ruff format
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
+-   repo: https://github.com/kynan/nbstripout
+    rev: 0.9.1
+    hooks:
+    -   id: nbstripout
+
+ci:
+    autofix_commit_msg: |
+        [pre-commit.ci] auto fixes from pre-commit.com hooks
+
+        for more information, see https://pre-commit.ci
+    autofix_prs: true
+    autoupdate_branch: ''
+    autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+    autoupdate_schedule: weekly
+    submodules: false

@@ -1,0 +1,69 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ "*" ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up uv (Python ${{ matrix.python-version }})
+      uses: astral-sh/setup-uv@v6
+      with:
+        python-version: ${{ matrix.python-version }}
+        enable-cache: true
+
+    - name: Install dependencies
+      run: uv sync --extra test
+
+    - name: Test with pytest
+      run: |
+        uv run pytest tests/ -v --cov=globalsplinefit --cov-report=xml --cov-report=term-missing
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  test-examples:
+    runs-on: ubuntu-latest
+    needs: test
+    if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'failure') }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        python-version: "3.12"
+        enable-cache: true
+
+    - name: Install dependencies
+      run: uv sync --extra examples
+
+    # The marimo notebooks in examples/ are plain Python files; running one
+    # executes its full cell DAG, which is exactly the smoke test we want.
+    - name: Run example notebooks
+      env:
+        MPLBACKEND: Agg
+      run: |
+        for nb in examples/*.py; do
+          echo "Running $nb"
+          uv run python "$nb"
+        done
