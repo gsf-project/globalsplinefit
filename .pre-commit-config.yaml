@@ -42,6 +42,8 @@ repos:
     -   id: nbstripout
 
 ci:
+    # pre-commit.ci has no uv: the local ruff hooks run in the GitHub Lint job
+    skip: [ruff, ruff-format]
     autofix_commit_msg: |
         [pre-commit.ci] auto fixes from pre-commit.com hooks
 
