@@ -1,14 +1,14 @@
 # ReducedGSF pivot energies [GeV per nucleon], one per line.
 # optimize_pivots(n_pivots=12, n_grid=300, n_restarts=4, seed=0)
 1.0
-2.3
-8.0
-60.0
-445.0
-6e4
-3e5
-2e6
-6e7
-2.5e8
-4e8
+1.5
+5.3
+48.0
+290.0
+4.3e4
+7.5e4
+5.2e5
+1.3e8
+4.1e8
+6.2e8
 1e9

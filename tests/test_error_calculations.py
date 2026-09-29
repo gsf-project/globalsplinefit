@@ -36,9 +36,9 @@ class TestErrorCalculations:
 
         # groups: bounded, localized departure from the 2017 convention
         bounds = {  # series: (min ratio, max ratio)
-            "oxygen": (0.28, 41.0),
-            "iron": (0.71, 17.1),
-            "total": (0.89, 1.21),
+            "oxygen": (0.35, 6.4),
+            "iron": (0.80, 21.3),
+            "total": (0.93, 1.16),
         }
         values = {
             "oxygen": gsf_energy.error(test_energies, "O*", time_interval="LIS"),
