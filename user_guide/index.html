@@ -1182,19 +1182,19 @@ modulation potential. A loaded model also carries its own provenance:</p>
 <tbody>
 <tr>
 <td><code>"2026.1"</code></td>
-<td>GSF 2026</td>
+<td><a href="https://inspirehep.net/literature/3208618"><code>Fedynitch:2026ugq</code></a></td>
 </tr>
 <tr>
 <td><code>"2026.1-USO"</code></td>
-<td>GSF 2026</td>
+<td><a href="https://inspirehep.net/literature/3208618"><code>Fedynitch:2026ugq</code></a></td>
 </tr>
 <tr>
 <td><code>"2026.1-SIB23e"</code></td>
-<td>GSF 2026</td>
+<td><a href="https://inspirehep.net/literature/3208618"><code>Fedynitch:2026ugq</code></a></td>
 </tr>
 <tr>
 <td><code>"2026.1-EPOSLHCR"</code></td>
-<td>GSF 2026</td>
+<td><a href="https://inspirehep.net/literature/3208618"><code>Fedynitch:2026ugq</code></a></td>
 </tr>
 <tr>
 <td><code>"2025"</code></td>
@@ -1253,10 +1253,19 @@ modulation potential. A loaded model also carries its own provenance:</p>
 <a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="p">}</span>
 </code></pre></div>
 </details>
-<div class="admonition note">
-<p class="admonition-title">GSF 2026</p>
-<p>A. Fedynitch, K. Fujisue, H. Dembinski, R. Engel, Global Spline Fit: A unified data-driven view of the cosmic-ray spectrum and mass composition from GeV to the highest energies, 2026.</p>
-</div>
+<details class="quote">
+<summary>GSF 2026 — <code>Fedynitch:2026ugq</code> — <a href="https://inspirehep.net/literature/3208618">InspireHEP</a></summary>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nc">@article</span><span class="p">{</span><span class="nl">Fedynitch:2026ugq</span><span class="p">,</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">    </span><span class="na">author</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;Fedynitch, Anatoli and Fujisue, Kozo and Dembinski, Hans and Engel, Ralph&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="na">title</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;{Global Spline Fit: A unified data-driven view of the cosmic-ray spectrum and mass composition from GeV to the highest energies}&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="na">eprint</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;2609.32649&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="na">archivePrefix</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;arXiv&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="na">primaryClass</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;astro-ph.HE&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="na">month</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;9&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span><span class="na">year</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;2026&quot;</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="p">}</span>
+</code></pre></div>
+</details>
 <h3 id="what-covering-means-and-why-both-current-sets-are-a-mixture">What "covering" means, and why both current sets are a mixture<a class="headerlink" href="#what-covering-means-and-why-both-current-sets-are-a-mixture" title="Permanent link">&para;</a></h3>
 <p>Above ~10^8 GeV the mass composition inferred from air-shower data depends on the
 hadronic interaction model used to interpret it. Both current sets use an
@@ -1306,9 +1315,9 @@ marks a group that carries neighbouring elements scaled from its leader. As
 target names the model still takes <code>"H*"</code> and <code>"He"</code> (<code>"He*"</code> is not an
 accepted key).</p>
 <p>A bare element symbol selects that <strong>single element</strong> instead of its group:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;O*&quot;</span><span class="p">)</span>   <span class="c1"># the whole oxygen group, Z = 3-9</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;O&quot;</span><span class="p">)</span>    <span class="c1"># oxygen alone (Z = 8), the group leader</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span>      <span class="c1"># the same, addressed by charge number</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;O*&quot;</span><span class="p">)</span>   <span class="c1"># the whole oxygen group, Z = 3-9</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;O&quot;</span><span class="p">)</span>    <span class="c1"># oxygen alone (Z = 8), the group leader</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span>      <span class="c1"># the same, addressed by charge number</span>
 </code></pre></div>
 <p><code>"p"</code>, <code>"O"</code> and <code>"Fe"</code> are the individual proton, oxygen and iron species;
 any element can be addressed by its charge number <code>Z</code>.</p>
@@ -1330,40 +1339,40 @@ element's direct data. The saturation rigidity <span class="arithmatex">\(R_{\te
 near the proton knee, motivated by the common galactic origin and the assumed
 similarity of transport effects above it.</p>
 <h3 id="working-with-sub-leading-elements">Working with sub-leading elements<a class="headerlink" href="#working-with-sub-leading-elements" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">gsf</span><span class="o">.</span><span class="n">z_group</span>                  <span class="c1"># {leader Z: (member Z, ...)} for all four groups</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">gsf</span><span class="o">.</span><span class="n">z_group</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>               <span class="c1"># -&gt; (3, 4, 5, 6, 7, 8, 9): the O* group members</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># flux of one sub-leading species (carbon, Z = 6)</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">carbon</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># its uncertainty: error() propagates the LEADER&#39;s spline covariance through</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="c1"># the species&#39; own kinematics, so the relative error differs from the</span>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="c1"># leader&#39;s at the same energy per nucleus</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="n">carbon_err</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>
-<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="c1"># the fitted ratio to the group leader, per species</span>
-<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="n">leader</span><span class="p">,</span> <span class="n">ratio</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux_ratio</span><span class="p">[(</span><span class="mi">6</span><span class="p">,</span> <span class="mf">12.011</span><span class="p">)]</span>   <span class="c1"># -&gt; ((8, 15.999), 1.1487)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">gsf</span><span class="o">.</span><span class="n">z_group</span>                  <span class="c1"># {leader Z: (member Z, ...)} for all four groups</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">gsf</span><span class="o">.</span><span class="n">z_group</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>               <span class="c1"># -&gt; (3, 4, 5, 6, 7, 8, 9): the O* group members</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># flux of one sub-leading species (carbon, Z = 6)</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="n">carbon</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># its uncertainty: error() propagates the LEADER&#39;s spline covariance through</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="c1"># the species&#39; own kinematics, so the relative error differs from the</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="c1"># leader&#39;s at the same energy per nucleus</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="n">carbon_err</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="c1"># the fitted ratio to the group leader, per species</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="n">leader</span><span class="p">,</span> <span class="n">ratio</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux_ratio</span><span class="p">[(</span><span class="mi">6</span><span class="p">,</span> <span class="mf">12.011</span><span class="p">)]</span>   <span class="c1"># -&gt; ((8, 15.999), 1.1487)</span>
 </code></pre></div>
 <p>The fit varies the four leader splines and holds the sub-leading ones fixed,
 so a sub-leading species has no fitted uncertainty of its own: whatever error
 you quote for it is inherited from its group leader. Two recipes are
 available, and they are not the same below the species' top knot:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">globalsplinefit</span><span class="w"> </span><span class="kn">import</span> <span class="n">GSFRigidity</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">gsf_r</span> <span class="o">=</span> <span class="n">GSFRigidity</span><span class="p">()</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">rigidity</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">logspace</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">200</span><span class="p">)</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="c1"># (a) what error() returns: the leader&#39;s spline covariance contracted through</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1">#     ratio x d(leader flux), divided by the species&#39; own central flux</span>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="n">sigma_a</span> <span class="o">=</span> <span class="n">gsf_r</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">rigidity</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="c1"># (b) the leader&#39;s RELATIVE uncertainty carried onto the species&#39; flux at the</span>
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="c1">#     SAME RIGIDITY — &quot;the group&#39;s normalisation is uncertain, the frozen</span>
-<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="c1">#     composition ratio is not&quot;</span>
-<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="n">leader_z</span> <span class="o">=</span> <span class="mi">8</span>
-<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="n">sigma_b</span> <span class="o">=</span> <span class="n">gsf_r</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">rigidity</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
-<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>    <span class="n">gsf_r</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">rigidity</span><span class="p">,</span> <span class="n">leader_z</span><span class="p">)</span> <span class="o">/</span> <span class="n">gsf_r</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">rigidity</span><span class="p">,</span> <span class="n">leader_z</span><span class="p">)</span>
-<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">globalsplinefit</span><span class="w"> </span><span class="kn">import</span> <span class="n">GSFRigidity</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">gsf_r</span> <span class="o">=</span> <span class="n">GSFRigidity</span><span class="p">()</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">rigidity</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">logspace</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">200</span><span class="p">)</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1"># (a) what error() returns: the leader&#39;s spline covariance contracted through</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1">#     ratio x d(leader flux), divided by the species&#39; own central flux</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="n">sigma_a</span> <span class="o">=</span> <span class="n">gsf_r</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">rigidity</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="c1"># (b) the leader&#39;s RELATIVE uncertainty carried onto the species&#39; flux at the</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="c1">#     SAME RIGIDITY — &quot;the group&#39;s normalisation is uncertain, the frozen</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="c1">#     composition ratio is not&quot;</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="n">leader_z</span> <span class="o">=</span> <span class="mi">8</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="n">sigma_b</span> <span class="o">=</span> <span class="n">gsf_r</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">rigidity</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>    <span class="n">gsf_r</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">rigidity</span><span class="p">,</span> <span class="n">leader_z</span><span class="p">)</span> <span class="o">/</span> <span class="n">gsf_r</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">rigidity</span><span class="p">,</span> <span class="n">leader_z</span><span class="p">)</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="p">)</span>
 </code></pre></div>
 <p>Above the species' top knot (8.3e4 GV for carbon) its flux <em>is</em> <code>ratio x</code> the
 leader's, and the two agree to machine precision. Below it the flux comes
@@ -1389,14 +1398,14 @@ but never propagates. The saturation constant is exposed as
 </div>
 <h2 id="uncertainty-quantification">Uncertainty Quantification<a class="headerlink" href="#uncertainty-quantification" title="Permanent link">&para;</a></h2>
 <p>Errors and covariances:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">flux</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">)</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">error</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">)</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># Relative uncertainty</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">rel_error</span> <span class="o">=</span> <span class="n">error</span> <span class="o">/</span> <span class="n">flux</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># Covariance matrix</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="n">cov_matrix</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">covariance</span><span class="p">(</span><span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="s2">&quot;He&quot;</span><span class="p">,</span> <span class="n">energy</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">flux</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">error</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># Relative uncertainty</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="n">rel_error</span> <span class="o">=</span> <span class="n">error</span> <span class="o">/</span> <span class="n">flux</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># Covariance matrix</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="n">cov_matrix</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">covariance</span><span class="p">(</span><span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="s2">&quot;He&quot;</span><span class="p">,</span> <span class="n">energy</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="jacobian-access">Jacobian Access<a class="headerlink" href="#jacobian-access" title="Permanent link">&para;</a></h3>
 <p>The flux is <strong>linear in the fitted spline amplitudes</strong>, so a single Jacobian
@@ -1407,33 +1416,33 @@ carries the whole error propagation:
 covariance — the Jacobian is what you need when you want something else:
 a correlated band across energies, a derived quantity, or a covariance
 between two groups.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">jac</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">jacobian</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">)</span>       <span class="c1"># shape (len(energy), n_amplitudes)</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">cov</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">covariance</span><span class="p">(</span><span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="n">energy</span><span class="p">)</span>  <span class="c1"># flux covariance across energies</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># uncertainty of a p + He sum, correlations included</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="n">f_sum</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;He&quot;</span><span class="p">)</span>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="n">var</span> <span class="o">=</span> <span class="p">(</span>
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>    <span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">gsf</span><span class="o">.</span><span class="n">covariance</span><span class="p">(</span><span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="n">energy</span><span class="p">))</span>
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>    <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">gsf</span><span class="o">.</span><span class="n">covariance</span><span class="p">(</span><span class="s2">&quot;He&quot;</span><span class="p">,</span> <span class="s2">&quot;He&quot;</span><span class="p">,</span> <span class="n">energy</span><span class="p">))</span>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>    <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">gsf</span><span class="o">.</span><span class="n">covariance</span><span class="p">(</span><span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="s2">&quot;He&quot;</span><span class="p">,</span> <span class="n">energy</span><span class="p">))</span>
-<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="p">)</span>
-<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="n">err_sum</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">var</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">jac</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">jacobian</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">)</span>       <span class="c1"># shape (len(energy), n_amplitudes)</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">cov</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">covariance</span><span class="p">(</span><span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="n">energy</span><span class="p">)</span>  <span class="c1"># flux covariance across energies</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># uncertainty of a p + He sum, correlations included</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="n">f_sum</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;He&quot;</span><span class="p">)</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="n">var</span> <span class="o">=</span> <span class="p">(</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>    <span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">gsf</span><span class="o">.</span><span class="n">covariance</span><span class="p">(</span><span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="n">energy</span><span class="p">))</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>    <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">gsf</span><span class="o">.</span><span class="n">covariance</span><span class="p">(</span><span class="s2">&quot;He&quot;</span><span class="p">,</span> <span class="s2">&quot;He&quot;</span><span class="p">,</span> <span class="n">energy</span><span class="p">))</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>    <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">gsf</span><span class="o">.</span><span class="n">covariance</span><span class="p">(</span><span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="s2">&quot;He&quot;</span><span class="p">,</span> <span class="n">energy</span><span class="p">))</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="p">)</span>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="n">err_sum</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">var</span><span class="p">)</span>
 </code></pre></div>
 <p>Adding the two errors in quadrature instead would ignore the p--He
 correlation, which the fit constrains.</p>
 <h2 id="solar-modulation">Solar Modulation<a class="headerlink" href="#solar-modulation" title="Permanent link">&para;</a></h2>
 <p>The model is fitted as a <strong>local interstellar spectrum</strong> (LIS) and modulated
 to the top of the atmosphere with a force-field potential <span class="arithmatex">\(\phi(t)\)</span>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Local interstellar spectrum (no modulation)</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">flux_lis</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="n">time_interval</span><span class="o">=</span><span class="s2">&quot;LIS&quot;</span><span class="p">)</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># Specific time period (YYYYMM format)</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="n">flux_2009</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="n">time_interval</span><span class="o">=</span><span class="p">(</span><span class="mi">200901</span><span class="p">,</span> <span class="mi">201001</span><span class="p">))</span>  <span class="c1"># end EXCLUSIVE: calendar year 2009</span>
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1"># Default: Solar Cycle 24 average (Dec 2008 - Dec 2019), NOT the LIS</span>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="n">flux_default</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Local interstellar spectrum (no modulation)</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="n">flux_lis</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="n">time_interval</span><span class="o">=</span><span class="s2">&quot;LIS&quot;</span><span class="p">)</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># Specific time period (YYYYMM format)</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="n">flux_2009</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="n">time_interval</span><span class="o">=</span><span class="p">(</span><span class="mi">200901</span><span class="p">,</span> <span class="mi">201001</span><span class="p">))</span>  <span class="c1"># end EXCLUSIVE: calendar year 2009</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># Default: Solar Cycle 24 average (Dec 2008 - Dec 2019), NOT the LIS</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="n">flux_default</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="the-potentials-and-what-self-consistent-means">The potentials, and what "self-consistent" means<a class="headerlink" href="#the-potentials-and-what-self-consistent-means" title="Permanent link">&para;</a></h3>
 <table>
@@ -1477,9 +1486,9 @@ examples.</p>
 <h2 id="geomagnetic-rigidity-cutoff">Geomagnetic Rigidity Cutoff<a class="headerlink" href="#geomagnetic-rigidity-cutoff" title="Permanent link">&para;</a></h2>
 <p><strong>No cutoff is applied by default</strong> (<code>rigidity_cutoff=None</code>, i.e. 0 GV).
 Pass a cutoff to suppress low-rigidity cosmic rays:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Cutoff at 20 GV (smooth sigmoid transition by default, cutoff_width=1 GV;</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="c1"># construct the model with cutoff_width=0.0 for a sharp Heaviside cutoff)</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="n">flux_cut</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="n">rigidity_cutoff</span><span class="o">=</span><span class="mf">20.0</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Cutoff at 20 GV (smooth sigmoid transition by default, cutoff_width=1 GV;</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="c1"># construct the model with cutoff_width=0.0 for a sharp Heaviside cutoff)</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">flux_cut</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="n">rigidity_cutoff</span><span class="o">=</span><span class="mf">20.0</span><span class="p">)</span>
 </code></pre></div>
 <p>See the <a href="../gallery/rigidity_cutoff/">Rigidity Cutoff tutorial</a> for more details.</p>
 <h2 id="practical-notes">Practical Notes<a class="headerlink" href="#practical-notes" title="Permanent link">&para;</a></h2>
