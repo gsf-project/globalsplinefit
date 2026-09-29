@@ -4,8 +4,8 @@ message: >-
   citation below) together with the software version you used.
 title: globalsplinefit
 type: software
-version: 2.0.0
-date-released: 2026-09-26
+version: 2.0.1
+date-released: 2026-09-29
 authors:
   - family-names: Dembinski
     given-names: Hans
@@ -36,3 +36,9 @@ preferred-citation:
     - family-names: Engel
       given-names: Ralph
   year: 2026
+  doi: 10.48550/arXiv.2609.32649
+  url: https://arxiv.org/abs/2609.32649
+  identifiers:
+    - type: other
+      value: "arXiv:2609.32649"
+      description: arXiv identifier

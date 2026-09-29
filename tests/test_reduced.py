@@ -267,6 +267,8 @@ class TestPublishedGrid:
         # it less well (1.24 -> 1.41). The other six grids were unaffected.
         "2025": 1.43,
         "2019": 1.56,
+        # 2017's grid was re-optimized when data/2017 was replaced by the
+        # original October 2017 release (measures 1.195).
         "2017": 1.22,
     }
 

@@ -169,10 +169,14 @@ MODEL_VERSIONS: dict[str, dict[str, str]] = {
         "role": "original release",
         "covering": "see Dembinski et al. (2017)",
         "solar_modulation": (
-            "treatment not recorded here -- see the ICRC 2017 proceedings; "
-            "forward-modulated with the shared Usoskin table"
+            "data demodulated per experiment with force-field potentials "
+            "from the CRDB (ICRC 2017 proceedings); forward-modulated with "
+            "the shared Usoskin table"
         ),
-        "description": "Original GSF release (Dembinski:2017zsh).",
+        "description": (
+            "Original GSF release (Dembinski:2017zsh), tabulated October "
+            "2017; the parameter set behind crflux's GlobalSplineFitBeta."
+        ),
     },
 }
 

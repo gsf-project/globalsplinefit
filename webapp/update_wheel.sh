@@ -21,5 +21,6 @@ fi
 
 rm -f "$HERE"/globalsplinefit-*.whl
 cp "$TMP"/out/globalsplinefit-*.whl "$HERE/"
-echo "installed: $(ls "$HERE"/globalsplinefit-*.whl)"
-echo "reminder: if the version changed, update WHEEL in main.js"
+WHL="$(basename "$(ls "$HERE"/globalsplinefit-*.whl)")"
+printf '{"wheel": "%s"}\n' "$WHL" > "$HERE/wheel.json"
+echo "installed: $HERE/$WHL (named in wheel.json)"

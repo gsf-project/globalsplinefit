@@ -42,6 +42,7 @@ jobs:
         uv build --wheel
         mkdir -p site/wheels
         cp dist/globalsplinefit-*.whl site/wheels/
+        printf '{"wheel": "%s"}\n' "$(basename dist/globalsplinefit-*.whl)" > site/wheels/latest.json
 
     # The gallery pages are only "docs" if they land on figures rather than
     # code and actually render — assert that in a real browser. Runs after the
@@ -64,8 +65,6 @@ jobs:
           --exclude __pycache__ \
           --exclude browser_smoke.py --exclude test_ui.py \
           --exclude update_wheel.sh --exclude serve.py
-        WHL=$(basename webapp/globalsplinefit-*.whl)
-        sed -i "s|globalsplinefit-[^\"]*\.whl|$WHL|" site/explorer/main.js
 
     - name: Deploy to GitHub Pages
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'

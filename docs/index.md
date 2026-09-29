@@ -53,7 +53,7 @@ Explorer locally? See [Getting Started](getting_started.md).
 
 This page and the [Explorer](explorer.md) both read
 [`webapp/citations.json`](https://github.com/gsf-project/globalsplinefit/blob/main/webapp/citations.json);
-they switch to the GSF 2026 paper once it has an InspireHEP record.
+all BibTeX records are verbatim from InspireHEP.
 
 Citing a specific parameter set, or one of the models GSF is compared with?
 The [model version table](user_guide.md#model-versions) lists the reference

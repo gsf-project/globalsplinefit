@@ -10,7 +10,8 @@ import { html, render, useState, useEffect, useRef, useMemo }
 import { Chart, THEMES, GROUPS, MODEL_DASH, X_DOMAIN, SAMPLE_TRIALS,
          sciLabel, sup, xTitle, yTitle } from "./chart.js";
 
-const WHEEL = "./globalsplinefit-2.0.0-py3-none-any.whl";
+// wheel.json (written by update_wheel.sh) names the wheel to install
+const WHEEL_MANIFEST = new URL("./wheel.json", import.meta.url);
 const MAX_MODELS = 3;
 
 /* ------------------------------------------------------------ worker rpc */
@@ -278,7 +279,8 @@ function App() {
   useEffect(() => {
     (async () => {
       try {
-        await rpc("boot", { wheelUrl: WHEEL });
+        const { wheel } = await (await fetch(WHEEL_MANIFEST)).json();
+        await rpc("boot", { wheelUrl: new URL(wheel, WHEEL_MANIFEST).href });
         const m = await rpc("meta", { basis: "etot", version: null });
         setParams((p) => ({ ...p, versions: [m.default] }));
         setMeta(m);

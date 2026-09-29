@@ -24,10 +24,14 @@ def _entry(e):
     return {c["key"]: c for c in e["entries"]}
 
 
+def _source(cit):
+    return "arXiv" if "arxiv.org" in cit["url"] else "InspireHEP"
+
+
 def _bibtex_block(cit):
     if not cit.get("bibtex"):
         return f'!!! note "{cit["label"]}"\n\n    {cit.get("note", "")}\n'
-    link = f" — [InspireHEP]({cit['url']})" if cit.get("url") else ""
+    link = f" — [{_source(cit)}]({cit['url']})" if cit.get("url") else ""
     return (
         f'??? quote "{cit["label"]} — `{cit["key"]}`{link}"\n\n'
         + "    ```bibtex\n"
@@ -41,7 +45,7 @@ def _recommended(data):
     cit = cits[data["recommended"]]
     out = [data.get("recommended_note", ""), "", "```bibtex", cit["bibtex"], "```"]
     if cit.get("url"):
-        out += ["", f"InspireHEP record: [{cit['key']}]({cit['url']})"]
+        out += ["", f"{_source(cit)} record: [{cit['key']}]({cit['url']})"]
     return "\n".join(out)
 
 
