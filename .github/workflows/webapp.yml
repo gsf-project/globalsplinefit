@@ -35,9 +35,6 @@ jobs:
       - name: Build the wheel the app loads
         run: |
           webapp/update_wheel.sh
-          # keep the WHEEL constant in sync with the built version
-          WHL=$(basename webapp/globalsplinefit-*.whl)
-          sed -i "s|globalsplinefit-[^\"]*\.whl|$WHL|" webapp/main.js
 
       - name: Install playwright + chromium
         run: |

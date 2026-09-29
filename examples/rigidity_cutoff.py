@@ -42,6 +42,7 @@ async def _():
 
         import marimo as _mo
         import micropip
+        from pyodide.http import pyfetch
 
         # notebook_location() resolution depth differs between marimo export
         # layouts — try site-root /wheels/ from every plausible depth, and
@@ -50,12 +51,12 @@ async def _():
         _err = None
         for _up in ("", "../", "../../", "../../../"):
             try:
-                await micropip.install(
-                    urljoin(
-                        _base,
-                        _up + "wheels/globalsplinefit-2.0.1-py3-none-any.whl",
-                    )
-                )
+                # wheels/latest.json names the wheel the docs build published
+                _wheels = urljoin(_base, _up + "wheels/")
+                _resp = await pyfetch(_wheels + "latest.json")
+                if not _resp.ok:
+                    raise OSError(f"no wheel manifest at {_wheels}")
+                await micropip.install(_wheels + (await _resp.json())["wheel"])
                 SITE = urljoin(_base, _up)
                 _err = None
                 break

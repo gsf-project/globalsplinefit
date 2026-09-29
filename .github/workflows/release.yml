@@ -100,8 +100,6 @@ jobs:
           --exclude __pycache__ \
           --exclude browser_smoke.py --exclude test_ui.py \
           --exclude update_wheel.sh --exclude serve.py
-        WHL=$(basename webapp/globalsplinefit-*.whl)
-        sed -i "s|globalsplinefit-[^\"]*\.whl|$WHL|" _site/main.js
 
     - name: Deploy to GitHub Pages (explorer/)
       uses: peaceiris/actions-gh-pages@v4
