@@ -69,7 +69,7 @@ async def _():
                 await micropip.install(
                     urljoin(
                         _base,
-                        _up + "wheels/globalsplinefit-2.0.0-py3-none-any.whl",
+                        _up + "wheels/globalsplinefit-2.0.1-py3-none-any.whl",
                     )
                 )
                 SITE = urljoin(_base, _up)

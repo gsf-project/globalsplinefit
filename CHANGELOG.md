@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-09-29
+
+### Changed
+
+- GSF 2026 citation: [arXiv:2609.32649](https://arxiv.org/abs/2609.32649) is the
+  recommended reference in `CITATION.cff`, README, docs and Explorer (arXiv
+  BibTeX until the InspireHEP record exists).
+
+### Fixed
+
+- `version="2017"` loaded a later, unreleased parameter set. It now loads
+  the October 2017 set (the fit tabulated in crflux `GlobalSplineFitBeta`,
+  `GSF_spline_20171007`). Group fluxes change by up to tens of percent, and
+  Ne moves to the O* group. The 2017 reference tables in `tests/data/` were
+  regenerated with the original `flux.py`, and `reduced_pivots.dat` was
+  re-optimized (coverage 1.195). Pin `globalsplinefit==2.0.0` to reproduce
+  earlier `version="2017"` results.
+
 ## [2.0.0] - 2026-09-26
 
 First release of `globalsplinefit` as a standalone package, accompanying the

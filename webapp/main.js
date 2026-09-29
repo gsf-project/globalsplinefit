@@ -10,7 +10,7 @@ import { html, render, useState, useEffect, useRef, useMemo }
 import { Chart, THEMES, GROUPS, MODEL_DASH, X_DOMAIN, SAMPLE_TRIALS,
          sciLabel, sup, xTitle, yTitle } from "./chart.js";
 
-const WHEEL = "./globalsplinefit-2.0.0-py3-none-any.whl";
+const WHEEL = "./globalsplinefit-2.0.1-py3-none-any.whl";
 const MAX_MODELS = 3;
 
 /* ------------------------------------------------------------ worker rpc */
