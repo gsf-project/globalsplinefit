@@ -9,9 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- GSF 2026 citation: [arXiv:2609.32649](https://arxiv.org/abs/2609.32649) is the
-  recommended reference in `CITATION.cff`, README, docs and Explorer (arXiv
-  BibTeX until the InspireHEP record exists).
+- GSF 2026 citation: `Fedynitch:2026ugq`
+  ([arXiv:2609.32649](https://arxiv.org/abs/2609.32649),
+  [InspireHEP](https://inspirehep.net/literature/3208618)) is the recommended
+  reference in `CITATION.cff`, README, docs and Explorer.
 
 ### Fixed
 

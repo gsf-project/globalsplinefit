@@ -4,11 +4,10 @@
     "Explorer (webapp/main.js fetches this file) and by the documentation",
     "(mkdocs_hooks/citations.py renders it into the Home page and the model",
     "version table at mkdocs build time). Edit here, nowhere else.",
-    "BibTeX blocks are InspireHEP records, verbatim (fetched 2026-07-30);",
-    "GSF2026 carries the arXiv record, verbatim (fetched 2026-09-29), until",
-    "its InspireHEP record exists."
+    "BibTeX blocks are InspireHEP records, verbatim (fetched 2026-07-30;",
+    "Fedynitch:2026ugq fetched 2026-09-29)."
   ],
-  "recommended": "GSF2026",
+  "recommended": "Fedynitch:2026ugq",
   "recommended_note": "Please cite the GSF 2026 paper (arXiv:2609.32649) together with the software version you used.",
   "entries": [
     {
@@ -30,17 +29,17 @@
       "bibtex": "@article{Dembinski:2025nmp,\n    author = \"Dembinski, Hans and Engel, Ralph Richard and Fedynitch, Anatoli and Fujisue, Kozo\",\n    title = \"{Global Spline Fit GSF-2025 - An update of the data-driven model of the cosmic-ray flux and its mass composition}\",\n    doi = \"10.22323/1.501.0248\",\n    journal = \"PoS\",\n    volume = \"ICRC2025\",\n    pages = \"248\",\n    year = \"2025\"\n}"
     },
     {
-      "key": "GSF2026",
+      "key": "Fedynitch:2026ugq",
       "label": "GSF 2026",
-      "url": "https://arxiv.org/abs/2609.32649",
-      "bibtex": "@misc{fedynitch2026globalsplinefitunified,\n      title={Global Spline Fit: A unified data-driven view of the cosmic-ray spectrum and mass composition from GeV to the highest energies}, \n      author={Anatoli Fedynitch and Kozo Fujisue and Hans Dembinski and Ralph Engel},\n      year={2026},\n      eprint={2609.32649},\n      archivePrefix={arXiv},\n      primaryClass={astro-ph.HE},\n      url={https://arxiv.org/abs/2609.32649}, \n}"
+      "url": "https://inspirehep.net/literature/3208618",
+      "bibtex": "@article{Fedynitch:2026ugq,\n    author = \"Fedynitch, Anatoli and Fujisue, Kozo and Dembinski, Hans and Engel, Ralph\",\n    title = \"{Global Spline Fit: A unified data-driven view of the cosmic-ray spectrum and mass composition from GeV to the highest energies}\",\n    eprint = \"2609.32649\",\n    archivePrefix = \"arXiv\",\n    primaryClass = \"astro-ph.HE\",\n    month = \"9\",\n    year = \"2026\"\n}"
     }
   ],
   "versions": {
-    "2026.1": ["GSF2026"],
-    "2026.1-USO": ["GSF2026"],
-    "2026.1-SIB23e": ["GSF2026"],
-    "2026.1-EPOSLHCR": ["GSF2026"],
+    "2026.1": ["Fedynitch:2026ugq"],
+    "2026.1-USO": ["Fedynitch:2026ugq"],
+    "2026.1-SIB23e": ["Fedynitch:2026ugq"],
+    "2026.1-EPOSLHCR": ["Fedynitch:2026ugq"],
     "2025": ["Fujisue:2025wnp", "Dembinski:2025nmp"],
     "2019": ["Dembinski:2017zsh"],
     "2017": ["Dembinski:2017zsh"]

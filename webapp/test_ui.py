@@ -207,7 +207,7 @@ def main() -> int:
                     "Dembinski:2017zsh",
                     "Fujisue:2025wnp",
                     "Dembinski:2025nmp",
-                    "2609.32649",
+                    "Fedynitch:2026ugq",
                 ):
                     assert key in page.text_content(".modal"), key
                 page.click(".cite button >> nth=0")

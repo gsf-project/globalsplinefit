@@ -202,5 +202,5 @@ Also exportable: the live SVG view and an in-page data table.
 
 The About modal carries the citation records (verbatim InspireHEP BibTeX
 with copy buttons): `Dembinski:2017zsh` (GSF 2017/2019), `Fujisue:2025wnp`
-(UHECR 2024), `Dembinski:2025nmp` (ICRC 2025), and the GSF 2026 paper
-(its arXiv record until the InspireHEP record exists).
+(UHECR 2024), `Dembinski:2025nmp` (ICRC 2025), and `Fedynitch:2026ugq`
+(GSF 2026).
