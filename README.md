@@ -56,8 +56,9 @@ Need a Jupyter notebook? `uvx marimo export ipynb examples/<name>.py -o <name>.i
 
 Please cite the GSF 2026 paper — A. Fedynitch, K. Fujisue, H. Dembinski, and
 R. Engel, *Global Spline Fit: A unified data-driven view of the cosmic-ray
-spectrum and mass composition from GeV to the highest energies* (2026) — and
-the software version you used. Machine-readable
+spectrum and mass composition from GeV to the highest energies*,
+[arXiv:2609.32649](https://arxiv.org/abs/2609.32649) (2026) — and the software
+version you used. Machine-readable
 metadata is in [CITATION.cff](CITATION.cff) (GitHub's "Cite this repository"
 button); the [documentation](https://gsf-project.github.io/globalsplinefit/#citation)
 lists the reference for every parameter set and solar-modulation potential.

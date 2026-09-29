@@ -200,13 +200,14 @@ def main() -> int:
                 page.wait_for_selector(".modal", timeout=5_000)
                 assert "Global Spline Fit" in page.text_content(".modal")
 
-            with check("about: 3 BibTeX records + TBD + copy works"):
+            with check("about: 4 BibTeX records + copy works"):
                 assert page.locator(".cite").count() == 4
-                assert page.locator(".cite button").count() == 3
+                assert page.locator(".cite button").count() == 4
                 for key in (
                     "Dembinski:2017zsh",
                     "Fujisue:2025wnp",
                     "Dembinski:2025nmp",
+                    "2609.32649",
                 ):
                     assert key in page.text_content(".modal"), key
                 page.click(".cite button >> nth=0")

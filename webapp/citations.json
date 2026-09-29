@@ -4,10 +4,12 @@
     "Explorer (webapp/main.js fetches this file) and by the documentation",
     "(mkdocs_hooks/citations.py renders it into the Home page and the model",
     "version table at mkdocs build time). Edit here, nowhere else.",
-    "BibTeX blocks are InspireHEP records, verbatim (fetched 2026-07-30)."
+    "BibTeX blocks are InspireHEP records, verbatim (fetched 2026-07-30);",
+    "GSF2026 carries the arXiv record, verbatim (fetched 2026-09-29), until",
+    "its InspireHEP record exists."
   ],
-  "recommended": "Dembinski:2025nmp",
-  "recommended_note": "Cite the GSF 2025 proceedings until the GSF 2026 paper has an InspireHEP record; this page and the Explorer will switch over together.",
+  "recommended": "GSF2026",
+  "recommended_note": "Please cite the GSF 2026 paper (arXiv:2609.32649) together with the software version you used.",
   "entries": [
     {
       "key": "Dembinski:2017zsh",
@@ -30,9 +32,8 @@
     {
       "key": "GSF2026",
       "label": "GSF 2026",
-      "url": null,
-      "bibtex": null,
-      "note": "A. Fedynitch, K. Fujisue, H. Dembinski, R. Engel, Global Spline Fit: A unified data-driven view of the cosmic-ray spectrum and mass composition from GeV to the highest energies, 2026."
+      "url": "https://arxiv.org/abs/2609.32649",
+      "bibtex": "@misc{fedynitch2026globalsplinefitunified,\n      title={Global Spline Fit: A unified data-driven view of the cosmic-ray spectrum and mass composition from GeV to the highest energies}, \n      author={Anatoli Fedynitch and Kozo Fujisue and Hans Dembinski and Ralph Engel},\n      year={2026},\n      eprint={2609.32649},\n      archivePrefix={arXiv},\n      primaryClass={astro-ph.HE},\n      url={https://arxiv.org/abs/2609.32649}, \n}"
     }
   ],
   "versions": {
