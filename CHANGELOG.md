@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- A rigidity cutoff of 0 GV (`default_rigidity_cutoff=0` or
+  `rigidity_cutoff=0`) is now no cutoff. With the default smooth transition
+  (`cutoff_width=1`) it used to suppress low rigidities: the 2026.1 proton
+  nucleon flux was 38 % low at 1 GeV, 12 % at 2 GeV and 0.6 % at 5 GeV total
+  energy per nucleon. An
+  explicit 0 also overrides a non-zero default. Cutoffs above 0 are
+  unchanged.
+
+### Added
+
+- `tests/test_rigidity_cutoff.py`: the cutoff is applied to every species at
+  its own (Z, A) in `GSFEnergy`, `GSFEnergyPerNucleon.p_and_n_flux` and
+  `ReducedGSF`, and group fluxes and Jacobians are sums of the cut species.
+
 ## [2.0.1] - 2026-09-29
 
 ### Changed

@@ -178,12 +178,13 @@ class GSFBase(ABC):
             Default is None for Solar Cycle 24 average.
         default_rigidity_cutoff
             Default geomagnetic rigidity cutoff in GV.
-            If None (default), no cutoff is applied. Nuclei with rigidity
+            If None (default) or 0, no cutoff is applied. Nuclei with rigidity
             below this value are excluded from the nucleon flux summation.
         cutoff_width
             Width of the cutoff transition in GV. Default 1.0 (a smooth
             sigmoid transition modeling the geomagnetic penumbra); use 0.0
-            for a sharp (Heaviside) cutoff.
+            for a sharp (Heaviside) cutoff. A cutoff of 0 is no cutoff for
+            any width.
         """
         if solar_cycle_average_bins is not None and (
             isinstance(solar_cycle_average_bins, bool)
@@ -443,13 +444,20 @@ class GSFBase(ABC):
         return time_interval
 
     def _resolve_rigidity_cutoff(self, rigidity_cutoff: float | None) -> float | None:
-        """Resolve rigidity cutoff, using default if None provided by user."""
+        """Resolve rigidity cutoff, using default if None provided by user.
+
+        Returns None (no cutoff) for a cutoff of 0: the smooth transition is
+        centred on the cutoff, so at 0 GV it would still suppress rigidities
+        below a few ``cutoff_width``.
+        """
         if rigidity_cutoff is None:
-            return self.default_rigidity_cutoff
+            rigidity_cutoff = self.default_rigidity_cutoff
+            if rigidity_cutoff is None:
+                return None
         value = float(rigidity_cutoff)
         if not np.isfinite(value) or value < 0:
             raise ValueError("rigidity_cutoff must be finite and non-negative")
-        return value
+        return value if value > 0 else None
 
     def _rigidity_cutoff_mask(
         self, sid, energy: np.ndarray, rigidity_cutoff: float | None
@@ -791,7 +799,8 @@ class GSFBase(ABC):
             - tuple: (start, end) in YYYYMM format, end month EXCLUSIVE, e.g. (200901, 201001) for calendar year 2009
         rigidity_cutoff
             Geomagnetic rigidity cutoff in GV. Nuclei with rigidity
-            below this value are excluded. None uses the default.
+            below this value are excluded. None uses the default;
+            0 is no cutoff.
 
         Returns
         -------
@@ -835,7 +844,8 @@ class GSFBase(ABC):
             - tuple: (start, end) in YYYYMM format
         rigidity_cutoff
             Geomagnetic rigidity cutoff in GV. Nuclei with rigidity
-            below this value are excluded. None uses the default.
+            below this value are excluded. None uses the default;
+            0 is no cutoff.
 
         Returns
         -------
@@ -1051,7 +1061,8 @@ class GSFBase(ABC):
             - tuple: (start, end) in YYYYMM format
         rigidity_cutoff
             Geomagnetic rigidity cutoff in GV. Nuclei with rigidity
-            below this value are excluded. None uses the default.
+            below this value are excluded. None uses the default;
+            0 is no cutoff.
 
         Returns
         -------
@@ -1353,7 +1364,8 @@ class GSFEnergy(GSFBase):
             - tuple: (start, end) in YYYYMM format, end month EXCLUSIVE, e.g. (200901, 201001) for calendar year 2009
         rigidity_cutoff
             Geomagnetic rigidity cutoff in GV. Nuclei with rigidity
-            below this value are excluded. None uses the default.
+            below this value are excluded. None uses the default;
+            0 is no cutoff.
 
         Returns
         -------
@@ -1499,7 +1511,8 @@ class GSFRigidity(GSFBase):
             - tuple: (start, end) in YYYYMM format, end month EXCLUSIVE, e.g. (200901, 201001) for calendar year 2009
         rigidity_cutoff
             Geomagnetic rigidity cutoff in GV. Flux at rigidities
-            below this value is set to zero. None uses the default.
+            below this value is set to zero. None uses the default;
+            0 is no cutoff.
 
         Returns
         -------
@@ -1633,7 +1646,8 @@ class GSFEnergyPerNucleon(GSFBase):
             - tuple: (start, end) in YYYYMM format
         rigidity_cutoff
             Geomagnetic rigidity cutoff in GV. Nuclei with rigidity
-            below this value are excluded. None uses the default.
+            below this value are excluded. None uses the default;
+            0 is no cutoff.
 
         Returns
         -------
@@ -1688,7 +1702,8 @@ class GSFEnergyPerNucleon(GSFBase):
             Time period for solar modulation, or "LIS" for unmodulated.
             ``None`` uses the default set during initialization.
         rigidity_cutoff
-            Geomagnetic rigidity cutoff in GV. ``None`` uses the default.
+            Geomagnetic rigidity cutoff in GV. ``None`` uses the default;
+            0 is no cutoff.
 
         Returns
         -------
@@ -1722,7 +1737,8 @@ class GSFEnergyPerNucleon(GSFBase):
             Time period for solar modulation, or "LIS" for unmodulated.
             ``None`` uses the default set during initialization.
         rigidity_cutoff
-            Geomagnetic rigidity cutoff in GV. ``None`` uses the default.
+            Geomagnetic rigidity cutoff in GV. ``None`` uses the default;
+            0 is no cutoff.
 
         Returns
         -------
@@ -1769,7 +1785,8 @@ class GSFEnergyPerNucleon(GSFBase):
             Time period for solar modulation, or "LIS" for unmodulated.
             ``None`` uses the default set during initialization.
         rigidity_cutoff
-            Geomagnetic rigidity cutoff in GV. ``None`` uses the default.
+            Geomagnetic rigidity cutoff in GV. ``None`` uses the default;
+            0 is no cutoff.
 
         Returns
         -------
@@ -1803,7 +1820,8 @@ class GSFEnergyPerNucleon(GSFBase):
         time_interval
             Time period for solar modulation. ``None`` uses the default.
         rigidity_cutoff
-            Geomagnetic rigidity cutoff in GV. ``None`` uses the default.
+            Geomagnetic rigidity cutoff in GV. ``None`` uses the default;
+            0 is no cutoff.
 
         Returns
         -------
@@ -1868,7 +1886,8 @@ class GSFEnergyPerNucleon(GSFBase):
         time_interval
             Time period for solar modulation. ``None`` uses the default.
         rigidity_cutoff
-            Geomagnetic rigidity cutoff in GV. ``None`` uses the default.
+            Geomagnetic rigidity cutoff in GV. ``None`` uses the default;
+            0 is no cutoff.
 
         Returns
         -------
@@ -1909,7 +1928,8 @@ class GSFEnergyPerNucleon(GSFBase):
         time_interval
             Time period for solar modulation. ``None`` uses the default.
         rigidity_cutoff
-            Geomagnetic rigidity cutoff in GV. ``None`` uses the default.
+            Geomagnetic rigidity cutoff in GV. ``None`` uses the default;
+            0 is no cutoff.
 
         Returns
         -------
