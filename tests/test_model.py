@@ -3,6 +3,8 @@
 import numpy as np
 import pytest
 
+from globalsplinefit.model import NUCLEON_MASS_GEV
+
 
 class TestGSFEnergy:
     """Test the GSFEnergy class for total energy calculations."""
@@ -671,66 +673,59 @@ class TestNumericalAccuracy:
         )
 
     def test_nucleon_flux_against_2017_reference(
-        self, gsf_nucleon, reference_nucleon_flux_2017
+        self, gsf_energy, reference_nucleon_flux_2017
     ):
-        """Test modern integer-count nucleon flux against legacy scale."""
+        """Test the per-species LIS behind the 2017 nucleon-flux table.
+
+        The table uses the legacy convention: the atomic weight A sets both the
+        nucleus energy (A E_N) and the nucleon count. Rebuild that from the
+        per-species energy flux; the integer-A nucleon flux is tested in
+        test_nucleon_flux_integer_mass_number.
+        """
         ref = reference_nucleon_flux_2017
+        e_n = ref["energy_per_nucleon"]
+        model = gsf_energy
 
-        # Calculate nucleon fluxes using new API with LIS for 2017 reference comparison
-        proton_flux = gsf_nucleon.flux(
-            ref["energy_per_nucleon"], "H", time_interval="LIS"
-        )
-        helium_flux = gsf_nucleon.flux(
-            ref["energy_per_nucleon"], "He", time_interval="LIS"
-        )
-        oxygen_flux = gsf_nucleon.flux(
-            ref["energy_per_nucleon"], "O*", time_interval="LIS"
-        )
-        iron_flux = gsf_nucleon.flux(
-            ref["energy_per_nucleon"], "Fe*", time_interval="LIS"
-        )
+        def legacy(group):
+            sids = model._target_sids(model._resolve_z(group)[0])
+            flux = sum(
+                model.flux(e_n * model.z_to_a[s], s, time_interval="LIS")
+                * model.z_to_a[s] ** 2
+                for s in sids
+            )
+            return np.maximum(flux, 0.0)
 
-        # Handle negative values as in original plot_new_class.py
-        proton_flux = np.maximum(proton_flux, 0.0)
-        helium_flux = np.maximum(helium_flux, 0.0)
-        oxygen_flux = np.maximum(oxygen_flux, 0.0)
-        iron_flux = np.maximum(iron_flux, 0.0)
+        fluxes = {
+            "proton_group": legacy("H"),
+            "helium_group": legacy("He"),
+            "oxygen_group": legacy("O*"),
+            "iron_group": legacy("Fe*"),
+        }
+        fluxes["total"] = sum(fluxes.values())
+        for key, flux in fluxes.items():
+            np.testing.assert_allclose(
+                flux,
+                ref[key],
+                rtol=1e-5,
+                err_msg=f"{key} nucleon flux doesn't match 2017 reference",
+            )
 
-        # Calculate total flux
-        total_flux = proton_flux + helium_flux + oxygen_flux + iron_flux
-
-        # Integer nucleon counts differ slightly from the legacy atomic-weight-as-count
-        # convention, while retaining the published spectral scale and shape.
-        np.testing.assert_allclose(
-            proton_flux,
-            ref["proton_group"],
-            rtol=1e-2,
-            err_msg="Proton nucleon flux doesn't match 2017 reference",
-        )
-        np.testing.assert_allclose(
-            helium_flux,
-            ref["helium_group"],
-            rtol=1e-2,
-            err_msg="Helium nucleon flux doesn't match 2017 reference",
-        )
-        np.testing.assert_allclose(
-            oxygen_flux,
-            ref["oxygen_group"],
-            rtol=1e-2,
-            err_msg="Oxygen nucleon flux doesn't match 2017 reference",
-        )
-        np.testing.assert_allclose(
-            iron_flux,
-            ref["iron_group"],
-            rtol=2e-2,
-            err_msg="Iron nucleon flux doesn't match 2017 reference",
-        )
-        np.testing.assert_allclose(
-            total_flux,
-            ref["total"],
-            rtol=1e-2,
-            err_msg="Total nucleon flux doesn't match 2017 reference",
-        )
+    def test_nucleon_flux_integer_mass_number(self, gsf_energy, gsf_nucleon):
+        """A nucleus of mass number A carries A times the kinetic energy per
+        nucleon and contributes Z protons and A - Z neutrons, each with
+        dE/dE_N = A; the atomic weight enters only the rest mass."""
+        e_n = np.logspace(0.5, 6, 50)
+        for sid in gsf_nucleon.species:
+            a = gsf_nucleon.mass_number[sid]
+            mass = gsf_energy.z_to_a[sid] * NUCLEON_MASS_GEV
+            energy = a * (e_n - NUCLEON_MASS_GEV) + mass
+            fl = a * gsf_energy.flux(energy, sid, time_interval="LIS")
+            np.testing.assert_allclose(
+                gsf_nucleon.p_and_n_flux(e_n, sid, time_interval="LIS"),
+                [sid[0] * fl, (a - sid[0]) * fl],
+                rtol=1e-12,
+                err_msg=f"nucleon flux of {sid}",
+            )
 
 
 class TestEdgeCases:

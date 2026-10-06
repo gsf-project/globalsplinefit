@@ -16,9 +16,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   energy per nucleon. An
   explicit 0 also overrides a non-zero default. Cutoffs above 0 are
   unchanged.
+- Nucleon fluxes (`GSFEnergyPerNucleon`, `GSFKineticEnergyPerNucleon`,
+  `ReducedGSF`) count nucleons by the integer mass number A. A nucleus now
+  carries A times the kinetic energy per nucleon, E = A (E_N - m_N) + m; the
+  atomic weight (1.008 for the proton) enters only the rest mass m. Before,
+  the atomic weight scaled the energy and the Jacobian. For 2026.1 the proton
+  nucleon flux rises by 1.1-1.6 % and the all-nucleon flux by 0.8-1.3 % above
+  5 GeV per nucleon, and the neutron-to-proton ratio drops by about 1 %; below
+  2 GeV per nucleon the change is under 1 %. The species masses, and hence the
+  fit, are unchanged.
 
 ### Added
 
+- `test_nucleon_flux_integer_mass_number` pins the per-nucleon conversion;
+  the 2017 nucleon-flux reference test rebuilds the table's legacy
+  (atomic-weight) convention from the per-species flux and now holds to 1e-5.
 - `tests/test_rigidity_cutoff.py`: the cutoff is applied to every species at
   its own (Z, A) in `GSFEnergy`, `GSFEnergyPerNucleon.p_and_n_flux` and
   `ReducedGSF`, and group fluxes and Jacobians are sums of the cut species.

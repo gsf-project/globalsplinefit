@@ -58,7 +58,8 @@ def test_nucleon_flux_cut_per_species():
     e_n = np.logspace(0, 3, 300)
     expected = np.zeros((2, e_n.size))
     for sid in ref.species:
-        e_tot = e_n * ref.z_to_a[sid]
+        a = ref.mass_number[sid]
+        e_tot = a * (e_n - NUCLEON_MASS_GEV) + ref.z_to_a[sid] * NUCLEON_MASS_GEV
         kept = _rigidity(ref, sid, e_tot) >= RC
         expected += np.where(kept, ref.p_and_n_flux(e_n, sid), 0.0)
     np.testing.assert_allclose(cut.p_and_n_total_flux(e_n), expected, rtol=1e-12)
