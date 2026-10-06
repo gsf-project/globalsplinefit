@@ -19,11 +19,12 @@ Nucleon fluxes change by about 1 %; nucleus fluxes are unchanged.
   all-nucleon flux +0.8 to +1.3 %, n/p about -1 %; below 2 GeV per nucleon
   the change is under 1 %. Affects `GSFEnergyPerNucleon`,
   `GSFKineticEnergyPerNucleon` and `ReducedGSF`.
-- A rigidity cutoff of 0 GV is no cutoff. With the default smooth transition
-  (`cutoff_width=1`) it suppressed low rigidities (2026.1 proton nucleon flux
-  38 % low at 1 GeV, 12 % at 2 GeV, 0.6 % at 5 GeV total energy per
-  nucleon). An explicit 0 overrides a non-zero default; cutoffs above 0 are
-  unchanged.
+- A rigidity cutoff of 0 GV is no cutoff. The cutoff is a sigmoid in
+  rigidity centred on the cutoff value, with width `cutoff_width` (default
+  1 GV); at 0 GV it still suppressed low rigidities (2026.1 proton nucleon
+  flux 38 % low at 1 GeV, 12 % at 2 GeV, 0.6 % at 5 GeV total energy per
+  nucleon). The default remains no cutoff (`default_rigidity_cutoff=None`);
+  cutoffs above 0 are unchanged. The user guide documents both arguments.
 
 ### Added
 

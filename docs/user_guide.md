@@ -286,13 +286,19 @@ examples.
 
 ## Geomagnetic Rigidity Cutoff
 
-**No cutoff is applied by default** (`rigidity_cutoff=None`, i.e. 0 GV).
-Pass a cutoff to suppress low-rigidity cosmic rays:
+**No cutoff is applied by default.** Two constructor arguments control it:
+
+| argument | default | meaning |
+|---|---|---|
+| `default_rigidity_cutoff` | `None` | cutoff in GV used when a call passes none; `None` or 0 is no cutoff |
+| `cutoff_width` | 1.0 | width of the transition in GV: a sigmoid in rigidity centred on the cutoff, modelling the geomagnetic penumbra; 0.0 gives a sharp (Heaviside) cutoff |
+
+A `rigidity_cutoff` passed to a call overrides the default, and 0 switches it
+off. The cutoff applies to each species at its own rigidity:
 
 ```python
-# Cutoff at 20 GV (smooth sigmoid transition by default, cutoff_width=1 GV;
-# construct the model with cutoff_width=0.0 for a sharp Heaviside cutoff)
-flux_cut = gsf.flux(energy, "p", rigidity_cutoff=20.0)
+flux_cut = gsf.flux(energy, "p", rigidity_cutoff=20.0)   # 20 GV, smooth
+sharp = GSFEnergy(cutoff_width=0.0)                       # sharp transitions
 ```
 
 See the [Rigidity Cutoff tutorial](../gallery/rigidity_cutoff/) for more details.

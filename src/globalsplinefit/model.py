@@ -444,20 +444,15 @@ class GSFBase(ABC):
         return time_interval
 
     def _resolve_rigidity_cutoff(self, rigidity_cutoff: float | None) -> float | None:
-        """Resolve rigidity cutoff, using default if None provided by user.
-
-        Returns None (no cutoff) for a cutoff of 0: the smooth transition is
-        centred on the cutoff, so at 0 GV it would still suppress rigidities
-        below a few ``cutoff_width``.
-        """
+        """Cutoff in GV, falling back to the default; None means no cutoff."""
         if rigidity_cutoff is None:
             rigidity_cutoff = self.default_rigidity_cutoff
-            if rigidity_cutoff is None:
-                return None
+        if not rigidity_cutoff:  # None or 0
+            return None
         value = float(rigidity_cutoff)
         if not np.isfinite(value) or value < 0:
             raise ValueError("rigidity_cutoff must be finite and non-negative")
-        return value if value > 0 else None
+        return value
 
     def _rigidity_cutoff_mask(
         self, sid, energy: np.ndarray, rigidity_cutoff: float | None
