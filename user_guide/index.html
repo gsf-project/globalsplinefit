@@ -1484,11 +1484,32 @@ higher-energy results are identical.</p>
 <p>See the <a href="../gallery/solar_modulation/">Solar Modulation tutorial</a> for worked
 examples.</p>
 <h2 id="geomagnetic-rigidity-cutoff">Geomagnetic Rigidity Cutoff<a class="headerlink" href="#geomagnetic-rigidity-cutoff" title="Permanent link">&para;</a></h2>
-<p><strong>No cutoff is applied by default</strong> (<code>rigidity_cutoff=None</code>, i.e. 0 GV).
-Pass a cutoff to suppress low-rigidity cosmic rays:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Cutoff at 20 GV (smooth sigmoid transition by default, cutoff_width=1 GV;</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="c1"># construct the model with cutoff_width=0.0 for a sharp Heaviside cutoff)</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">flux_cut</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="n">rigidity_cutoff</span><span class="o">=</span><span class="mf">20.0</span><span class="p">)</span>
+<p><strong>No cutoff is applied by default.</strong> Two constructor arguments control it:</p>
+<table>
+<thead>
+<tr>
+<th>argument</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>default_rigidity_cutoff</code></td>
+<td><code>None</code></td>
+<td>cutoff in GV used when a call passes none; <code>None</code> or 0 is no cutoff</td>
+</tr>
+<tr>
+<td><code>cutoff_width</code></td>
+<td>1.0</td>
+<td>width of the transition in GV: a sigmoid in rigidity centred on the cutoff, modelling the geomagnetic penumbra; 0.0 gives a sharp (Heaviside) cutoff</td>
+</tr>
+</tbody>
+</table>
+<p>A <code>rigidity_cutoff</code> passed to a call overrides the default, and 0 switches it
+off. The cutoff applies to each species at its own rigidity:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">flux_cut</span> <span class="o">=</span> <span class="n">gsf</span><span class="o">.</span><span class="n">flux</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="n">rigidity_cutoff</span><span class="o">=</span><span class="mf">20.0</span><span class="p">)</span>   <span class="c1"># 20 GV, smooth</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="n">sharp</span> <span class="o">=</span> <span class="n">GSFEnergy</span><span class="p">(</span><span class="n">cutoff_width</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>                       <span class="c1"># sharp transitions</span>
 </code></pre></div>
 <p>See the <a href="../gallery/rigidity_cutoff/">Rigidity Cutoff tutorial</a> for more details.</p>
 <h2 id="practical-notes">Practical Notes<a class="headerlink" href="#practical-notes" title="Permanent link">&para;</a></h2>
