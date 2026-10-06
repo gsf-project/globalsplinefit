@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-10-06
+
+Nucleon fluxes change by about 1 %; nucleus fluxes are unchanged.
+
+### Fixed
+
+- Nucleon fluxes count nucleons by the integer mass number A. A nucleus
+  carries A times the kinetic energy per nucleon, E = A (E_N - m_N) + m, and
+  dE/dE_N = A. The atomic weight (1.008 for the proton) previously set the
+  energy scale and the Jacobian; it now enters only the rest mass m. For
+  2026.1 above 5 GeV per nucleon: proton nucleon flux +1.1 to +1.6 %,
+  all-nucleon flux +0.8 to +1.3 %, n/p about -1 %; below 2 GeV per nucleon
+  the change is under 1 %. Affects `GSFEnergyPerNucleon`,
+  `GSFKineticEnergyPerNucleon` and `ReducedGSF`.
+- A rigidity cutoff of 0 GV is no cutoff. The cutoff is a sigmoid in
+  rigidity centred on the cutoff value, with width `cutoff_width` (default
+  1 GV); at 0 GV it still suppressed low rigidities (2026.1 proton nucleon
+  flux 38 % low at 1 GeV, 12 % at 2 GeV, 0.6 % at 5 GeV total energy per
+  nucleon). The default remains no cutoff (`default_rigidity_cutoff=None`);
+  cutoffs above 0 are unchanged. The user guide documents both arguments.
+
+### Added
+
+- Tests for the integer-A nucleon conversion and for the per-species
+  rigidity cutoff in `GSFEnergy`, `GSFEnergyPerNucleon` and `ReducedGSF`.
+  The 2017 nucleon-flux reference test rebuilds the table's legacy
+  atomic-weight convention from the per-species flux (agreement 1e-5).
+
 ## [2.0.1] - 2026-09-29
 
 ### Changed
